@@ -3,3 +3,4 @@ __pycache__
 .idea
 README.md
 *.env
+/core/config/local_settings.py

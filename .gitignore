@@ -4,3 +4,4 @@ __pycache__
 Makefile
 .env
 *.pyc
+/core/config/local_settings.py
