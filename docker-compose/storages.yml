@@ -1,0 +1,26 @@
+services:
+  w2w_db:
+    container_name: w2w_db
+    image: postgres:15
+    environment:
+      POSTGRES_DB: "w2w"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "123456"
+    ports:
+      - "5432:5432"
+    networks:
+      - dev-net
+    volumes:
+      - w2w_db_data:/var/lib/postgresql/data/
+
+
+volumes:
+  w2w_db_data:
+    name: w2w_db_data
+
+
+networks:
+  dev-net:
+    name: dev-net
+    driver: bridge
+    external: true

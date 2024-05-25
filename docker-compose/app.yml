@@ -1,0 +1,20 @@
+services:
+  django:
+    container_name: django
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    env_file:
+      - ../example.env
+    tty: true
+    ports:
+      - "8000:8000"
+    networks:
+      - dev-net
+
+
+networks:
+  dev-net:
+    name: dev-net
+    driver: bridge
+    external: true
