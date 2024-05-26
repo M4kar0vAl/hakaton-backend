@@ -17,4 +17,3 @@ networks:
   dev-net:
     name: dev-net
     driver: bridge
-    external: true
