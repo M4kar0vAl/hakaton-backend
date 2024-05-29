@@ -56,3 +56,4 @@
        "core.apps.app-name.apps.ConfigName",
    ]
    ```
+4. В приложении в apps.py в поле name конфигурации указать путь до приложения: core.apps.<app-name>
