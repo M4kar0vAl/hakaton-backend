@@ -11,6 +11,14 @@ class Brand(models.Model):
         ('INF', '500000+'),
     )
 
+    AVG_BILL = (
+        ('1k', '0 - 1000'),
+        ('10k', '1000 - 10000'),
+        ('100K', '10000 - 100000'),
+        ('500k', '100000 - 500000'),
+        ('INF', '500000+'),
+    )
+
     user_id = models.OneToOneField(to=get_user_model(), on_delete=models.CASCADE)
     # TODO изменить default у published, когда будет реализована модерация
     published = models.BooleanField(default=True, verbose_name='Опубликовано')
@@ -27,7 +35,7 @@ class Brand(models.Model):
     topics = models.TextField(verbose_name='Темы')
     subs_count = models.CharField(choices=SUBSCRIBERS_COUNT, max_length=4,
                                   verbose_name='Кол-во подписчиков в Instagram')
-    avg_bill = models.CharField(choices=SUBSCRIBERS_COUNT, max_length=4, verbose_name='Средний чек')
+    avg_bill = models.CharField(choices=AVG_BILL, max_length=4, verbose_name='Средний чек')
     values = models.CharField(max_length=255, verbose_name='Ценности')
     target_audience = models.TextField(verbose_name='Целевая аудитория')
     territory = models.CharField(max_length=128, verbose_name='География бренда')
