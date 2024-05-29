@@ -39,14 +39,42 @@ class Brand(models.Model):
     photo = models.ImageField(upload_to='photos', verbose_name='Фото представителя')
     product_photo = models.ImageField(upload_to='product_photos', verbose_name='Фото продукта')
 
+    class Meta:
+        verbose_name = 'Бренд'
+        verbose_name_plural = 'Бренды'
+
+    def __repr__(self):
+        return f'Brand name and position: {self.brand_name_pos}'
+
 
 class Category(models.Model):
     name = models.CharField(max_length=128, verbose_name='Название категории')
+
+    class Meta:
+        verbose_name = 'Категория'
+        verbose_name_plural = 'Категории'
+
+    def __repr__(self):
+        return f'Category: {self.name}'
 
 
 class Formats(models.Model):
     name = models.CharField(max_length=128, verbose_name='Название формата')
 
+    class Meta:
+        verbose_name = 'Формат'
+        verbose_name_plural = 'Форматы'
+
+    def __repr__(self):
+        return f'Format: {self.name}'
+
 
 class Goals(models.Model):
     name = models.CharField(max_length=128, verbose_name='Название цели')
+
+    class Meta:
+        verbose_name = 'Цель'
+        verbose_name_plural = 'Цели'
+
+    def __repr__(self):
+        return f'Goal: {self.name}'
