@@ -27,7 +27,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         return f"User {self.email}"
 
 
-class Subscription:
+class Subscription(models.Model):
     name = models.CharField(max_length=100, verbose_name='Тариф')
     cost = models.PositiveIntegerField(verbose_name='Цена')
 
