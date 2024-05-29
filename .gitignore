@@ -1,7 +1,6 @@
 venv
 __pycache__
 .idea
-Makefile
 .env
 *.pyc
 /core/config/local_settings.py

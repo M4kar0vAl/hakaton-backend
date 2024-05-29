@@ -23,6 +23,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # library
+
+    # apps
+    'core.apps.accounts.apps.AccountsConfig',
 ]
 
 MIDDLEWARE = [
@@ -56,6 +61,9 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.config.wsgi.application'
 ASGI_APPLICATION = 'core.config.asgi.application'
 
+# модель пользователя
+AUTH_USER_MODEL = 'accounts.User'
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -84,3 +92,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+AUTHENTICATION_BACKENDS = (
+    'core.apps.accounts.backend.AuthBackend',  # кастомный бекэнд аутентификации
+    'django.contrib.auth.backends.ModelBackend',  # для входа в админ панель
+)

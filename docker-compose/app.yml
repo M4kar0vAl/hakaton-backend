@@ -11,6 +11,8 @@ services:
       - "8000:8000"
     networks:
       - dev-net
+    volumes:
+      - ../core:/app/core
 
 
 networks:
