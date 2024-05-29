@@ -1,5 +1,6 @@
-from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.db import models
+
 
 
 class Brand(models.Model):
@@ -19,7 +20,7 @@ class Brand(models.Model):
         ('INF', '500000+'),
     )
 
-    user_id = models.OneToOneField(to=get_user_model(), on_delete=models.CASCADE)
+    user_id = models.OneToOneField(to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     # TODO изменить default у published, когда будет реализована модерация
     published = models.BooleanField(default=True, verbose_name='Опубликовано')
     fi = models.CharField(max_length=128, verbose_name='Фамилия и имя')
