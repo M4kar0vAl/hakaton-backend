@@ -1,19 +1,41 @@
 # Для развертывания в докере:
-1. Перейти в корень проекта.
-2. Запуск БД:
+1. Через команды докера
 
-    ``docker compose -f ./docker-compose/storages.yml up -d``
-3. Запуск приложения:
+   1.1 Перейти в корень проекта.
 
-    ``docker compose --env-file example.env -f ./docker-compose/app.yml up --build -d``
+   1.2 Запуск БД:
+      ```
+      docker compose -f ./docker-compose/storages.yml up -d
+      ```
+   1.3 Запуск приложения:
+      ```
+      docker compose --env-file example.env -f ./docker-compose/app.yml up --build -d
+      docker exec -it django python manage.py migrate
+      ```
+   1.4 Приложение будет доступно на локальном интерфейсе: `http://localhost:8000/` или `http://127.0.0.1:8000/`
+   
+   1.5 Остановить контейнеры:
 
-4. Приложение будет доступно на локальном интерфейсе: `http://localhost:8000/` или `http://127.0.0.1:8000/`
-5. Остановить контейнеры:
+      ```angular2html
+      docker compose -f ./docker-compose/storages.yml down
+      docker compose --env-file example.env -f ./docker-compose/app.yml down
+      ```
+2. Через make
 
-   ```angular2html
-   docker compose -f ./docker-compose/storages.yml down
-   docker compose --env-file example.env -f ./docker-compose/app.yml down
-   ```
+   2.1 Перейти в корень проекта.
+
+   2.2 Запустить все приложение:
+      ```
+      make run
+      ```
+   2.3 Приложение будет доступно на локальном интерфейсе: `http://localhost:8000/` или `http://127.0.0.1:8000/`
+   
+   2.4 Остановить контейнеры:
+
+      ```angular2html
+      make down
+      ```
+
 # Для разработки:
 1. Вместо pip используется poetry, для windows установка зависимостей:
 `poetry install --no-root --without unix`
@@ -25,7 +47,7 @@
 4. Если вы дебажите запуская приложение без контейнера а БД в контейнере в .env измените хост БД на localhost.
 
 ### Создание новых приложений в проекте
-1. Создать в пакете core/apps/ папку (без __init__.py) в соответствии с названием приложения.
+1. Создать в пакете core/apps/ папку (без \_\_init__.py) в соответствии с названием приложения.
 2. Запустить команду с указанием пути, где создать приложение: `python3 manage.py startapp new-app core/apps/new-app-folder` 
 3. В settings.INSTALLED_APPS указывайте полный путь до приложения:
    ```angular2html
