@@ -25,3 +25,15 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __repr__(self):
         return f"User {self.email}"
+
+
+class Subscription:
+    name = models.CharField(max_length=100, verbose_name='Тариф')
+    cost = models.PositiveIntegerField(verbose_name='Цена')
+
+    class Meta:
+        verbose_name = 'Тариф'
+        verbose_name_plural = 'Тарифы'
+
+    def __repr__(self):
+        return f'Тариф: {self.name}'
