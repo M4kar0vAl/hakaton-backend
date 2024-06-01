@@ -30,6 +30,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 class Subscription(models.Model):
     name = models.CharField(max_length=100, verbose_name='Тариф')
     cost = models.PositiveIntegerField(verbose_name='Цена')
+    duration = models.DurationField(verbose_name='Продолжительность')
 
     class Meta:
         verbose_name = 'Тариф'
