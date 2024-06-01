@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # library
+    'rest_framework',
 
     # apps
     'core.apps.accounts.apps.AccountsConfig',

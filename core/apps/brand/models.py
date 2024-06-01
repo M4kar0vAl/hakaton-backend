@@ -1,8 +1,6 @@
 from django.conf import settings
 from django.db import models
 
-from apps.accounts.models import Subscription
-
 
 class Brand(models.Model):
     SUBSCRIBERS_COUNT = (
@@ -48,8 +46,9 @@ class Brand(models.Model):
     logo = models.ImageField(upload_to='logos', verbose_name='Лого')
     photo = models.ImageField(upload_to='photos', verbose_name='Фото представителя')
     product_photo = models.ImageField(upload_to='product_photos', verbose_name='Фото продукта')
-    subscription = models.ForeignKey(to=Subscription, on_delete=models.PROTECT, related_name='brands',
+    subscription = models.ForeignKey(to='Subscription', on_delete=models.PROTECT, related_name='brands',
                                      verbose_name='Тариф')
+    sub_expire = models.DateField("Окончание подписки", null=True)
 
     class Meta:
         verbose_name = 'Бренд'
@@ -90,3 +89,16 @@ class Goals(models.Model):
 
     def __repr__(self):
         return f'Goal: {self.name}'
+
+
+class Subscription(models.Model):
+    name = models.CharField(max_length=100, verbose_name='Тариф')
+    cost = models.PositiveIntegerField(verbose_name='Цена')
+    duration = models.DurationField(verbose_name='Продолжительность')
+
+    class Meta:
+        verbose_name = 'Тариф'
+        verbose_name_plural = 'Тарифы'
+
+    def __repr__(self):
+        return f'Тариф: {self.name}'
