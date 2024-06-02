@@ -1,7 +1,5 @@
 from django.contrib.auth import get_user_model
-from rest_framework import serializers
-from rest_framework import status
-from rest_framework.response import Response
+from rest_framework import serializers, exceptions
 
 from core.apps.accounts.serializers import UserSerializer
 from core.apps.brand.models import Brand, Category, Formats, Goals, Subscription
@@ -66,25 +64,25 @@ class BrandSerializer(serializers.ModelSerializer):
         if not user:
             user = User.objects.create(**user_data)
 
-        # Получаем данные по категории
-        category_data = validated_data.pop('business_category')
+        # Получаем название категории
+        category_name = validated_data.pop('business_category').get('name')
 
         # Пытаемся получить категорию из БД.
-        # Если не находим - возвращаем 404 ответ, т.к. категории строго предопределены
+        # Если не находим - генерируем исключение 404, т.к. категории строго предопределены
         try:
-            category = Category.objects.get(category_data.get('name'))
+            category = Category.objects.get(name=category_name)
         except Category.DoesNotExist:
-            return Response({'error': 'Category does not exist'}, status=status.HTTP_404_NOT_FOUND)
+            raise exceptions.NotFound(f'Category {category_name} does not exist.')
 
         # Получаем данные по подписке
         subscription_data = validated_data.pop('subscription')
 
         # Пытаемся получить подписку из БД.
-        # Если не находим - возвращаем 404 ответ, т.к. подписки строго предопределены
+        # Если не находим - генерируем исключение 404, т.к. подписки строго предопределены
         try:
             subscription = Subscription.objects.get(**subscription_data)
         except Subscription.DoesNotExist:
-            return Response({'error': 'Subscription does not exist'}, status=status.HTTP_404_NOT_FOUND)
+            raise exceptions.NotFound(f'Subscription {subscription_data.get("name")} does not exist.')
 
         # ЗАТЕМ ПЕРЕХОДИМ К MANY-TO-MANY
 
@@ -97,18 +95,14 @@ class BrandSerializer(serializers.ModelSerializer):
         brand = Brand.objects.create(user_id=user, business_category=category, subscription=subscription,
                                      **validated_data)
 
-        # Проходим циклами по данным всех m2m полей и добавляем бренду связь с каждым из них
+        # Получаем объекты для m2m связей
+        format_objects = (Formats.objects.get(**format_data) for format_data in formats_data)
+        goal_objects = (Goals.objects.get(**goal_data) for goal_data in goals_data)
+        collab_with_objects = (Category.objects.get(**collab_with) for collab_with in collab_with_data)
 
-        for format_data in formats_data:
-            format = Formats.objects.get(**format_data)
-            brand.formats.add(format)
-
-        for goal_data in goals_data:
-            goal = Goals.objects.get(**goal_data)
-            brand.goal.add(goal)
-
-        for collab_with in collab_with_data:
-            collab_with = Category.objects.get(**collab_with)
-            brand.collab_with.add(collab_with)
+        # Добавляем связи с этими объектами
+        brand.formats.add(*format_objects)
+        brand.goal.add(*goal_objects)
+        brand.collab_with.add(*collab_with_objects)
 
         return brand
