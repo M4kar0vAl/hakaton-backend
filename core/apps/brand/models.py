@@ -19,7 +19,7 @@ class Brand(models.Model):
         ('INF', '500000+'),
     )
 
-    user_id = models.OneToOneField(to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.OneToOneField(to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     # TODO изменить default у published, когда будет реализована модерация
     published = models.BooleanField(default=True, verbose_name='Опубликовано')
     fi = models.CharField(max_length=128, verbose_name='Фамилия и имя')

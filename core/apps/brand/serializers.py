@@ -34,7 +34,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 
 class BrandSerializer(serializers.ModelSerializer):
-    user_id = UserSerializer()
+    user = UserSerializer()
     business_category = CategorySerializer()
     formats = FormatSerializer(many=True)
     goal = GoalSerializer(many=True)
@@ -52,7 +52,7 @@ class BrandSerializer(serializers.ModelSerializer):
         # СНАЧАЛА РАБОТАЕМ С ONE-TO-ONE И FK
 
         # Получаем введенные данные пользователя
-        user_data = validated_data.pop('user_id')
+        user_data = validated_data.pop('user')
 
         # Пытаемся получить пользователя из БД (возможно будет нужно для предрегистрации!)
         try:
