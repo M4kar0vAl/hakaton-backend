@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from apps.accounts.models import Subscription
+from core.apps.accounts.models import Subscription
 
 
 class Brand(models.Model):
