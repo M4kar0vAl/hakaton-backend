@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.db import models
 
+from core.apps.accounts.models import Subscription
+
 
 class Brand(models.Model):
     SUBSCRIBERS_COUNT = (

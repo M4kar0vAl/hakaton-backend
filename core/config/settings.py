@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # library
+    'drf_spectacular',
     'rest_framework',
 
     # apps
@@ -102,3 +103,28 @@ AUTHENTICATION_BACKENDS = (
     'core.apps.accounts.backend.AuthBackend',  # кастомный бекэнд аутентификации
     'django.contrib.auth.backends.ModelBackend',  # для входа в админ панель
 )
+
+#DRF
+REST_FRAMEWORK = {
+    # 'DEFAULT_AUTHENTICATION_CLASSES': (
+    #     'rest_framework_simplejwt.authentication.JWTAuthentication',
+    # ),
+    'TEST_REQUEST_DEFAULT_FORMAT': 'json',
+    'TEST_REQUEST_RENDERER_CLASSES': [
+        'rest_framework.renderers.MultiPartRenderer',
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.TemplateHTMLRenderer',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',  # drf-spectacular
+}
+
+# spectacular
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Women to Women',
+    'DESCRIPTION': 'API документация проекта W2W',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'POSTPROCESSING_HOOKS': [
+        'drf_spectacular.hooks.postprocess_schema_enums',
+    ],
+}
