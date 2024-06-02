@@ -18,18 +18,6 @@ from django.contrib import admin
 from django.urls import include
 from django.urls import path
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
-from rest_framework import routers
-
-from core.apps.accounts.viewsets import UserViewSet
-from core.apps.brand.viewsets import BrandViewSet, CategoryViewSet, GoalViewSet, FormatViewSet, SubscriptionViewSet
-
-router = routers.DefaultRouter()
-router.register('brands', BrandViewSet)
-router.register('categories', CategoryViewSet)
-router.register('goals', GoalViewSet)
-router.register('formats', FormatViewSet)
-router.register('users', UserViewSet)
-router.register('subscriptions', SubscriptionViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -39,5 +27,7 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
-    path('api/', include(router.urls))
+    # apps urls
+    path('brands/', include('core.apps.brand.urls')),
+    path('accounts/', include('core.apps.accounts.urls'))
 ]
