@@ -2,7 +2,7 @@ from django.conf.urls.static import static
 from django.urls import path, include
 from rest_framework import routers
 
-from config import settings
+from core.config import settings
 from core.apps.brand.api import BrandViewSet
 
 router = routers.DefaultRouter()

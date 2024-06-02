@@ -45,12 +45,7 @@ class BrandSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Brand
-        fields = [
-            'id', 'user_id', 'published', 'fi', 'birth_date', 'tg_nickname', 'brand_name_pos', 'business_category',
-            'inst_brand_url', 'inst_profile_url', 'tg_brand_url', 'brand_site_url', 'topics', 'subs_count', 'avg_bill',
-            'values', 'target_audience', 'territory', 'formats', 'goal', 'collab_with', 'logo', 'photo',
-            'product_photo', 'subscription', 'sub_expire'
-        ]
+        exclude = []
 
     def create(self, validated_data):
         """
