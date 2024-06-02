@@ -6,7 +6,7 @@ User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     date_joined = serializers.DateTimeField(read_only=True)
-    is_active = serializers.BooleanField(default=True, label='Активирован')
+    is_active = serializers.BooleanField(default=True)
 
     class Meta:
         model = User
