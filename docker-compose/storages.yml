@@ -1,7 +1,7 @@
 services:
   w2w_db:
     container_name: w2w_db
-    image: postgres:15
+    image: public.ecr.aws/docker/library/postgres:15
     environment:
       POSTGRES_DB: "w2w"
       POSTGRES_USER: "postgres"
