@@ -47,15 +47,13 @@ class BrandCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         category_name = attrs.get('business_category').get('name')
-        try:
-            category = Category.objects.get(name=category_name)
-        except Category.DoesNotExist:
+
+        if not Category.objects.filter(name=category_name).exists():
             raise exceptions.ValidationError(f'Category {category_name} does not exist.')
 
         subscription_data = attrs.get('subscription')
-        try:
-            subscription = Subscription.objects.get(**subscription_data)
-        except Subscription.DoesNotExist:
+
+        if not Subscription.objects.filter(**subscription_data).exists():
             raise exceptions.ValidationError(f'Subscription {subscription_data.get("name")} does not exist.')
 
         return attrs
@@ -70,7 +68,6 @@ class BrandCreateSerializer(serializers.ModelSerializer):
 
         category = Category.objects.get(name=category_name)
         subscription = Subscription.objects.get(**subscription_data)
-
 
         # Получаем данные по m2m полям
         formats_data = validated_data.pop('formats')
