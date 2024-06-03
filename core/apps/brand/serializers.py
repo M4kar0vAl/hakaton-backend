@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers, exceptions
 
-from core.apps.accounts.serializers import UserSerializer
+from core.apps.accounts.serializers import CreateUserSerializer
 from core.apps.brand.models import Brand, Category, Formats, Goals, Subscription
 
 User = get_user_model()
@@ -34,7 +34,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 
 class BrandCreateSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
+    user = CreateUserSerializer()
     business_category = CategorySerializer()
     formats = FormatSerializer(many=True)
     goal = GoalSerializer(many=True)
@@ -93,7 +93,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
 
 
 class BrandGetSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
+    user = CreateUserSerializer()
     business_category = CategorySerializer()
     formats = FormatSerializer(many=True)
     goal = GoalSerializer(many=True)
