@@ -17,6 +17,7 @@ ALLOWED_HOSTS = []
 
 
 INSTALLED_APPS = [
+    "daphne",  # должен быть первым в списке, переопределяет команду runserver
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
