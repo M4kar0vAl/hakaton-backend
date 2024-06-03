@@ -14,11 +14,11 @@ drf-spectacular = "^0.27.2"
 pillow = "^10.3.0"
 
 
-[tool.poetry.group.win.dependencies]
+[tool.poetry.group.prod.dependencies]
 psycopg2 = "^2.9.9"
-python-dotenv = "^1.0.1"
 
-[tool.poetry.group.unix.dependencies]
+[tool.poetry.group.dev.dependencies]
+python-dotenv = "^1.0.1"
 psycopg2-binary = "^2.9.9"
 
 
