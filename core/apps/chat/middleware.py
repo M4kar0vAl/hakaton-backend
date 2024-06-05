@@ -3,7 +3,7 @@ from datetime import datetime
 
 import django
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.config.settings')
 django.setup()
 
 import jwt
