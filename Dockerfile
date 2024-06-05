@@ -1,4 +1,4 @@
-FROM python:3.11.9-slim
+FROM public.ecr.aws/docker/library/python:3.11.9-slim
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
@@ -12,6 +12,7 @@ WORKDIR /app
 
 RUN apt-get update -y && \
     apt-get install -y gcc \
+    python3-dev \
     musl-dev \
     libpq-dev
 
@@ -21,7 +22,7 @@ RUN python3 -m pip install --no-cache-dir --no-warn-script-location --upgrade pi
 COPY poetry.lock pyproject.toml ./
 
 RUN python3 -m poetry config virtualenvs.in-project true &&\
-    python3 -m poetry install --no-cache --no-root -n --without win
+    python3 -m poetry install --no-cache --no-root -n --without dev
 
 COPY . .
 
