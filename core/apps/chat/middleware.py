@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 import django
+from django.contrib.auth import get_user_model
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.config.settings')
 django.setup()
@@ -12,10 +13,11 @@ from django.contrib.auth.models import AnonymousUser
 from channels.db import database_sync_to_async
 from channels.middleware import BaseMiddleware
 
-from django.contrib.auth.models import User
 from django.db import close_old_connections
 
 ALGORITHM = "HS256"
+
+User = get_user_model()
 
 
 @database_sync_to_async
@@ -41,7 +43,6 @@ class TokenAuthMiddleware(BaseMiddleware):
 
     async def __call__(self, scope, receive, send):
         close_old_connections()
-        # token_key = scope['query_string'].decode().split('=')[-1]
         try:
             token_key = (dict((x.split('=') for x in scope['query_string'].decode().split("&")))).get('token', None)
         except ValueError:
