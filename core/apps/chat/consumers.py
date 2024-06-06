@@ -1,77 +1,52 @@
+from typing import Tuple
+
 from channels.db import database_sync_to_async
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
+from djangochannelsrestframework.mixins import ListModelMixin
+from rest_framework import status
+from rest_framework.utils.serializer_helpers import ReturnList
 
 from core.apps.brand.models import Brand
 from core.apps.chat.models import Room, Message
-from core.apps.chat.serializers import RoomSerializer
+from core.apps.chat.serializers import RoomSerializer, MessageSerializer
 
 
-class RoomConsumer(GenericAsyncAPIConsumer):
+class RoomConsumer(ListModelMixin,
+                   GenericAsyncAPIConsumer):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
     lookup_field = "pk"
 
-    async def connect(self):
-        self.room_pk = self.scope["url_route"]["kwargs"]["pk"]
-        self.room_group_name = f'room_{self.room_pk}'
+    @action
+    async def join_room(self, room_pk, **kwargs):
+        self.room = self.get_object(pk=room_pk)
         self.brand = self.get_brand()
-        self.room = self.get_room()
+        self.room_group_name = f'room_{room_pk}'
+        self.user_group_name = f'user_{self.scope["user"].pk}'
 
-        await self.channel_layer.group_add(self.room_group_name, self.channel_name)
+        await self.add_group(self.room_group_name)
+        await self.add_group(self.user_group_name)
 
-        await self.accept()
+        serializer = self.serializer_class(self.room)
 
-    async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        return serializer.data, status.HTTP_200_OK
 
-    # переопределил reply, чтобы он отправлял данные всем в группе
-    # (по умолчанию, вроде, возвращает только тому, кто отправил на сервер)
-    async def reply(
-            self, action: str, data=None, errors=None, status=200, request_id=None
-    ):
-        if errors is None:
-            errors = []
+    @action
+    async def leave_room(self, **kwargs):
+        await self.remove_group(self.room_group_name)
 
-        payload = {
-            "errors": errors,
-            "data": data,
-            "action": action,
-            "response_status": status,
-            "request_id": request_id,
-        }
-
-        await self.channel_layer.group_send(self.room_group_name, payload)
-
-    @action()
-    async def join_room(self, pk, **kwargs):
-        self.add_brand_to_room(pk)
-
-    @action()
-    async def leave_room(self, pk, **kwargs):
-        self.remove_brand_from_room(pk)
-
-    @action()
-    async def create_message(self, message, **kwargs):
-        await database_sync_to_async(Message.objects.create)(
+    @action
+    async def create_message(self, msg_text: str, **kwargs):
+        message = await database_sync_to_async(Message.objects.create)(
             room=self.room,
             user=self.brand,
-            text=message
+            text=msg_text
         )
 
-    @database_sync_to_async
-    def get_room(self, pk: int) -> Room:
-        return Room.objects.get(pk=pk)
+        serializer = MessageSerializer(message)
 
-    @database_sync_to_async
-    def remove_brand_from_room(self, room_pk):
-        self.brand.rooms.remove(room_pk)
-
-    @database_sync_to_async
-    def add_brand_to_room(self, room_pk):
-        brand = self.brand
-        if not brand.rooms.filter(pk=room_pk).exists():
-            brand.rooms.add(room_pk)
+        return serializer.data, status.HTTP_201_CREATED
 
     @database_sync_to_async
     def get_brand(self) -> Brand:
