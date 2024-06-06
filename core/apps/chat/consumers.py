@@ -1,11 +1,8 @@
-from typing import Tuple
-
 from channels.db import database_sync_to_async
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
 from rest_framework import status
-from rest_framework.utils.serializer_helpers import ReturnList
 
 from core.apps.brand.models import Brand
 from core.apps.chat.models import Room, Message
@@ -18,15 +15,20 @@ class RoomConsumer(ListModelMixin,
     serializer_class = RoomSerializer
     lookup_field = "pk"
 
+    async def connect(self):
+        self.user_group_name = f'user_{self.scope["user"].pk}'
+
+        await self.add_group(self.user_group_name)
+
+        await self.accept()
+
     @action
     async def join_room(self, room_pk, **kwargs):
         self.room = self.get_object(pk=room_pk)
         self.brand = self.get_brand()
         self.room_group_name = f'room_{room_pk}'
-        self.user_group_name = f'user_{self.scope["user"].pk}'
 
         await self.add_group(self.room_group_name)
-        await self.add_group(self.user_group_name)
 
         serializer = self.serializer_class(self.room)
 
