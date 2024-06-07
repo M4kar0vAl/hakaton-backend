@@ -19,7 +19,7 @@ def help_handler(message: telebot.types.Message):
 @bot.message_handler(commands = ['site','website'])
 def open_site(message: telebot.types.Message):
     button = types.InlineKeyboardMarkup()
-    button.add(types.InlineKeyboardButton('Перейти на сайт',url ='https://google.com'))
+    button.add(types.InlineKeyboardButton('Перейти на сайт',url ='https://google.com')) #будет добавлен url нашего приложения
     bot.reply_to(message,'Перейти нас сайт', reply_markup=button)
 
 @bot.message_handler()

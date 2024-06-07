@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     # apps
     'core.apps.accounts.apps.AccountsConfig',
     'core.apps.brand.apps.BrandConfig',
+    'telegram_bot'
 ]
 
 MIDDLEWARE = [
