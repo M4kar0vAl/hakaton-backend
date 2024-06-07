@@ -1,4 +1,5 @@
 import telebot
+from telebot import types
 import webbrowser
 from conf import url
 
@@ -16,8 +17,10 @@ def help_handler(message: telebot.types.Message):
     bot.reply_to(message,text)
 
 @bot.message_handler(commands = ['site','website'])
-def open_site(message:telebot.types.Message):
-    webbrowser.open(f'{url}')
+def open_site(message: telebot.types.Message):
+    button = types.InlineKeyboardMarkup()
+    button.add(types.InlineKeyboardButton('Перейти на сайт',url ='https://google.com'))
+    bot.reply_to(message,'Перейти нас сайт', reply_markup=button)
 
 @bot.message_handler()
 def hello(message:telebot.types.Message):
