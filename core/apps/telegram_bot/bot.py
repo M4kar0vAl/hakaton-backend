@@ -1,9 +1,9 @@
 import telebot
 from telebot import types
 import webbrowser
-from conf import url
+from conf import URL,TOKEN
 
-bot = telebot.TeleBot('6991307584:AAH3-fJH1FVuAP8xjCyU8iNudzRf-Wz1pew',parse_mode=None)
+bot = telebot.TeleBot(f'{TOKEN}',parse_mode=None)
 
 
 @bot.message_handler(commands= ['start','main','hello'])
