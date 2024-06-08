@@ -22,7 +22,7 @@ class RoomConsumer(ListModelMixin,
 
         await self.accept()
 
-    @action
+    @action()
     async def join_room(self, room_pk, **kwargs):
         self.room = self.get_object(pk=room_pk)
         self.brand = self.get_brand()
@@ -30,15 +30,15 @@ class RoomConsumer(ListModelMixin,
 
         await self.add_group(self.room_group_name)
 
-        serializer = self.serializer_class(self.room)
+        serializer = self.get_serializer_class()(self.room)
 
         return serializer.data, status.HTTP_200_OK
 
-    @action
+    @action()
     async def leave_room(self, **kwargs):
         await self.remove_group(self.room_group_name)
 
-    @action
+    @action()
     async def create_message(self, msg_text: str, **kwargs):
         message = await database_sync_to_async(Message.objects.create)(
             room=self.room,
