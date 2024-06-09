@@ -2,6 +2,7 @@ from channels.db import database_sync_to_async
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
+from djangochannelsrestframework.permissions import IsAuthenticated
 from rest_framework import status
 
 from core.apps.brand.models import Brand
@@ -14,6 +15,7 @@ class RoomConsumer(ListModelMixin,
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
     lookup_field = "pk"
+    permission_classes = [IsAuthenticated]
 
     async def connect(self):
         self.user_group_name = f'user_{self.scope["user"].pk}'
