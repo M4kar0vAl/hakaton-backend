@@ -1,6 +1,7 @@
 import telebot
 from telebot import types
 from bot import bot
+from dotenv import load
 
 @bot.message_handler(commands= ['start','main','hello'])
 def start_handler(message: telebot.types.Message):
@@ -22,6 +23,7 @@ def open_site(message: telebot.types.Message):
 def hello(message:telebot.types.Message):
     if message.text.lower() == 'hello' or message.text.lower() == 'привет':
         bot.reply_to(message, 'Привет!')
+
 @bot.message_handler()
 def spam(spam_message, id_list):
     for user_id in id_list:
