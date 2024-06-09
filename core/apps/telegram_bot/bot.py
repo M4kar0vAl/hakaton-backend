@@ -1,6 +1,6 @@
 import telebot
 from telebot import types
-from conf import TOKEN
+import
 
 bot = telebot.TeleBot(f'{TOKEN}',parse_mode=None)
 

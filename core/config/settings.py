@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
 
-try:
-    from .local_settings import *
-except ImportError:
-    from .prod_settings import *
+# try:
+#     from .local_settings import *
+# except ImportError:
+#     from .prod_settings import *
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,7 +31,7 @@ INSTALLED_APPS = [
     # apps
     'core.apps.accounts.apps.AccountsConfig',
     'core.apps.brand.apps.BrandConfig',
-    'telegram_bot'
+
 ]
 
 MIDDLEWARE = [
@@ -129,3 +129,4 @@ SPECTACULAR_SETTINGS = {
         'drf_spectacular.hooks.postprocess_schema_enums',
     ],
 }
+
