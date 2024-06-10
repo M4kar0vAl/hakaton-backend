@@ -3,6 +3,7 @@ from rest_framework import serializers, exceptions
 
 from core.apps.accounts.serializers import CreateUserSerializer
 from core.apps.brand.models import Brand, Category, Formats, Goals, Subscription
+from core.apps.brand.utils import get_m2m_objects
 
 User = get_user_model()
 
@@ -59,7 +60,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
         user_data = attrs.get('user')
 
         if not User.objects.filter(**user_data).exists():
-            raise exceptions.ValidationError(f'User {user_data.get('email')} does not exist.')
+            raise exceptions.ValidationError(f'User {user_data.get("email")} does not exist.')
 
         return attrs
 
@@ -86,14 +87,14 @@ class BrandCreateSerializer(serializers.ModelSerializer):
                                      **validated_data)
 
         # Получаем объекты для m2m связей
-        format_objects = (Formats.objects.get(**format_data) for format_data in formats_data)
-        goal_objects = (Goals.objects.get(**goal_data) for goal_data in goals_data)
-        collab_with_objects = (Category.objects.get(**collab_with) for collab_with in collab_with_data)
+        format_obj_list = get_m2m_objects(data=formats_data, model_class=Formats, lookup_field='name')
+        goal_obj_list = get_m2m_objects(data=goals_data, model_class=Goals, lookup_field='name')
+        collab_with_obj_list = get_m2m_objects(data=collab_with_data, model_class=Category, lookup_field='name')
 
         # Добавляем связи с этими объектами
-        brand.formats.add(*format_objects)
-        brand.goal.add(*goal_objects)
-        brand.collab_with.add(*collab_with_objects)
+        brand.formats.add(*format_obj_list)
+        brand.goal.add(*goal_obj_list)
+        brand.collab_with.add(*collab_with_obj_list)
 
         return brand
 
