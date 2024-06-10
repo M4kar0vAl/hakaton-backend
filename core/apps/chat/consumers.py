@@ -28,6 +28,8 @@ class RoomConsumer(ListModelMixin,
 
     async def connect(self):
         self.user_group_name = f'user_{self.scope["user"].pk}'
+        self.brand = self.get_brand()
+        self.brand_rooms = self.get_brand_rooms_pk_set()
 
         await self.add_group(self.user_group_name)
 
@@ -35,11 +37,18 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def join_room(self, room_pk, **kwargs):
+        if room_pk not in self.brand_rooms:
+            # update related room_pks
+            self.brand_rooms = self.get_brand_rooms_pk_set()
+
+            # check again
+            if room_pk not in self.brand_rooms:
+                await self.close(code=status.HTTP_403_FORBIDDEN)
+
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
         self.room = self.get_object(pk=room_pk)
-        self.brand = self.get_brand()
         self.room_group_name = f'room_{room_pk}'
 
         await self.add_group(self.room_group_name)
@@ -83,3 +92,7 @@ class RoomConsumer(ListModelMixin,
     @database_sync_to_async
     def get_brand(self) -> Brand:
         return Brand.objects.get(user=self.scope['user'])
+
+    @database_sync_to_async
+    def get_brand_rooms_pk_set(self):
+        return set(self.brand.rooms.values_list('pk', flat=True))
