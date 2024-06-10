@@ -56,6 +56,11 @@ class BrandCreateSerializer(serializers.ModelSerializer):
         if not Subscription.objects.filter(**subscription_data).exists():
             raise exceptions.ValidationError(f'Subscription {subscription_data.get("name")} does not exist.')
 
+        user_data = attrs.get('user')
+
+        if not User.objects.filter(**user_data).exists():
+            raise exceptions.ValidationError(f'User {user_data.get('email')} does not exist.')
+
         return attrs
 
     def create(self, validated_data):
@@ -65,9 +70,11 @@ class BrandCreateSerializer(serializers.ModelSerializer):
 
         category_name = validated_data.pop('business_category').get('name')
         subscription_data = validated_data.pop('subscription')
+        user_data = validated_data.pop('user')
 
         category = Category.objects.get(name=category_name)
         subscription = Subscription.objects.get(**subscription_data)
+        user = User.objects.get(**user_data)
 
         # Получаем данные по m2m полям
         formats_data = validated_data.pop('formats')
@@ -75,8 +82,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
         collab_with_data = validated_data.pop('collab_with')
 
         # Создаем объект бренда в БД на основе имеющихся данных (без many-to-many полей)
-        # TODO добавить обработку создания пользователя
-        brand = Brand.objects.create(business_category=category, subscription=subscription,
+        brand = Brand.objects.create(user=user, business_category=category, subscription=subscription,
                                      **validated_data)
 
         # Получаем объекты для m2m связей
