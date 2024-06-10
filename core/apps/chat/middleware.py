@@ -24,7 +24,7 @@ User = get_user_model()
 def get_user(token):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=ALGORITHM)
-    except:
+    except Exception:
         return AnonymousUser()
 
     token_exp = datetime.fromtimestamp(payload['exp'])
@@ -44,10 +44,10 @@ class TokenAuthMiddleware(BaseMiddleware):
     async def __call__(self, scope, receive, send):
         close_old_connections()
         try:
-            token_key = (dict((x.split('=') for x in scope['query_string'].decode().split("&")))).get('token', None)
-        except ValueError:
+            headers = dict(scope['headers'])
+            token_key = headers[b'authorization'].split(b' ')[1]  # need to get rid of Bearer part
+        except KeyError:
             token_key = None
-
         scope['user'] = await get_user(token_key)
         return await super().__call__(scope, receive, send)
 
