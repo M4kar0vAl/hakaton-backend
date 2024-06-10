@@ -1,7 +1,10 @@
 import telebot
 from telebot import types
-from bot import bot
-from dotenv import load_dotenv
+
+from .conf import TOKEN
+
+
+bot = telebot.TeleBot(f'{TOKEN}', parse_mode=None)
 
 
 @bot.message_handler(commands=['start', 'main', 'hello'])
@@ -42,6 +45,14 @@ def hello(message: telebot.types.Message):
 def spam(spam_message, id_list):
     for user_id in id_list:
         bot.send_message(chat_id=user_id, text=spam_message)
+
+
+# функция рассылки сообщений пользователям
+async def send_notification(
+        users: list[str],
+        message: str
+) -> None: ...
+
 
 # Позже добавлю код, для подключения к бд и получения списка пользователей для рассылки
 # Добавлю возможность регистрации в боте для того, чтобы доступ к рассылке имели только зарегестрированные менеджеры компании

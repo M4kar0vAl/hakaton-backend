@@ -1,7 +1,7 @@
 DC = docker compose
 EXEC = docker exec -it
 LOGS = docker logs
-ENV = --env-file example.env
+ENV = --env-file .env
 APP_FILE = ./docker-compose/app.yml
 STORAGE_FILE = ./docker-compose/storages.yml
 APP_CONTAINER = django
@@ -11,13 +11,13 @@ MANAGE = python manage.py
 
 .PHONY: run
 run:
-	${DC} -f ${STORAGE_FILE} ${env} up --build -d
-	${DC} -f ${APP_FILE} ${env} up --build -d
+	${DC} -f ${STORAGE_FILE} up --build -d
+	${DC} -f ${APP_FILE} up --build -d
 	${EXEC} ${APP_CONTAINER} ${MANAGE} migrate
 
 .PHONY: app
 app:
-	${DC} -f ${APP_FILE} ${env} up --build -d
+	${DC} -f ${APP_FILE} up --build -d
 
 .PHONY: debug
 debug:

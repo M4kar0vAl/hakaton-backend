@@ -4,4 +4,3 @@ __pycache__
 .env
 *.pyc
 /core/config/local_settings.py
-/core/apps/telegram_bot/conf.py

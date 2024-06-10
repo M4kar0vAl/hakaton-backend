@@ -5,7 +5,7 @@ services:
       context: ../
       dockerfile: Dockerfile
     env_file:
-      - ../example.env
+      - ../.env
     tty: true
     ports:
       - "8000:8000"
@@ -13,6 +13,19 @@ services:
       - dev-net
     volumes:
       - ../core:/app/core
+
+
+  bot:
+    container_name: bot
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    command: ["-m", "telegram_bot.bot"]
+    env_file:
+      - ../example.env
+    tty: true
+    networks:
+      - dev-net
 
 
 networks:
