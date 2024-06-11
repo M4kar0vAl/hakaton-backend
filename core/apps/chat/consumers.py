@@ -128,7 +128,7 @@ class AdminRoomConsumer(ListModelMixin,
         self.room_group_name = f'room_{room_pk}'
 
         # check if there is business subscription brand
-        self.can_message = any(self.room.participants.values_list('has_business', flat=True))
+        self.can_message = self.check_can_message()
 
         await self.add_group(self.room_group_name)
 
@@ -168,3 +168,9 @@ class AdminRoomConsumer(ListModelMixin,
 
     async def data_to_groups(self, event):
         await self.send_json(event['data'])
+
+    @database_sync_to_async
+    def check_can_message(self):
+        return any(
+            self.room.participants.values_list('has_business', flat=True)
+        )
