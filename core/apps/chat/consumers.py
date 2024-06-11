@@ -5,6 +5,7 @@ from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.serializers import Serializer
 
 from core.apps.brand.models import Brand
@@ -43,7 +44,7 @@ class RoomConsumer(ListModelMixin,
 
             # check again
             if room_pk not in self.brand_rooms:
-                await self.close(code=status.HTTP_403_FORBIDDEN)
+                raise PermissionDenied
 
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
@@ -54,6 +55,7 @@ class RoomConsumer(ListModelMixin,
         await self.add_group(self.room_group_name)
 
         serializer = self.get_serializer_class()(self.room)
+        serializer.is_valid(raise_exception=True)
 
         return serializer.data, status.HTTP_200_OK
 
