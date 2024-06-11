@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from core.apps.brand.models import Brand
@@ -13,7 +14,7 @@ class Room(models.Model):
 
 class Message(models.Model):
     text = models.TextField(verbose_name='Текст сообщения')
-    user = models.ForeignKey(to=Brand, on_delete=models.SET_NULL, null=True, related_name='messages',
+    user = models.ForeignKey(to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='messages',
                              verbose_name='Пользователь')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
     room = models.ForeignKey(to=Room, on_delete=models.CASCADE, related_name='messages', verbose_name='Чат')

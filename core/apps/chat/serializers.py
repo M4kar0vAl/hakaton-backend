@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from core.apps.accounts.serializers import UserSerializer
 from core.apps.brand.serializers import BrandGetSerializer
 from core.apps.chat.models import Room, Message
 
@@ -17,7 +18,7 @@ class RoomSerializer(serializers.ModelSerializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
-    user = BrandGetSerializer()
+    user = UserSerializer()
     room = RoomSerializer()
 
     class Meta:
