@@ -64,8 +64,14 @@ class RoomConsumer(ListModelMixin,
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
+        if hasattr(self, 'room'):
+            delattr(self, 'room')
+
     @action()
     async def create_message(self, msg_text: str, **kwargs):
+        if not self.room:
+            raise PermissionDenied('You cannot send a message when you are not in chat')
+
         message = await database_sync_to_async(Message.objects.create)(
             room=self.room,
             user=self.scope['user'],
@@ -136,10 +142,16 @@ class AdminRoomConsumer(ListModelMixin,
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
+        if hasattr(self, 'can_message'):
+            delattr(self, 'can_message')
+
     @action()
     async def create_message(self, msg_text, **kwargs):
-        if not self.can_message:
-            raise PermissionDenied('You cannot write to a chat that does not have brand with business subscription')
+        try:
+            if not self.can_message:
+                raise PermissionDenied('You cannot write to a chat that does not have brand with business subscription')
+        except AttributeError:
+            raise PermissionDenied('You cannot send a message when you are not in chat')
 
         message = await database_sync_to_async(Message.objects.create)(
             room=self.room,
