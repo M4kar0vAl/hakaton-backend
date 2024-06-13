@@ -21,4 +21,7 @@ class PromoCodeSerializer(serializers.ModelSerializer):
 
 
 class PaymentsSerializer(serializers.ModelSerializer):
-    ...
+    class Meta:
+        model = Subscription
+        fields = ['id', ]
+

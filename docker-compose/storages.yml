@@ -19,6 +19,8 @@ services:
     image: public.ecr.aws/docker/library/redis:7.2.4
     ports:
       - "6379:6379"
+    networks:
+      - dev-net
 
 
 volumes:
