@@ -14,12 +14,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         ]
 
 
-class PromoCodeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PromoCode
-        fields = ['code']
-
-
 class PaymentsSerializer(serializers.Serializer):
     sub = serializers.IntegerField()
     promocode = serializers.CharField(required=False)
