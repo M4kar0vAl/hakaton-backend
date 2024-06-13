@@ -3,10 +3,26 @@
 from django.db import migrations, models
 
 
+def add_promo_codes(apps, schema_editor):
+    PromoCode = apps.get_model("payments", "PromoCode")
+    promo_codes = [
+        PromoCode(
+            code='discount10',
+            discount=10
+        ),
+        PromoCode(
+            code='discount5',
+            discount=5
+        )
+    ]
+    for code in promo_codes:
+        code.save()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('payments', '0002_add_sub_types'),
+        ('payments', '0001_initial'),
     ]
 
     operations = [
@@ -18,4 +34,5 @@ class Migration(migrations.Migration):
                 ('discount', models.IntegerField()),
             ],
         ),
+        migrations.RunPython(add_promo_codes),
     ]

@@ -75,3 +75,16 @@ class BoardTestCase(APITestCase):
             data=data,
         )
         self.assertEqual(401, response.status_code)
+
+    def test_promocode(self):
+        subscribe = Subscription.objects.get(cost=12000)
+        data = {
+            'sub': subscribe.id,
+            'promocode': 'discount5'
+        }
+        response = self.auth_client.post(
+            reverse('payments-subscription'),
+            data=data,
+        )
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(12000 * 0.95, response.json()['cost'])

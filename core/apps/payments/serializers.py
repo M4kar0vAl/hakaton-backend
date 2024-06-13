@@ -33,9 +33,9 @@ class PaymentsSerializer(serializers.Serializer):
                 'invalid_subscription'
             )
 
-        if promocode := attrs.get('promocode'):
+        if attrs.get('promocode'):
             try:
-                PromoCode.objects.get(code=attrs['promocode'])
+                promocode = PromoCode.objects.get(code=attrs['promocode'])
             except PromoCode.DoesNotExist:
                 raise exceptions.ValidationError(
                     {'promocode': f'Incorrect promocode: {attrs["promocode"]}'},

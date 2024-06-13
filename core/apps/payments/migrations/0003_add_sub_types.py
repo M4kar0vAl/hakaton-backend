@@ -4,6 +4,8 @@ from django.db import migrations
 def add_sub_types(apps, schema_editor):
     from datetime import timedelta
     Sub = apps.get_model("payments", "Subscription")
+    # PromoCode = apps.get_model("payments", "PromoCode")
+
     sub_obj = [
         Sub(
             name='Лайт',
@@ -30,7 +32,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('payments', '0001_initial'),
+        ('payments', '0002_promocode'),
     ]
 
     operations = [
