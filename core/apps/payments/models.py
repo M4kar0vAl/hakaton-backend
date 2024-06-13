@@ -16,3 +16,4 @@ class Subscription(models.Model):
 
 class PromoCode(models.Model):
     code = models.CharField('Промокод', max_length=30)
+    discount = models.IntegerField()

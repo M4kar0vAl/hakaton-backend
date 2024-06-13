@@ -1,11 +1,11 @@
 from datetime import datetime
 
 from rest_framework import viewsets, mixins
-from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import Subscription
+from .permissions import IsAuthenticated
 from .serializers import SubscriptionSerializer, PaymentsSerializer
 
 
@@ -15,23 +15,28 @@ class PaymentViewSet(
 ):
     queryset = Subscription.objects.all()
     serializer_class = SubscriptionSerializer
-    parser_classes = (MultiPartParser, FormParser)
-    lookup_field = 'pk'
+
+    def get_permissions(self):
+        if self.action == 'subscribe':
+            return [IsAuthenticated(), ]
+
+        return super().get_permissions()
 
     def get_serializer_class(self):
-        # if self.action == 'subscribe':
-        #     return PaymentsSerializer
+        if self.action == 'subscribe':
+            return PaymentsSerializer
 
         return super().get_serializer_class()
 
-    @action(methods=["POST"], detail=False)
-    def subscribe(self, pk: int) -> Response:
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
+    @action(methods=["POST"], detail=False, url_name='subscription')
+    def subscribe(self, request, *args, **kwargs) -> Response:
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        brand = self.request.user.user_set
-        brand.subscription = instance
-        brand.sub_expire = datetime.now() + instance.duration
+        sub = serializer.instance
+        brand = self.request.user.brand
+        brand.subscription = sub
+        brand.sub_expire = datetime.now() + sub.duration
         brand.save()
-        return Response(data=serializer.data, status=200)
+
+        return Response(data=SubscriptionSerializer(sub).data, status=200)

@@ -49,7 +49,7 @@ class Brand(models.Model):
     photo = models.ImageField(upload_to='photos', verbose_name='Фото представителя')
     product_photo = models.ImageField(upload_to='product_photos', verbose_name='Фото продукта')
     subscription = models.ForeignKey(to=Subscription, on_delete=models.PROTECT, related_name='brands',
-                                     verbose_name='Тариф')
+                                     verbose_name='Тариф', null=True)
     sub_expire = models.DateField("Окончание подписки", null=True)
 
     class Meta:
