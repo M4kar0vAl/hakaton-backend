@@ -29,5 +29,6 @@ urlpatterns = [
 
     # apps urls
     path('brands/', include('core.apps.brand.urls')),
-    path('auth/', include('core.apps.accounts.urls'))
+    path('auth/', include('core.apps.accounts.urls')),
+    path('payments/', include('core.apps.payments.urls')),
 ]

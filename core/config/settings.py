@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     # apps
     'core.apps.accounts.apps.AccountsConfig',
     'core.apps.brand.apps.BrandConfig',
+    'core.apps.payments.apps.PaymentsConfig',
     'core.apps.chat.apps.ChatConfig',
 ]
 
