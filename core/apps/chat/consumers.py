@@ -5,7 +5,7 @@ from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, MethodNotAllowed
 from rest_framework.serializers import Serializer
 
 from core.apps.brand.models import Brand
@@ -44,7 +44,7 @@ class RoomConsumer(ListModelMixin,
 
             # check again
             if room_pk not in self.brand_rooms:
-                raise PermissionDenied
+                raise PermissionDenied('You cannot enter a room you are not a member of')
 
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
@@ -65,7 +65,11 @@ class RoomConsumer(ListModelMixin,
             await self.remove_group(self.room_group_name)
 
         if hasattr(self, 'room'):
+            pk = self.room.pk
             delattr(self, 'room')
+            return {'response': f'leaved room {pk} successfully!'}, status.HTTP_200_OK
+
+        raise MethodNotAllowed('Action "leave_room" not allowed. You are not in the room')
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
@@ -143,7 +147,10 @@ class AdminRoomConsumer(ListModelMixin,
             await self.remove_group(self.room_group_name)
 
         if hasattr(self, 'can_message'):
+            pk = self.room.pk
             delattr(self, 'can_message')
+            return {'response': f'leaved room {pk} successfully!'}, status.HTTP_200_OK
+        return MethodNotAllowed('Action "leave_room" not allowed. You are not in the room')
 
     @action()
     async def create_message(self, msg_text, **kwargs):
