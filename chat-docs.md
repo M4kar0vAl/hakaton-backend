@@ -39,7 +39,24 @@
        - ```json
          {
             "errors": [],
-            "data": [],
+            "data": [
+              {
+                "pk": 1,
+                "participants": [
+                  {},
+                  {}
+                ],
+                "has_business": true
+              },
+              {
+                "pk": 2,
+                "participants": [
+                  {},
+                  {}
+                ],
+                "has_business": false
+              }
+            ],
             "action": "list",
             "response_status": 200,
             "request_id": 1500000
