@@ -5,10 +5,11 @@ from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied, MethodNotAllowed
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.serializers import Serializer
 
 from core.apps.brand.models import Brand
+from core.apps.chat.exceptions import BadRequest
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer
@@ -69,7 +70,7 @@ class RoomConsumer(ListModelMixin,
             delattr(self, 'room')
             return {'response': f'leaved room {pk} successfully!'}, status.HTTP_200_OK
 
-        raise MethodNotAllowed('Action "leave_room" not allowed. You are not in the room')
+        raise BadRequest('Action "leave_room" not allowed. You are not in the room')
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
@@ -150,7 +151,7 @@ class AdminRoomConsumer(ListModelMixin,
             pk = self.room.pk
             delattr(self, 'can_message')
             return {'response': f'leaved room {pk} successfully!'}, status.HTTP_200_OK
-        return MethodNotAllowed('Action "leave_room" not allowed. You are not in the room')
+        return BadRequest('Action "leave_room" not allowed. You are not in the room')
 
     @action()
     async def create_message(self, msg_text, **kwargs):
