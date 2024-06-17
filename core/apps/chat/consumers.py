@@ -1,6 +1,7 @@
 from typing import Type
 
 from channels.db import database_sync_to_async
+from django.db.models import QuerySet
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
@@ -18,10 +19,12 @@ from core.apps.chat.utils import send_to_groups
 
 class RoomConsumer(ListModelMixin,
                    GenericAsyncAPIConsumer):
-    queryset = Room.objects.all()
     serializer_class = RoomSerializer
     lookup_field = "pk"
     permission_classes = [IsAuthenticatedConnect]
+
+    def get_queryset(self, **kwargs) -> QuerySet:
+        return self.brand.rooms.all()
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
         if kwargs['action'] == 'create_message':
