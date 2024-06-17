@@ -6,7 +6,7 @@ from rest_framework import routers
 
 
 router = routers.DefaultRouter()
-router.register('', PaymentViewSet, basename='payments')
+router.register('payment', PaymentViewSet, basename='payments')
 
 urlpatterns = []
 
