@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'core.apps.brand.apps.BrandConfig',
     'core.apps.payments.apps.PaymentsConfig',
     'core.apps.questionnaire.apps.QuestionnaireConfig',
+    'core.apps.chat.apps.ChatConfig',
 ]
 
 MIDDLEWARE = [
@@ -169,4 +170,15 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 
     'JTI_CLAIM': 'jti',
+}
+
+
+# channels
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [(os.getenv('REDIS_HOST'), os.getenv('REDIS_PORT'))],
+        },
+    },
 }
