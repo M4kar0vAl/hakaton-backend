@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'core.apps.accounts.apps.AccountsConfig',
     'core.apps.brand.apps.BrandConfig',
     'core.apps.payments.apps.PaymentsConfig',
+    'core.apps.questionnaire.apps.QuestionnaireConfig',
 ]
 
 MIDDLEWARE = [
@@ -111,6 +112,15 @@ AUTHENTICATION_BACKENDS = (
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FileUploadParser',
+    ],
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
     ),
     'TEST_REQUEST_DEFAULT_FORMAT': 'json',
     'TEST_REQUEST_RENDERER_CLASSES': [
