@@ -12,6 +12,7 @@ WORKDIR /app
 
 RUN apt-get update -y && \
     apt-get install -y gcc \
+    python3-dev \
     musl-dev \
     libpq-dev
 

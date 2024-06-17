@@ -1,16 +1,15 @@
 from django.conf.urls.static import static
-from django.urls import path, include
 from rest_framework import routers
 
 from core.apps.brand.api import BrandViewSet
 from core.config import settings
 
 router = routers.DefaultRouter()
-router.register('brands', BrandViewSet)
+router.register('brand', BrandViewSet)
 
-urlpatterns = [
-    path('api/', include(router.urls)),
-]
+urlpatterns = []
+
+urlpatterns += router.urls
 
 # Нужно чтобы изображения загруженные пользователями корректно отображались при DEBUG = True
 if settings.DEBUG:
