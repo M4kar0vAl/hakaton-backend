@@ -22,11 +22,10 @@ channels-redis = "^4.2.0"
 pyjwt = "^2.8.0"
 
 
-[tool.poetry.group.win.dependencies]
+[tool.poetry.group.prod.dependencies]
 psycopg2 = "^2.9.9"
 
 [tool.poetry.group.dev.dependencies]
-python-dotenv = "^1.0.1"
 psycopg2-binary = "^2.9.9"
 
 
