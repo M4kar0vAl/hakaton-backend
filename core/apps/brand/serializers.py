@@ -1,9 +1,9 @@
 import base64
 import uuid
-
 from io import BytesIO
-from django.core.files.uploadedfile import InMemoryUploadedFile
+
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 from rest_framework import serializers, exceptions
 
@@ -18,10 +18,10 @@ from core.apps.brand.models import (
     SubsCount,
     AvgBill,
     CollaborationInterest,
+    Match,
 )
-from core.apps.questionnaire.models import AnswerChoice
 from core.apps.payments.serializers import SubscriptionSerializer
-
+from core.apps.questionnaire.models import AnswerChoice
 
 User = get_user_model()
 
@@ -259,4 +259,13 @@ class BrandGetSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Brand
+        exclude = []
+
+
+class MatchSerializer(serializers.ModelSerializer):
+    initiator = BrandGetSerializer(read_only=True)
+    target = BrandGetSerializer(read_only=True)
+
+    class Meta:
+        model = Match
         exclude = []

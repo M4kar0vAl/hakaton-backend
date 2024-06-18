@@ -1,6 +1,9 @@
+from typing import Type
+
 from django.conf import settings
 from django.db import models
 
+from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription
 from core.apps.questionnaire.models import Question
 
@@ -54,31 +57,37 @@ class Brand(models.Model):
     )
     fullname = models.CharField('Фамилия и имя', max_length=512)
     email = models.EmailField('Эл. почта')
-    likes = models.ManyToManyField(
-        to='self',
-        through='Match',
-        through_fields=('brand1', 'brand2'),
-        verbose_name='Лайкнул'
-    )
+    # likes = models.ManyToManyField(
+    #     to='self',
+    #     through='Match',
+    #     through_fields=('brand1', 'brand2'),
+    #     verbose_name='Лайкнул'
+    # )
 
-    def like(self, brand_pk: int) -> bool:
+    def like(self, brand_pk: int):
         """
         Метод бренда, который позволяет лайкнуть другой бренд.
 
-        Возвращает булево значение. Если True - произошел метч. Если False - нет.
+        Возвращает объект метча. В поле is_match которого содержится информация произошел ли метч.
 
         Args:
             brand_pk: первичный ключ бренда, которого нужно лайкнуть
         """
-        match = Match.objects.filter(brand1__pk=brand_pk, brand2__pk=self.pk)
+        try:
+            match = Match.objects.get(initiator__pk=brand_pk, target__pk=self.pk)
+        except Match.DoesNotExist:
+            match = None
 
-        if match.exists():
+        if match:
             match.objects.update(is_match=True)
-            return True
+            has_business = any([match.initiator.has_business, match.target.has_business])
+            room = Room.objects.create(has_business=has_business)
+            room.participants.add(self.pk, brand_pk)
+            return match
+        else:
+            Match.objects.create(initiator=self, target__pk=brand_pk)
 
-        self.likes.add(brand_pk)
-
-        return False
+        return match
 
     class Meta:
         verbose_name = 'Бренд'
@@ -241,16 +250,16 @@ class CollaborationInterest(models.Model):
 
 
 class Match(models.Model):
-    brand1 = models.ForeignKey(
+    initiator = models.ForeignKey(
         to=Brand,
         on_delete=models.CASCADE,
-        related_name='brand1_match',
+        related_name='initiator',
         verbose_name='Бренд 1'
     )
-    brand2 = models.ForeignKey(
+    target = models.ForeignKey(
         to=Brand,
         on_delete=models.CASCADE,
-        related_name='brand2_match',
+        related_name='target',
         verbose_name='Бренд 2'
     )
     is_match = models.BooleanField(
