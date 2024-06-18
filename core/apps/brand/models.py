@@ -54,6 +54,31 @@ class Brand(models.Model):
     )
     fullname = models.CharField('Фамилия и имя', max_length=512)
     email = models.EmailField('Эл. почта')
+    likes = models.ManyToManyField(
+        to='self',
+        through='Match',
+        through_fields=('brand1', 'brand2'),
+        verbose_name='Лайкнул'
+    )
+
+    def like(self, brand_pk: int) -> bool:
+        """
+        Метод бренда, который позволяет лайкнуть другой бренд.
+
+        Возвращает булево значение. Если True - произошел метч. Если False - нет.
+
+        Args:
+            brand_pk: первичный ключ бренда, которого нужно лайкнуть
+        """
+        match = Match.objects.filter(brand1__pk=brand_pk, brand2__pk=self.pk)
+
+        if match.exists():
+            match.objects.update(is_match=True)
+            return True
+
+        self.likes.add(brand_pk)
+
+        return False
 
     class Meta:
         verbose_name = 'Бренд'
@@ -213,3 +238,22 @@ class CollaborationInterest(models.Model):
 
     def __repr__(self):
         return f'CollaborationInterest: {self.text}'
+
+
+class Match(models.Model):
+    brand1 = models.ForeignKey(
+        to=Brand,
+        on_delete=models.CASCADE,
+        related_name='brand1_match',
+        verbose_name='Бренд 1'
+    )
+    brand2 = models.ForeignKey(
+        to=Brand,
+        on_delete=models.CASCADE,
+        related_name='brand2_match',
+        verbose_name='Бренд 2'
+    )
+    is_match = models.BooleanField(
+        default=False,
+        verbose_name='Метч'
+    )
