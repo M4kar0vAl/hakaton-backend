@@ -1,23 +1,24 @@
 DC = docker compose
 EXEC = docker exec -it
 LOGS = docker logs
-ENV = --env-file example.env
+ENV = --env-file .env
 APP_FILE = ./docker-compose/app.yml
 STORAGE_FILE = ./docker-compose/storages.yml
 APP_CONTAINER = django
+BOT_CONTAINER = bot
 DB_CONTAINER = w2w_db
 MANAGE = python manage.py
 
 
 .PHONY: run
 run:
-	${DC} -f ${STORAGE_FILE} ${env} up --build -d
-	${DC} -f ${APP_FILE} ${env} up --build -d
+	${DC} -f ${STORAGE_FILE} up --build -d
+	${DC} -f ${APP_FILE} up --build -d
 	${EXEC} ${APP_CONTAINER} ${MANAGE} migrate
 
 .PHONY: app
 app:
-	${DC} -f ${APP_FILE} ${env} up --build -d
+	${DC} -f ${APP_FILE} up --build -d
 
 .PHONY: debug
 debug:
@@ -30,6 +31,10 @@ stor:
 .PHONY: app-logs
 app-logs:
 	${LOGS} ${APP_CONTAINER} -f
+
+.PHONY: bot-logs
+bot-logs:
+	${LOGS} ${BOT_CONTAINER} -f
 
 .PHONY: db-logs
 db-logs:

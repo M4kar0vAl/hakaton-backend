@@ -10,11 +10,11 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-!(usszats0h&5io)m_#7tf@^qou^jirw*waj1%f025cn&b)jm^'
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 DEBUG = os.getenv('DEBUG')
 
-ALLOWED_HOSTS = ['.localhost', '127.0.0.1', '[::1]', 'server.w2w']
+ALLOWED_HOSTS = ['.localhost', '127.0.0.1', '[::1]', 'server.w2w', 'django']
 
 
 INSTALLED_APPS = [
@@ -182,3 +182,6 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# telebot
+BOT_URL = os.getenv('BOT_URL')

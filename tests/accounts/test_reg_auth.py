@@ -29,7 +29,7 @@ class BoardTestCase(APITestCase):
         }
         response = self.client.post(reverse('users-list'), data)
         self.assertEqual(201, response.status_code)
-        self.assertEqual(2, len(User.objects.all()))
+        self.assertEqual(4, len(User.objects.all()))
 
     def test_bad_mail_create_user(self):
         data = {
@@ -39,7 +39,7 @@ class BoardTestCase(APITestCase):
         }
         response = self.client.post(reverse('users-list'), data)
         self.assertEqual(400, response.status_code)
-        self.assertEqual(1, len(User.objects.all()))
+        self.assertEqual(3, len(User.objects.all()))
 
     def test_bad_pass_create_user(self):
         data = {
@@ -49,7 +49,7 @@ class BoardTestCase(APITestCase):
         }
         response = self.client.post(reverse('users-list'), data)
         self.assertEqual(400, response.status_code)
-        self.assertEqual(1, len(User.objects.all()))
+        self.assertEqual(3, len(User.objects.all()))
 
     def test_bad_phone_create_user(self):
         data = {
@@ -59,7 +59,7 @@ class BoardTestCase(APITestCase):
         }
         response = self.client.post(reverse('users-list'), data)
         self.assertEqual(400, response.status_code)
-        self.assertEqual(1, len(User.objects.all()))
+        self.assertEqual(3, len(User.objects.all()))
 
     def test_not_unique_mail_create_user(self):
         data = {
@@ -69,7 +69,7 @@ class BoardTestCase(APITestCase):
         }
         response = self.client.post(reverse('users-list'), data)
         self.assertEqual(400, response.status_code)
-        self.assertEqual(1, len(User.objects.all()))
+        self.assertEqual(3, len(User.objects.all()))
 
     def test_login_user(self):
         data = {

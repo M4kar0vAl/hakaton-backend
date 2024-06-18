@@ -58,5 +58,13 @@
    ```
 4. В приложении в apps.py в поле name конфигурации указать путь до приложения: core.apps.<app-name>
 
+### Fake data
+1. Персонал:
+
+   Первый пользователь: email: staff@example.com, phone: +79998884422, password: Pass!234
+   Второй пользователь: email: admin@example.com, phone: +79993332211, password: Pass!234
+
+2. Промокоды: discount5, discount10
+
 ### API docs
 `http://localhost:8000/api/docs/`

@@ -9,7 +9,9 @@ from core.apps.accounts.serializers import (
     UserSerializer,
     UpdateUserSerializer,
     PasswordResetSerializer,
+    UserTelegramID,
 )
+from .permissions import IsBot
 
 User = get_user_model()
 
@@ -32,12 +34,16 @@ class UserViewSet(
                 return UpdateUserSerializer
         elif self.action == 'password_reset':
             return PasswordResetSerializer
+        elif self.action == 'set_telegram_id':
+            return UserTelegramID
 
         return super().get_serializer_class()
 
     def get_permissions(self):
         if self.action == 'create':
             return [permissions.AllowAny(), ]
+        if self.action == 'set_telegram_id':
+            return [IsBot(), ]
 
         return super().get_permissions()
 
@@ -65,3 +71,15 @@ class UserViewSet(
         user.set_password(new_password)
         user.save()
         return Response(data=UserSerializer(instance=user).data, status=200)
+
+    @action(methods=['patch'], detail=False, url_name='set_telegram')
+    def set_telegram_id(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.user
+        telegram_id = serializer.validated_data['telegram_id']
+        user.telegram_id = telegram_id
+        user.save()
+
+        return Response(data=serializer.data, status=200)
