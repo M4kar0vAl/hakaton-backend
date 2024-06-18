@@ -1,14 +1,16 @@
 from typing import Type
 
 from channels.db import database_sync_to_async
+from django.db.models import QuerySet
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied, MethodNotAllowed
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.serializers import Serializer
 
 from core.apps.brand.models import Brand
+from core.apps.chat.exceptions import BadRequest
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer
@@ -17,10 +19,12 @@ from core.apps.chat.utils import send_to_groups
 
 class RoomConsumer(ListModelMixin,
                    GenericAsyncAPIConsumer):
-    queryset = Room.objects.all()
     serializer_class = RoomSerializer
     lookup_field = "pk"
     permission_classes = [IsAuthenticatedConnect]
+
+    def get_queryset(self, **kwargs) -> QuerySet:
+        return self.brand.rooms.all()
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
         if kwargs['action'] == 'create_message':
@@ -69,7 +73,7 @@ class RoomConsumer(ListModelMixin,
             delattr(self, 'room')
             return {'response': f'leaved room {pk} successfully!'}, status.HTTP_200_OK
 
-        raise MethodNotAllowed('Action "leave_room" not allowed. You are not in the room')
+        raise BadRequest('Action "leave_room" not allowed. You are not in the room')
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
@@ -150,7 +154,7 @@ class AdminRoomConsumer(ListModelMixin,
             pk = self.room.pk
             delattr(self, 'can_message')
             return {'response': f'leaved room {pk} successfully!'}, status.HTTP_200_OK
-        return MethodNotAllowed('Action "leave_room" not allowed. You are not in the room')
+        return BadRequest('Action "leave_room" not allowed. You are not in the room')
 
     @action()
     async def create_message(self, msg_text, **kwargs):
