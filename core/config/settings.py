@@ -10,7 +10,7 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-!(usszats0h&5io)m_#7tf@^qou^jirw*waj1%f025cn&b)jm^'
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 DEBUG = os.getenv('DEBUG')
 
@@ -184,4 +184,4 @@ CHANNEL_LAYERS = {
 }
 
 # telebot
-BOT_URL = 'https://t.me/W2W_Match_Hakaton_Bot'
+BOT_URL = os.getenv('BOT_URL')

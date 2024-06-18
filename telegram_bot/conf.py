@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv('TOKEN')
+BOT_URL = os.getenv('BOT_URL')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 REDIS_USER = os.getenv('REDIS_USER')
 REDIS_PASS = os.getenv('REDIS_PASS')
