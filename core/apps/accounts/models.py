@@ -13,6 +13,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=12,
         validators=[phone_validator, ]
     )
+    telegram_id = models.BigIntegerField('Идентификатор телеграм', null=True)
     date_joined = models.DateTimeField(
         'Дата создания',
         auto_now_add=True

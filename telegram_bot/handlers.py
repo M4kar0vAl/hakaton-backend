@@ -2,20 +2,22 @@ import telebot
 from telebot import types
 
 from .conf import TOKEN
-
+from .utils import get_user_code
+from .send_request import set_telegram_id_django
 
 bot = telebot.TeleBot(f'{TOKEN}', parse_mode=None)
 
 
-@bot.message_handler(commands=['start', 'main', 'hello'])
-def start_handler(message: telebot.types.Message):
-    text = (
-        f"Привет {message.chat.first_name}! Добро пожаловать "
-        f"в бот комопании  W2W. Данный бот служит для оповещения "
-        f"о новых анкетах  коллабораций. Для получения более "
-        f"детальной информации о командах введите команду /help"
-    )
-    bot.reply_to(message, text)
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    user_id = get_user_code(message.text)
+    telegram_id = message.from_user.id
+    response = set_telegram_id_django(user_id, telegram_id)
+    if response.status_code == 200:
+        reply = 'Вы успешно подключились к боту'
+    else:
+        reply = 'Вы перешли по некорректной ссылке'
+    bot.reply_to(message, reply)
 
 
 @bot.message_handler(commands=['help'])
@@ -51,7 +53,9 @@ def spam(spam_message, id_list):
 async def send_notification(
         users: list[str],
         message: str
-) -> None: ...
+) -> None:
+    for user in users:
+        bot.send_message(chat_id=user, text=message)
 
 
 # Позже добавлю код, для подключения к бд и получения списка пользователей для рассылки

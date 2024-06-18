@@ -24,6 +24,10 @@ class Fix1(OpenApiViewExtension):
             def password_reset(self, request, *args, **kwargs):
                 return super().password_reset(request, *args, **kwargs)
 
+            @extend_schema(description='Установить/сменить telegram_id юзера. Для персонала')
+            def set_telegram_id(self, request, *args, **kwargs):
+                return super().set_telegram_id(request, *args, **kwargs)
+
         return Fixed
 
 
