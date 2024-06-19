@@ -20,6 +20,7 @@ from core.apps.brand.models import (
     CollaborationInterest,
     Match,
 )
+from core.apps.chat.models import Room
 from core.apps.payments.serializers import SubscriptionSerializer
 from core.apps.questionnaire.models import AnswerChoice
 
@@ -263,9 +264,45 @@ class BrandGetSerializer(serializers.ModelSerializer):
 
 
 class MatchSerializer(serializers.ModelSerializer):
-    initiator = BrandGetSerializer(read_only=True)
-    target = BrandGetSerializer(read_only=True)
+    target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.all(), write_only=True)
+    is_match = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Match
-        exclude = []
+        exclude = ['id', 'initiator']
+
+    def validate(self, attrs):
+        initiator = self.context['request'].user.brand
+        target = attrs.get('target')
+
+        if initiator == target:
+            raise exceptions.ValidationError("You cannot 'like' yourself")
+
+        attrs['initiator'] = initiator
+
+        return attrs
+
+    def create(self, validated_data):
+        initiator = validated_data.get('initiator')
+        target = validated_data.get('target')  # target contains Brand obj
+
+        try:
+            match = Match.objects.get(initiator=target, target=initiator)
+        except Match.DoesNotExist:
+            match = None
+
+        if match:
+            if not match.is_match:  # if it is a new match, then update is_match and create room
+                match.is_match = True
+                match.save()
+                has_business = any([
+                    initiator.subscription and initiator.subscription.name == 'Бизнес',
+                    target.subscription and target.subscription.name == 'Бизнес'
+                ])
+                room = Room.objects.create(has_business=has_business)
+                room.participants.add(initiator, target)
+            return match
+        else:
+            match = Match.objects.create(initiator=initiator, target=target)
+
+        return match

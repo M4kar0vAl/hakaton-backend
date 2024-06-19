@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -29,10 +29,9 @@ class BrandViewSet(viewsets.ModelViewSet):
             permission_classes = [AllowAny]
         return [permission() for permission in permission_classes]
 
-    @action(detail=True, methods=['post'])
-    def like(self, request, brand_pk):
-        current_brand = self.get_object()
-        match = current_brand.like(brand_pk)
-        serializer = self.get_serializer_class()(match)
+    @action(detail=False, methods=['post'])
+    def like(self, request, pk=None):
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return Response(data=serializer.data, status=200)
+        serializer.save()
+        return Response(data=serializer.data, status=status.HTTP_201_CREATED)

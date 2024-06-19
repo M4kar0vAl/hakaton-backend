@@ -1,9 +1,6 @@
-from typing import Type
-
 from django.conf import settings
 from django.db import models
 
-from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription
 from core.apps.questionnaire.models import Question
 
@@ -57,37 +54,6 @@ class Brand(models.Model):
     )
     fullname = models.CharField('Фамилия и имя', max_length=512)
     email = models.EmailField('Эл. почта')
-    # likes = models.ManyToManyField(
-    #     to='self',
-    #     through='Match',
-    #     through_fields=('brand1', 'brand2'),
-    #     verbose_name='Лайкнул'
-    # )
-
-    def like(self, brand_pk: int):
-        """
-        Метод бренда, который позволяет лайкнуть другой бренд.
-
-        Возвращает объект метча. В поле is_match которого содержится информация произошел ли метч.
-
-        Args:
-            brand_pk: первичный ключ бренда, которого нужно лайкнуть
-        """
-        try:
-            match = Match.objects.get(initiator__pk=brand_pk, target__pk=self.pk)
-        except Match.DoesNotExist:
-            match = None
-
-        if match:
-            match.objects.update(is_match=True)
-            has_business = any([match.initiator.has_business, match.target.has_business])
-            room = Room.objects.create(has_business=has_business)
-            room.participants.add(self.pk, brand_pk)
-            return match
-        else:
-            Match.objects.create(initiator=self, target__pk=brand_pk)
-
-        return match
 
     class Meta:
         verbose_name = 'Бренд'
@@ -254,13 +220,13 @@ class Match(models.Model):
         to=Brand,
         on_delete=models.CASCADE,
         related_name='initiator',
-        verbose_name='Бренд 1'
+        verbose_name='Кто лайкнул'
     )
     target = models.ForeignKey(
         to=Brand,
         on_delete=models.CASCADE,
         related_name='target',
-        verbose_name='Бренд 2'
+        verbose_name='Кого лайкнули'
     )
     is_match = models.BooleanField(
         default=False,
