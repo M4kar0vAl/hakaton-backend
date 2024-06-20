@@ -14,9 +14,12 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include
 from django.urls import path
+from django.conf.urls.static import static
+
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 urlpatterns = [
@@ -33,3 +36,8 @@ urlpatterns = [
     path('api/v1/', include('core.apps.payments.urls')),
     path('api/v1/', include('core.apps.questionnaire.urls')),
 ]
+
+# Нужно чтобы изображения загруженные пользователями корректно отображались при DEBUG = True
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
