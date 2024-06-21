@@ -184,10 +184,6 @@ class AdminRoomConsumer(ListModelMixin,
         await self.send_json(event['data'])
 
     @database_sync_to_async
-    def check_can_message(self):
-        return self.room.has_business
-
-    @database_sync_to_async
     def get_serialized_room(self, **kwargs):
         serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
         return serializer.data
