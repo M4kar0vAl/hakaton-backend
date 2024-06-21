@@ -1,5 +1,6 @@
 import base64
 import uuid
+from copy import copy
 
 from io import BytesIO
 from django.core.files.uploadedfile import InMemoryUploadedFile
@@ -135,7 +136,9 @@ class BrandCreateSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def validate(self, attrs):
+        self.fails = {}
         # one-to-one
+
         category = attrs.get('category')
         presence_type = attrs.get('presence_type')
         public_speaker = attrs.get('public_speaker')
