@@ -21,7 +21,6 @@ class Brand(models.Model):
     )
     sub_expire = models.DateField("Окончание подписки", null=True)
     tg_nickname = models.CharField('Ник в телеграме', max_length=64)
-    phone = models.CharField('Номер телефона', max_length=12)
     brand_name_pos = models.CharField(
         'Название бренда и должность',
         max_length=512
@@ -53,7 +52,6 @@ class Brand(models.Model):
         'Фото продукта', upload_to='product_photos'
     )
     fullname = models.CharField('Фамилия и имя', max_length=512)
-    email = models.EmailField('Эл. почта')
 
     class Meta:
         verbose_name = 'Бренд'
