@@ -211,3 +211,22 @@ class CollaborationInterest(models.Model):
 
     def __repr__(self):
         return f'CollaborationInterest: {self.text}'
+
+
+class Match(models.Model):
+    initiator = models.ForeignKey(
+        to=Brand,
+        on_delete=models.CASCADE,
+        related_name='initiator',
+        verbose_name='Кто лайкнул'
+    )
+    target = models.ForeignKey(
+        to=Brand,
+        on_delete=models.CASCADE,
+        related_name='target',
+        verbose_name='Кого лайкнули'
+    )
+    is_match = models.BooleanField(
+        default=False,
+        verbose_name='Метч'
+    )

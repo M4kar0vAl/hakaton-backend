@@ -1,10 +1,9 @@
 import base64
 import uuid
-from copy import copy
-
 from io import BytesIO
-from django.core.files.uploadedfile import InMemoryUploadedFile
+
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction
 from rest_framework import serializers, exceptions
 
@@ -19,10 +18,11 @@ from core.apps.brand.models import (
     SubsCount,
     AvgBill,
     CollaborationInterest,
+    Match,
 )
-from core.apps.questionnaire.models import AnswerChoice
+from core.apps.chat.models import Room
 from core.apps.payments.serializers import SubscriptionSerializer
-
+from core.apps.questionnaire.models import AnswerChoice
 
 User = get_user_model()
 
@@ -263,3 +263,48 @@ class BrandGetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
         exclude = []
+
+
+class MatchSerializer(serializers.ModelSerializer):
+    target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.all(), write_only=True)
+    is_match = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Match
+        exclude = ['id', 'initiator']
+
+    def validate(self, attrs):
+        initiator = self.context['request'].user.brand
+        target = attrs.get('target')
+
+        if initiator == target:
+            raise exceptions.ValidationError("You cannot 'like' yourself")
+
+        attrs['initiator'] = initiator
+
+        return attrs
+
+    def create(self, validated_data):
+        initiator = validated_data.get('initiator')
+        target = validated_data.get('target')  # target contains Brand obj
+
+        try:
+            match = Match.objects.get(initiator=target, target=initiator)
+        except Match.DoesNotExist:
+            match = None
+
+        if match:
+            if not match.is_match:  # if it is a new match, then update is_match and create room
+                match.is_match = True
+                match.save()
+                has_business = any([
+                    initiator.subscription and initiator.subscription.name == 'Бизнес',
+                    target.subscription and target.subscription.name == 'Бизнес'
+                ])
+                room = Room.objects.create(has_business=has_business)
+                room.participants.add(initiator, target)
+            return match
+        else:
+            match = Match.objects.create(initiator=initiator, target=target)
+
+        return match
