@@ -33,18 +33,21 @@ class RoomConsumer(ListModelMixin,
 
     async def connect(self):
         self.user_group_name = f'user_{self.scope["user"].pk}'
-        self.brand = self.get_brand()
-        self.brand_rooms = self.get_brand_rooms_pk_set()
+        self.brand = await self.get_brand()
+        self.brand_rooms = await self.get_brand_rooms_pk_set()
 
         await self.add_group(self.user_group_name)
 
         await self.accept()
 
+    async def disconnect(self, code):
+        await self.remove_group(self.user_group_name)
+
     @action()
     async def join_room(self, room_pk, **kwargs):
         if room_pk not in self.brand_rooms:
             # update related room_pks
-            self.brand_rooms = self.get_brand_rooms_pk_set()
+            self.brand_rooms = await self.get_brand_rooms_pk_set()
 
             # check again
             if room_pk not in self.brand_rooms:
@@ -53,15 +56,14 @@ class RoomConsumer(ListModelMixin,
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
-        self.room = self.get_object(pk=room_pk)
+        self.room = await database_sync_to_async(self.get_object)(pk=room_pk)
         self.room_group_name = f'room_{room_pk}'
 
         await self.add_group(self.room_group_name)
 
-        serializer = self.get_serializer_class()(self.room)
-        serializer.is_valid(raise_exception=True)
+        room_data = await self.get_serialized_room(**kwargs)
 
-        return serializer.data, status.HTTP_200_OK
+        return room_data, status.HTTP_200_OK
 
     @action()
     async def leave_room(self, **kwargs):
@@ -71,13 +73,13 @@ class RoomConsumer(ListModelMixin,
         if hasattr(self, 'room'):
             pk = self.room.pk
             delattr(self, 'room')
-            return {'response': f'leaved room {pk} successfully!'}, status.HTTP_200_OK
+            return {'response': f'Leaved room {pk} successfully!'}, status.HTTP_200_OK
 
-        raise BadRequest('Action "leave_room" not allowed. You are not in the room')
+        raise BadRequest("Action 'leave_room' not allowed. You are not in the room")
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
-        if not self.room:
+        if not hasattr(self, 'room'):
             raise PermissionDenied('You cannot send a message when you are not in chat')
 
         message = await database_sync_to_async(Message.objects.create)(
@@ -86,21 +88,17 @@ class RoomConsumer(ListModelMixin,
             text=msg_text
         )
 
-        serializer = self.get_serializer_class()(message)
-        serializer.is_valid(raise_exception=True)
+        message_data = await self.get_serialized_message(message, **kwargs)
 
-        await send_to_groups({'type': 'data_to_groups', 'data': serializer.data}, (self.room_group_name,))
-
-        return serializer.data, status.HTTP_201_CREATED
+        await send_to_groups({'type': 'data_to_groups', 'data': message_data}, (self.room_group_name,))
 
     @action()
-    async def current_room_info(self):
-        serializer = self.get_serializer_class()(self.room)
-        serializer.is_valid(raise_exception=True)
+    async def current_room_info(self, **kwargs):
+        if not hasattr(self, 'room'):
+            raise BadRequest("Action 'current_room_info' not allowed. You are not in the room")
+        room_data = await self.get_serialized_room(**kwargs)
 
-        await send_to_groups({'type': 'data_to_groups', 'data': serializer.data}, (self.user_group_name,))
-
-        return serializer.data, status.HTTP_200_OK
+        await send_to_groups({'type': 'data_to_groups', 'data': room_data}, (self.user_group_name,))
 
     async def data_to_groups(self, event):
         await self.send_json(event['data'])
@@ -112,6 +110,16 @@ class RoomConsumer(ListModelMixin,
     @database_sync_to_async
     def get_brand_rooms_pk_set(self):
         return set(self.brand.rooms.values_list('pk', flat=True))
+
+    @database_sync_to_async
+    def get_serialized_room(self, **kwargs):
+        serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
+        return serializer.data
+
+    @database_sync_to_async
+    def get_serialized_message(self, message, **kwargs):
+        serializer = self.get_serializer(action_kwargs=kwargs, instance=message)
+        return serializer.data
 
 
 class AdminRoomConsumer(ListModelMixin,
@@ -128,33 +136,31 @@ class AdminRoomConsumer(ListModelMixin,
         return super().get_serializer_class()
 
     @action()
-    async def join_room(self, room_pk):
+    async def join_room(self, room_pk, **kwargs):
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
-        self.room = self.get_object(pk=room_pk)
+        self.room = await database_sync_to_async(self.get_object)(pk=room_pk)
         self.room_group_name = f'room_{room_pk}'
 
         # check if there is business subscription brand
-        self.can_message = self.check_can_message()
+        self.can_message = self.room.has_business
 
         await self.add_group(self.room_group_name)
 
-        serializer = self.get_serializer_class()(self.room)
-        serializer.is_valid(raise_exception=True)
+        room_data = await self.get_serialized_room(**kwargs)
 
-        return serializer.data, status.HTTP_200_OK
+        return room_data, status.HTTP_200_OK
 
     @action()
-    async def leave_room(self):
+    async def leave_room(self, **kwargs):
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
         if hasattr(self, 'can_message'):
-            pk = self.room.pk
             delattr(self, 'can_message')
-            return {'response': f'leaved room {pk} successfully!'}, status.HTTP_200_OK
-        return BadRequest('Action "leave_room" not allowed. You are not in the room')
+            return {'response': f'Leaved room {self.room.pk} successfully!'}, status.HTTP_200_OK
+        raise BadRequest("Action 'leave_room' not allowed. You are not in the room")
 
     @action()
     async def create_message(self, msg_text, **kwargs):
@@ -170,18 +176,19 @@ class AdminRoomConsumer(ListModelMixin,
             text=msg_text
         )
 
-        serializer = self.get_serializer_class()(message)
-        serializer.is_valid(raise_exception=True)
+        message_data = await self.get_serialized_message(message, **kwargs)
 
-        await send_to_groups({'type': 'data_to_groups', 'data': serializer.data}, (self.room_group_name,))
-
-        return serializer.data, status.HTTP_201_CREATED
+        await send_to_groups({'type': 'data_to_groups', 'data': message_data}, (self.room_group_name,))
 
     async def data_to_groups(self, event):
         await self.send_json(event['data'])
 
     @database_sync_to_async
-    def check_can_message(self):
-        return any(
-            self.room.participants.values_list('has_business', flat=True)
-        )
+    def get_serialized_room(self, **kwargs):
+        serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
+        return serializer.data
+
+    @database_sync_to_async
+    def get_serialized_message(self, message, **kwargs):
+        serializer = self.get_serializer(action_kwargs=kwargs, instance=message)
+        return serializer.data
