@@ -47,4 +47,12 @@ class Fix1(OpenApiViewExtension):
             def destroy(self, request, *args, **kwargs):
                 return super().destroy(request, *args, **kwargs)
 
+            @extend_schema(
+                description='Лайкнуть бренд\n\n'
+                            'target: id бренда',
+                tags=['Brand']
+            )
+            def like(self, request, *args, **kwargs):
+                return super().like(request, *args, **kwargs)
+
         return Fixed
