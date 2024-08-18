@@ -56,7 +56,7 @@
        "core.apps.app-name.apps.ConfigName",
    ]
    ```
-4. В приложении в apps.py в поле name конфигурации указать путь до приложения: core.apps.<app-name>
+4. В приложении в `apps.py` в поле name конфигурации указать путь до приложения: `core.apps.<app-name>`
 
 ### Fake data
 1. Персонал:
@@ -67,4 +67,4 @@
 2. Промокоды: discount5, discount10
 
 ### API docs
-`http://localhost:8000/api/docs/`
+`http://localhost/api/docs/`
