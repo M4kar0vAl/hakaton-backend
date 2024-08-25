@@ -20,4 +20,4 @@ class Message(models.Model):
     room = models.ForeignKey(to=Room, on_delete=models.CASCADE, related_name='messages', verbose_name='Чат')
 
     def __repr__(self):
-        return f'Message by user: {self.user} in room: {self.room}'
+        return f'Message by user: {self.user} in room: {self.room.pk}'

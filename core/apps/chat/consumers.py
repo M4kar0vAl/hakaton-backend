@@ -6,7 +6,7 @@ from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.serializers import Serializer
 
 from core.apps.brand.models import Brand
@@ -14,7 +14,7 @@ from core.apps.chat.exceptions import BadRequest
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer
-from core.apps.chat.utils import send_to_groups
+from core.apps.chat.utils import reply_to_groups, get_method_name
 
 
 class RoomConsumer(ListModelMixin,
@@ -79,8 +79,7 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
-        if not hasattr(self, 'room'):
-            raise PermissionDenied('You cannot send a message when you are not in chat')
+        await self.check_user_in_room()
 
         message = await database_sync_to_async(Message.objects.create)(
             room=self.room,
@@ -90,18 +89,99 @@ class RoomConsumer(ListModelMixin,
 
         message_data = await self.get_serialized_message(message, **kwargs)
 
-        await send_to_groups({'type': 'data_to_groups', 'data': message_data}, (self.room_group_name,))
+        await reply_to_groups(
+            groups=(self.room_group_name,),
+            handler_name='data_to_groups',
+            action=get_method_name(),
+            data=message_data,
+            status=status.HTTP_201_CREATED,
+            request_id=kwargs['request_id']
+        )
+
+    @action()
+    async def edit_message(self, msg_id, edited_msg_text, **kwargs):
+        await self.check_user_in_room()
+
+        updated = bool(await self.edit_message_in_db(msg_id, edited_msg_text))
+
+        if updated:
+            data = {
+                'room_id': self.room.pk,
+                'message_id': msg_id,
+                'message_text': edited_msg_text,
+            }
+            await reply_to_groups(
+                groups=(self.room_group_name,),
+                handler_name='data_to_groups',
+                action=get_method_name(),
+                data=data,
+                status=status.HTTP_200_OK,
+                request_id=kwargs['request_id']
+            )
+        else:
+            raise NotFound(
+                f"Message with id: {msg_id} and user: {self.scope['user'].email} not found! "
+                "Check whether the user is the author of the message and the id is correct!"
+            )
+
+    @action()
+    async def delete_messages(self, msg_id_list: list[int], **kwargs):
+        await self.check_user_in_room()
+
+        deleted_count = await self.delete_messages_in_db(msg_id_list)
+
+        if deleted_count == 0:
+            raise NotFound(f"Messages with ids: {msg_id_list} were not found! Nothing was deleted!")
+
+        data = {
+            'room_id': self.room.pk,
+            'messages_ids': msg_id_list,
+        }
+
+        errors = []
+
+        if deleted_count != len(msg_id_list):
+            errors.append(
+                "Not all of the requested messages were deleted! "
+                "Check whether the user is the author of the message and the ids are correct! "
+                "Check if messages belong to the current user's room!"
+            )
+
+        await reply_to_groups(
+            groups=(self.room_group_name,),
+            handler_name='data_to_groups',
+            action=get_method_name(),
+            data=data,
+            errors=errors,
+            status=status.HTTP_200_OK,
+            request_id=kwargs['request_id']
+        )
 
     @action()
     async def current_room_info(self, **kwargs):
-        if not hasattr(self, 'room'):
-            raise BadRequest("Action 'current_room_info' not allowed. You are not in the room")
+        await self.check_user_in_room()
+
         room_data = await self.get_serialized_room(**kwargs)
 
-        await send_to_groups({'type': 'data_to_groups', 'data': room_data}, (self.user_group_name,))
+        await reply_to_groups(
+            groups=(self.user_group_name,),
+            handler_name='data_to_groups',
+            action=get_method_name(),
+            data=room_data,
+            status=status.HTTP_200_OK,
+            request_id=kwargs['request_id']
+        )
 
     async def data_to_groups(self, event):
-        await self.send_json(event['data'])
+        await self.send_json(event['payload'])
+
+    async def check_user_in_room(self):
+        """
+        Check whether the user connected to any room or not.
+        If not raises exception BadRequest, otherwise does nothing.
+        """
+        if not hasattr(self, 'room'):
+            raise BadRequest("Action not allowed. You are not in the room!")
 
     @database_sync_to_async
     def get_brand(self) -> Brand:
@@ -110,6 +190,35 @@ class RoomConsumer(ListModelMixin,
     @database_sync_to_async
     def get_brand_rooms_pk_set(self):
         return set(self.brand.rooms.values_list('pk', flat=True))
+
+    @database_sync_to_async
+    def edit_message_in_db(self, msg_id: int, text: str) -> int:
+        """
+        Edit message text in db. Allows editing only messages authored by the current user.
+
+        Args:
+            msg_id: primary key of message being edited
+            text: new text to be set
+
+        Returns number of rows matched in db.
+        Either 0 if message with msg_id was not found in db
+        or 1 if message was found and updated
+        """
+        # filter uses user = self.scope['user'] to allow editing current user's messages only
+        # if message with id msg_id don't belong to user, then nothing happens
+        return Message.objects.filter(pk=msg_id, user=self.scope['user']).update(text=text)
+
+    @database_sync_to_async
+    def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
+        """
+        Delete messages from db. Allows deleting only messages authored by the current user.
+
+        Args:
+            msg_id_list: list of ids of message to delete
+
+        Returns number of messages deleted
+        """
+        return Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).delete()[0]
 
     @database_sync_to_async
     def get_serialized_room(self, **kwargs):
@@ -164,11 +273,7 @@ class AdminRoomConsumer(ListModelMixin,
 
     @action()
     async def create_message(self, msg_text, **kwargs):
-        try:
-            if not self.can_message:
-                raise PermissionDenied('You cannot write to a chat that does not have brand with business subscription')
-        except AttributeError:
-            raise PermissionDenied('You cannot send a message when you are not in chat')
+        await self.check_admin_can_act()
 
         message = await database_sync_to_async(Message.objects.create)(
             room=self.room,
@@ -178,10 +283,122 @@ class AdminRoomConsumer(ListModelMixin,
 
         message_data = await self.get_serialized_message(message, **kwargs)
 
-        await send_to_groups({'type': 'data_to_groups', 'data': message_data}, (self.room_group_name,))
+        await reply_to_groups(
+            groups=(self.room_group_name,),
+            handler_name='data_to_groups',
+            action=get_method_name(),
+            data=message_data,
+            status=status.HTTP_201_CREATED,
+            request_id=kwargs['request_id']
+        )
+
+    @action()
+    async def edit_message(self, msg_id, edited_msg_text, **kwargs):
+        await self.check_admin_can_act()
+
+        updated = bool(await self.edit_message_in_db(msg_id, edited_msg_text))
+
+        if updated:
+            data = {
+                'room_id': self.room.pk,
+                'message_id': msg_id,
+                'message_text': edited_msg_text,
+            }
+            await reply_to_groups(
+                groups=(self.room_group_name,),
+                handler_name='data_to_groups',
+                action=get_method_name(),
+                data=data,
+                status=status.HTTP_200_OK,
+                request_id=kwargs['request_id']
+            )
+        else:
+            raise NotFound(
+                f"Message with id: {msg_id} and user: {self.scope['user'].email} not found! "
+                "Check whether the user is the author of the message and the id is correct!"
+            )
+
+    @action()
+    async def delete_messages(self, msg_id_list: list[int], **kwargs):
+        await self.check_admin_can_act()
+
+        deleted_count = await self.delete_messages_in_db(msg_id_list)
+
+        if deleted_count == 0:
+            raise NotFound(f"Messages with ids: {msg_id_list} were not found! Nothing was deleted!")
+
+        data = {
+            'room_id': self.room.pk,
+            'messages_ids': msg_id_list,
+        }
+
+        errors = []
+
+        if deleted_count != len(msg_id_list):
+            errors.append(
+                "Not all of the requested messages were deleted! "
+                "Check whether the ids are correct and messages belong to the current user's room!"
+            )
+
+        await reply_to_groups(
+            groups=(self.room_group_name,),
+            handler_name='data_to_groups',
+            action=get_method_name(),
+            data=data,
+            errors=errors,
+            status=status.HTTP_200_OK,
+            request_id=kwargs['request_id']
+        )
 
     async def data_to_groups(self, event):
-        await self.send_json(event['data'])
+        await self.send_json(event['payload'])
+
+    async def check_admin_can_act(self):
+        """
+        Check whether admin can create, edit and delete messages in room.
+
+        If admin not connected to a room, then raises BadRequest exception.
+        If room does not have brand with business subscription, then raises PermissionDenied exception.
+        Otherwise, does nothing.
+        """
+        try:
+            if not self.can_message:
+                raise PermissionDenied(
+                    "Action not allowed. "
+                    "You cannot write to a chat that does not have brand with business subscription!"
+                )
+        except AttributeError:
+            raise BadRequest("Action not allowed. You are not in the room!")
+
+    @database_sync_to_async
+    def edit_message_in_db(self, msg_id: int, text: str) -> int:
+        """
+        Edit message text in db. Allows editing only messages authored by the current user.
+        Admins are not exception.
+
+        Args:
+            msg_id: primary key of message being edited
+            text: new text to be set
+
+        Returns number of rows matched in db.
+        Either 0 if message with msg_id was not found in db
+        or 1 if message was found and updated
+        """
+        # filter uses user = self.scope['user'] to allow editing current user's messages only
+        # if message with id msg_id don't belong to user, then nothing happens
+        return Message.objects.filter(pk=msg_id, user=self.scope['user']).update(text=text)
+
+    @database_sync_to_async
+    def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
+        """
+        Delete messages from db. Can delete any message in current room.
+
+        Args:
+            msg_id_list: list of ids of message to delete
+
+        Returns number of messages deleted
+        """
+        return Message.objects.filter(pk__in=msg_id_list, room=self.room).delete()[0]
 
     @database_sync_to_async
     def get_serialized_room(self, **kwargs):
