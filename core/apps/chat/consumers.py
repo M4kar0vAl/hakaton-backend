@@ -206,7 +206,7 @@ class RoomConsumer(ListModelMixin,
         """
         # filter uses user = self.scope['user'] to allow editing current user's messages only
         # if message with id msg_id don't belong to user, then nothing happens
-        return Message.objects.filter(pk=msg_id, user=self.scope['user']).update(text=text)
+        return Message.objects.filter(pk=msg_id, user=self.scope['user'], room=self.room).update(text=text)
 
     @database_sync_to_async
     def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
@@ -386,7 +386,7 @@ class AdminRoomConsumer(ListModelMixin,
         """
         # filter uses user = self.scope['user'] to allow editing current user's messages only
         # if message with id msg_id don't belong to user, then nothing happens
-        return Message.objects.filter(pk=msg_id, user=self.scope['user']).update(text=text)
+        return Message.objects.filter(pk=msg_id, user=self.scope['user'], room=self.room).update(text=text)
 
     @database_sync_to_async
     def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
