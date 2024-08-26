@@ -64,13 +64,3 @@ async def reply_to_groups(
 
     for group in groups:
         await channel_layer.group_send(group, {'type': handler_name, 'payload': payload})
-
-
-def get_method_name():
-    """
-    Get name of function where it was called.
-    It might be useful to get action name in consumer's method.
-
-    If you want to change the method's name you will not need to change the code where it is used.
-    """
-    return inspect.stack()[1][3]
