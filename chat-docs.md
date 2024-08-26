@@ -198,6 +198,62 @@ _**Выйти из комнаты**_
     "errors": ["Action 'leave_room' not allowed. You are not in the room"]
     ```
 
+#### `get_room_messages`
+
+_**Получить все сообщения комнаты**_
+
+`room_pk` не передается, отправляет сообщения текущей комнаты
+
+##### Параметры
+
+- `action`: str - _название action_
+- `request_id`: int - _уникальный id запроса (можно указать текущую дату-время в миллисекундах)_
+
+##### Пример запроса
+
+```json
+{
+  "action": "get_room_messages",
+  "request_id": 1500000
+}
+```
+
+##### Пример ответа
+
+```json
+{
+  "errors": [],
+  "data": [
+    {
+      "id": 1,
+      "user": {
+        "id": 2,
+        "email": "admin@example.com",
+        "phone": "+79993332211",
+        "telegram_link": "https://t.me/W2W_Match_Hakaton_Bot?start=Mg"
+      },
+      "room": 1,
+      "text": "Test message",
+      "created_at": "2024-06-20T13:27:06.746701Z"
+    }
+  ],
+  "action": "get_room_messages",
+  "response_status": 200,
+  "request_id": 1500000
+}
+```
+
+##### Возможные статусы
+
+- **200**
+  - ```
+    "errors": []
+    ```
+- **400**
+  - ```
+    "errors": ["Action not allowed. You are not in the room!"]
+    ```
+
 #### `create_message`
 
 _**Написать сообщение**_
@@ -288,8 +344,8 @@ _**Редактировать сообщение**_
   "errors": [],
   "data": {
     "room_id": 7,
-    "message_id": 18,
-    "message_text": "edit"
+    "message_id": 1,
+    "message_text": "edited_text"
   },
   "action": "edit_message",
   "response_status": 200,
@@ -341,7 +397,7 @@ _**Удалить одно или больше сообщений**_
   "data": {
     "room_id": 7,
     "messages_ids": [
-      18
+      1
     ]
   },
   "action": "delete_messages",

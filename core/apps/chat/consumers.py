@@ -14,7 +14,7 @@ from core.apps.chat.exceptions import BadRequest
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer
-from core.apps.chat.utils import reply_to_groups, get_method_name
+from core.apps.chat.utils import reply_to_groups
 
 
 class RoomConsumer(ListModelMixin,
@@ -24,10 +24,13 @@ class RoomConsumer(ListModelMixin,
     permission_classes = [IsAuthenticatedConnect]
 
     def get_queryset(self, **kwargs) -> QuerySet:
+        if 'action' in kwargs:
+            if kwargs['action'] == 'get_room_messages':
+                return Message.objects.filter(room=self.room)
         return self.brand.rooms.all()
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
-        if kwargs['action'] == 'create_message':
+        if kwargs['action'] in ('create_message', 'get_room_messages'):
             return MessageSerializer
         return super().get_serializer_class()
 
@@ -78,6 +81,15 @@ class RoomConsumer(ListModelMixin,
         raise BadRequest("Action 'leave_room' not allowed. You are not in the room")
 
     @action()
+    async def get_room_messages(self, **kwargs):
+        await self.check_user_in_room()
+
+        messages = await database_sync_to_async(self.get_queryset)(**kwargs)
+        messages_data = await self.get_serialized_message(messages, many=True, **kwargs)
+
+        return messages_data, status.HTTP_200_OK
+
+    @action()
     async def create_message(self, msg_text: str, **kwargs):
         await self.check_user_in_room()
 
@@ -92,7 +104,7 @@ class RoomConsumer(ListModelMixin,
         await reply_to_groups(
             groups=(self.room_group_name,),
             handler_name='data_to_groups',
-            action=get_method_name(),
+            action=kwargs['action'],
             data=message_data,
             status=status.HTTP_201_CREATED,
             request_id=kwargs['request_id']
@@ -113,7 +125,7 @@ class RoomConsumer(ListModelMixin,
             await reply_to_groups(
                 groups=(self.room_group_name,),
                 handler_name='data_to_groups',
-                action=get_method_name(),
+                action=kwargs['action'],
                 data=data,
                 status=status.HTTP_200_OK,
                 request_id=kwargs['request_id']
@@ -150,7 +162,7 @@ class RoomConsumer(ListModelMixin,
         await reply_to_groups(
             groups=(self.room_group_name,),
             handler_name='data_to_groups',
-            action=get_method_name(),
+            action=kwargs['action'],
             data=data,
             errors=errors,
             status=status.HTTP_200_OK,
@@ -166,7 +178,7 @@ class RoomConsumer(ListModelMixin,
         await reply_to_groups(
             groups=(self.user_group_name,),
             handler_name='data_to_groups',
-            action=get_method_name(),
+            action=kwargs['action'],
             data=room_data,
             status=status.HTTP_200_OK,
             request_id=kwargs['request_id']
@@ -226,8 +238,15 @@ class RoomConsumer(ListModelMixin,
         return serializer.data
 
     @database_sync_to_async
-    def get_serialized_message(self, message, **kwargs):
-        serializer = self.get_serializer(action_kwargs=kwargs, instance=message)
+    def get_serialized_message(self, message: Message | QuerySet[Message], many: bool = False, **kwargs):
+        """
+        Serializes messages and returns serializer data.
+
+        Args:
+            message: Message model instance or queryset of model instances to be serialized
+            many: flag that indicates whether to serialize one message or queryset
+        """
+        serializer = self.get_serializer(action_kwargs=kwargs, instance=message, many=many)
         return serializer.data
 
 
@@ -238,8 +257,14 @@ class AdminRoomConsumer(ListModelMixin,
     lookup_field = 'pk'
     permission_classes = [IsAdminUser]
 
+    def get_queryset(self, **kwargs) -> QuerySet:
+        if 'action' in kwargs:
+            if kwargs['action'] == 'get_room_messages':
+                return Message.objects.filter(room=self.room)
+        return super().get_queryset(**kwargs)
+
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
-        if kwargs['action'] == 'create_message':
+        if kwargs['action'] in ('create_message', 'get_room_messages'):
             return MessageSerializer
 
         return super().get_serializer_class()
@@ -266,10 +291,22 @@ class AdminRoomConsumer(ListModelMixin,
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
-        if hasattr(self, 'can_message'):
+        if hasattr(self, 'room'):
+            pk = self.room.pk
+            delattr(self, 'room')
             delattr(self, 'can_message')
-            return {'response': f'Leaved room {self.room.pk} successfully!'}, status.HTTP_200_OK
+            return {'response': f'Leaved room {pk} successfully!'}, status.HTTP_200_OK
         raise BadRequest("Action 'leave_room' not allowed. You are not in the room")
+
+    @action()
+    async def get_room_messages(self, **kwargs):
+        if not hasattr(self, 'room'):
+            raise BadRequest("Action not allowed. You are not in the room!")
+
+        messages = await database_sync_to_async(self.get_queryset)(**kwargs)
+        messages_data = await self.get_serialized_message(messages, many=True, **kwargs)
+
+        return messages_data, status.HTTP_200_OK
 
     @action()
     async def create_message(self, msg_text, **kwargs):
@@ -286,7 +323,7 @@ class AdminRoomConsumer(ListModelMixin,
         await reply_to_groups(
             groups=(self.room_group_name,),
             handler_name='data_to_groups',
-            action=get_method_name(),
+            action=kwargs['action'],
             data=message_data,
             status=status.HTTP_201_CREATED,
             request_id=kwargs['request_id']
@@ -307,7 +344,7 @@ class AdminRoomConsumer(ListModelMixin,
             await reply_to_groups(
                 groups=(self.room_group_name,),
                 handler_name='data_to_groups',
-                action=get_method_name(),
+                action=kwargs['action'],
                 data=data,
                 status=status.HTTP_200_OK,
                 request_id=kwargs['request_id']
@@ -343,7 +380,7 @@ class AdminRoomConsumer(ListModelMixin,
         await reply_to_groups(
             groups=(self.room_group_name,),
             handler_name='data_to_groups',
-            action=get_method_name(),
+            action=kwargs['action'],
             data=data,
             errors=errors,
             status=status.HTTP_200_OK,
@@ -406,6 +443,13 @@ class AdminRoomConsumer(ListModelMixin,
         return serializer.data
 
     @database_sync_to_async
-    def get_serialized_message(self, message, **kwargs):
-        serializer = self.get_serializer(action_kwargs=kwargs, instance=message)
+    def get_serialized_message(self, message: Message | QuerySet[Message], many: bool = False, **kwargs):
+        """
+        Serializes messages and returns serializer data.
+
+        Args:
+            message: Message model instance or queryset of model instances to be serialized
+            many: flag that indicates whether to serialize one message or queryset
+        """
+        serializer = self.get_serializer(action_kwargs=kwargs, instance=message, many=many)
         return serializer.data
