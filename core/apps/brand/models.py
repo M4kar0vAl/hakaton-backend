@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from core.apps.payments.models import Subscription
+from core.apps.payments.models import Tariff
 from core.apps.questionnaire.models import Question
 
 
@@ -13,7 +13,7 @@ class Brand(models.Model):
         default=False, verbose_name='Опубликовано'
     )
     subscription = models.ForeignKey(
-        to=Subscription,
+        to=Tariff,
         on_delete=models.PROTECT,
         related_name='brands',
         verbose_name='Тариф',

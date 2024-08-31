@@ -21,7 +21,7 @@ from core.apps.brand.models import (
     Match,
 )
 from core.apps.chat.models import Room
-from core.apps.payments.serializers import SubscriptionSerializer
+from core.apps.payments.serializers import TariffSerializer
 from core.apps.questionnaire.models import AnswerChoice
 
 User = get_user_model()
@@ -113,7 +113,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
     fails = {}
 
     user = CreateUserSerializer(read_only=True)
-    subscription = SubscriptionSerializer(read_only=True)
+    subscription = TariffSerializer(read_only=True)
     category = CategorySerializer()
     presence_type = PresenceTypeSerializer()
     public_speaker = ReadinessPublicSpeakerSerializer()
@@ -250,7 +250,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
 
 class BrandGetSerializer(serializers.ModelSerializer):
     user = CreateUserSerializer(read_only=True)
-    subscription = SubscriptionSerializer(read_only=True)
+    subscription = TariffSerializer(read_only=True)
     category = CategorySerializer()
     presence_type = PresenceTypeSerializer()
     public_speaker = ReadinessPublicSpeakerSerializer()
