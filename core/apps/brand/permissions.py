@@ -13,3 +13,11 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
             return True
 
         return obj.user == request.user
+
+
+class IsBusinessSub(permissions.BasePermission):
+    """
+    Allow access only to brands with business subscription.
+    """
+    def has_permission(self, request, view):
+        return request.user.brand.subscription.name == 'Бизнес'  # TODO change definition of business sub
