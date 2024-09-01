@@ -5,11 +5,20 @@ from core.apps.brand.models import Brand
 
 
 class Room(models.Model):
+    MATCH = 'M'
+    GUARANTEED = 'G'
+    INSTANT = 'I'
+    TYPE_CHOICES = {
+        MATCH: 'Match',
+        GUARANTEED: 'Guaranteed',
+        INSTANT: 'Instant'
+    }
     participants = models.ManyToManyField(to=Brand, related_name='rooms', verbose_name='Участники')
     has_business = models.BooleanField(default=False, verbose_name='Бизнес тариф')
+    type = models.CharField(max_length=1, choices=TYPE_CHOICES, default=MATCH, verbose_name='Тип')
 
     def __repr__(self):
-        return f'Room {self.pk}'
+        return f'Room {self.pk}: {self.type}'
 
 
 class Message(models.Model):

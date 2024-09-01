@@ -1,7 +1,11 @@
 from drf_spectacular.extensions import OpenApiViewExtension
 from drf_spectacular.utils import extend_schema
 
-from core.apps.accounts import serializers
+from core.apps.brand.serializers import (
+    MatchSerializer,
+    InstantCoopRequestSerializer,
+    InstantCoopSerializer
+)
 
 
 class Fix1(OpenApiViewExtension):
@@ -50,9 +54,18 @@ class Fix1(OpenApiViewExtension):
             @extend_schema(
                 description='Лайкнуть бренд\n\n'
                             'target: id бренда',
-                tags=['Brand']
+                tags=['Brand'],
+                responses={201: MatchSerializer}
             )
             def like(self, request, *args, **kwargs):
                 return super().like(request, *args, **kwargs)
+
+            @extend_schema(
+                tags=['Brand'],
+                request=InstantCoopRequestSerializer,
+                responses={201: InstantCoopSerializer}
+            )
+            def instant_coop(self, request, *args, **kwargs):
+                return super().instant_coop(request, *args, **kwargs)
 
         return Fixed

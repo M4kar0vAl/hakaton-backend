@@ -308,3 +308,53 @@ class MatchSerializer(serializers.ModelSerializer):
             match = Match.objects.create(initiator=initiator, target=target)
 
         return match
+
+
+class InstantCoopSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Room
+        exclude = []
+        read_only_fields = ['id', 'participants', 'has_business', 'type']
+
+    def validate(self, attrs):
+        initiator = self.context['request'].user.brand
+        target_id = self.context['target_id']
+
+        if initiator.pk == target_id:
+            raise exceptions.ValidationError("You cannot cooperate with yourself!")
+
+        try:
+            target = Brand.objects.get(pk=target_id)
+        except Brand.DoesNotExist:
+            raise exceptions.NotFound(f"Brand with id: {target_id} not found!")
+
+        try:
+            # intersection of querysets
+            # if initiator's instant rooms queryset and target's instant rooms queryset has common room,
+            # then it means that they already have instant cooperation. No need to make another room
+            common_room = (
+                    initiator.rooms.filter(type=Room.INSTANT) & target.rooms.filter(type=Room.INSTANT)
+            ).get()
+            # if common room exist, then raise an exception.
+            raise exceptions.ValidationError(f"You already have a chat with this brand! Room id: {common_room.pk}.")
+        except Room.DoesNotExist:
+            # if common room does not exist, then everything is fine. Continue and create one.
+            pass
+
+        attrs['initiator'] = initiator
+        attrs['target'] = target
+
+        return attrs
+
+    def create(self, validated_data):
+        initiator = validated_data.get('initiator')
+        target = validated_data.get('target')
+
+        room = Room.objects.create(has_business=True, type=Room.INSTANT)
+        room.participants.add(initiator, target)
+
+        return room
+
+
+class InstantCoopRequestSerializer(serializers.Serializer):
+    target = serializers.IntegerField(write_only=True)
