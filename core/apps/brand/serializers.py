@@ -4,10 +4,11 @@ from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import InMemoryUploadedFile
-from django.db import transaction
+from django.db import transaction, DatabaseError
 from rest_framework import serializers, exceptions
 
 from core.apps.accounts.serializers import CreateUserSerializer
+from core.apps.analytics.utils import log_match_activity
 from core.apps.brand.models import (
     Brand,
     Category,
@@ -312,19 +313,25 @@ class MatchSerializer(serializers.ModelSerializer):
         target = validated_data.get('target')  # target contains Brand obj
         match = validated_data.get('match')
 
-        if match is not None:
-            # if not None, then is_match is False (checked in validate)
-            match.is_match = True
-            has_business = any([  # TODO change business sub definition
-                initiator.subscription and initiator.subscription.name == 'Бизнес',
-                target.subscription and target.subscription.name == 'Бизнес'
-            ])
-            room = Room.objects.create(has_business=has_business)
-            room.participants.add(initiator, target)
-            match.room = room
-            match.save()
-        else:
-            match = Match.objects.create(initiator=initiator, target=target)
+        try:
+            with transaction.atomic():
+                if match is not None:
+                    # if not None, then is_match is False (checked in validate)
+                    match.is_match = True
+                    has_business = any([  # TODO change business sub definition
+                        initiator.subscription and initiator.subscription.name == 'Бизнес',
+                        target.subscription and target.subscription.name == 'Бизнес'
+                    ])
+                    room = Room.objects.create(has_business=has_business)
+                    room.participants.add(initiator, target)
+                    match.room = room
+                    match.save()
+                else:
+                    match = Match.objects.create(initiator=initiator, target=target)
+
+                log_match_activity(initiator=initiator, target=target, is_match=match.is_match)
+        except DatabaseError:
+            raise exceptions.ValidationError("Failed to perform action!")
 
         return match
 
