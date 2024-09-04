@@ -302,7 +302,8 @@ class MatchSerializer(serializers.ModelSerializer):
                     target.subscription and target.subscription.name == 'Бизнес'
                 ])
                 room = Room.objects.create(has_business=has_business)
-                room.participants.add(initiator, target)
+                # room.participants.add(initiator, target)
+                room.participants.add(initiator.user, target.user)
             return match
         else:
             match = Match.objects.create(initiator=initiator, target=target)
@@ -333,7 +334,8 @@ class InstantCoopSerializer(serializers.ModelSerializer):
             # if initiator's instant rooms queryset and target's instant rooms queryset has common room,
             # then it means that they already have instant cooperation. No need to make another room
             common_room = (
-                    initiator.rooms.filter(type=Room.INSTANT) & target.rooms.filter(type=Room.INSTANT)
+                    # initiator.rooms.filter(type=Room.INSTANT) & target.rooms.filter(type=Room.INSTANT)
+                    initiator.user.rooms.filter(type=Room.INSTANT) & target.user.rooms.filter(type=Room.INSTANT)
             ).get()
             # if common room exist, then raise an exception.
             raise exceptions.ValidationError(f"You already have a chat with this brand! Room id: {common_room.pk}.")
@@ -351,7 +353,8 @@ class InstantCoopSerializer(serializers.ModelSerializer):
         target = validated_data.get('target')
 
         room = Room.objects.create(has_business=True, type=Room.INSTANT)
-        room.participants.add(initiator, target)
+        # room.participants.add(initiator, target)
+        room.participants.add(initiator.user, target.user)
 
         return room
 

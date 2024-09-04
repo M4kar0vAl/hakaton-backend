@@ -1,19 +1,19 @@
 from django.conf import settings
 from django.db import models
 
-from core.apps.brand.models import Brand
-
 
 class Room(models.Model):
     MATCH = 'M'
-    GUARANTEED = 'G'
     INSTANT = 'I'
+    SUPPORT = 'S'
+    HELP = 'H'
     TYPE_CHOICES = {
         MATCH: 'Match',
-        GUARANTEED: 'Guaranteed',
-        INSTANT: 'Instant'
+        INSTANT: 'Instant',
+        SUPPORT: 'Support',
+        HELP: 'Help'
     }
-    participants = models.ManyToManyField(to=Brand, related_name='rooms', verbose_name='Участники')
+    participants = models.ManyToManyField(to=settings.AUTH_USER_MODEL, related_name='rooms', verbose_name='Участники')
     has_business = models.BooleanField(default=False, verbose_name='Бизнес тариф')
     type = models.CharField(max_length=1, choices=TYPE_CHOICES, default=MATCH, verbose_name='Тип')
 

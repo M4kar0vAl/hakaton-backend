@@ -1,6 +1,8 @@
-from typing import Type
+from typing import Type, Optional
 
 from channels.db import database_sync_to_async
+from django.contrib.auth import get_user_model
+from django.db import transaction, DatabaseError
 from django.db.models import QuerySet
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
@@ -10,11 +12,13 @@ from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.serializers import Serializer
 
 from core.apps.brand.models import Brand
-from core.apps.chat.exceptions import BadRequest
+from core.apps.chat.exceptions import BadRequest, ServerError
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer
 from core.apps.chat.utils import reply_to_groups
+
+User = get_user_model()
 
 
 class RoomConsumer(ListModelMixin,
@@ -27,7 +31,8 @@ class RoomConsumer(ListModelMixin,
         if 'action' in kwargs:
             if kwargs['action'] == 'get_room_messages':
                 return Message.objects.filter(room=self.room)
-        return self.brand.rooms.all()
+        # return self.brand.rooms.all()
+        return self.scope['user'].rooms.all()
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
         if kwargs['action'] in ('create_message', 'get_room_messages'):
@@ -184,6 +189,17 @@ class RoomConsumer(ListModelMixin,
             request_id=kwargs['request_id']
         )
 
+    @action()
+    async def get_support_room(self, **kwargs):
+        room, created = await self.get_or_create_support_room()
+
+        room_data = self.get_serialized_room(room=room, **kwargs)
+
+        if created:
+            return room_data, status.HTTP_201_CREATED
+        else:
+            return room_data, status.HTTP_200_OK
+
     async def data_to_groups(self, event):
         await self.send_json(event['payload'])
 
@@ -197,11 +213,13 @@ class RoomConsumer(ListModelMixin,
 
     @database_sync_to_async
     def get_brand(self) -> Brand:
-        return Brand.objects.get(user=self.scope['user'])
+        # return Brand.objects.get(user=self.scope['user'])
+        return self.scope['user'].brand
 
     @database_sync_to_async
     def get_brand_rooms_pk_set(self):
-        return set(self.brand.rooms.values_list('pk', flat=True))
+        # return set(self.brand.rooms.values_list('pk', flat=True))
+        return set(self.scope['user'].rooms.values_list('pk', flat=True))
 
     @database_sync_to_async
     def edit_message_in_db(self, msg_id: int, text: str) -> int:
@@ -233,8 +251,49 @@ class RoomConsumer(ListModelMixin,
         return Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).delete()[0]
 
     @database_sync_to_async
-    def get_serialized_room(self, **kwargs):
-        serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
+    def get_or_create_support_room(self) -> tuple[Room, bool]:
+        """
+        Get support room for current brand. If room does not exist, then create it.
+
+        Returns room instance and status whether it was created or not.
+        """
+        created = False  # if a new room was created
+        try:
+            # room = self.brand.rooms.get(type=Room.SUPPORT)
+            room = self.scope['user'].rooms.get(type=Room.SUPPORT)
+        except Room.MultipleObjectsReturned:
+            raise ServerError('Multiple support rooms returned! Must be exactly one.')
+        except Room.DoesNotExist:
+            try:
+                with transaction.atomic():
+                    room = Room.objects.create(
+                        has_vusiness=self.brand.subscription.name == 'Бизнес',  # TODO change business sub definition
+                        type=Room.SUPPORT
+                    )
+                    # room.participants.add(self.brand)
+                    room.participants.add(self.scope['user'])
+                    created = True
+            except DatabaseError:
+                raise ServerError('Room creation failed! Please try again.')
+
+        return room, created
+
+    @database_sync_to_async
+    def get_serialized_room(self, room: Optional[Room] = None, **kwargs):
+        """
+        Get serialized room data.
+        If room argument is passed, then serializes that room, otherwise serializes current room.
+
+        Returns serializer data.
+
+        Args:
+            room: room instance to be serialized [optional]
+            kwargs: keyword arguments from action
+        """
+        if room is None:
+            serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
+        else:
+            serializer = self.get_serializer(action_kwargs=kwargs, instance=room)
         return serializer.data
 
     @database_sync_to_async
@@ -269,6 +328,11 @@ class AdminRoomConsumer(ListModelMixin,
 
         return super().get_serializer_class()
 
+    async def connect(self):
+        self.brand = await self.get_brand()
+
+        await self.accept()
+
     @action()
     async def join_room(self, room_pk, **kwargs):
         if hasattr(self, 'room_group_name'):
@@ -277,8 +341,12 @@ class AdminRoomConsumer(ListModelMixin,
         self.room = await database_sync_to_async(self.get_object)(pk=room_pk)
         self.room_group_name = f'room_{room_pk}'
 
-        # check if there is business subscription brand
-        self.can_message = self.room.has_business
+        # can create/edit/delete messages only in support chat or in default after-match chat (if admin has brand)
+        # can view messages in all chats
+        if self.brand is not None:
+            self.can_message = self.room.type == Room.SUPPORT or await self.is_brand_in_participants()
+        else:
+            self.can_message = self.room.type == Room.SUPPORT
 
         await self.add_group(self.room_group_name)
 
@@ -374,7 +442,8 @@ class AdminRoomConsumer(ListModelMixin,
         if deleted_count != len(msg_id_list):
             errors.append(
                 "Not all of the requested messages were deleted! "
-                "Check whether the ids are correct and messages belong to the current user's room!"
+                "Check whether the user is the author of the message and the ids are correct! "
+                "Check if messages belong to the current user's room!"
             )
 
         await reply_to_groups(
@@ -387,6 +456,17 @@ class AdminRoomConsumer(ListModelMixin,
             request_id=kwargs['request_id']
         )
 
+    @action()
+    async def get_support_room(self, **kwargs):
+        room, created = await self.get_or_create_support_room()
+
+        room_data = self.get_serialized_room(room=room, **kwargs)
+
+        if created:
+            return room_data, status.HTTP_201_CREATED
+        else:
+            return room_data, status.HTTP_200_OK
+
     async def data_to_groups(self, event):
         await self.send_json(event['payload'])
 
@@ -395,17 +475,28 @@ class AdminRoomConsumer(ListModelMixin,
         Check whether admin can create, edit and delete messages in room.
 
         If admin not connected to a room, then raises BadRequest exception.
-        If room does not have brand with business subscription, then raises PermissionDenied exception.
+        If room is not support room, then raises PermissionDenied exception.
         Otherwise, does nothing.
         """
         try:
             if not self.can_message:
                 raise PermissionDenied(
                     "Action not allowed. "
-                    "You cannot write to a chat that does not have brand with business subscription!"
+                    "You cannot write to non support chat!"
                 )
         except AttributeError:
             raise BadRequest("Action not allowed. You are not in the room!")
+
+    @database_sync_to_async
+    def get_brand(self) -> Brand | None:
+        try:
+            return self.scope['user'].brand
+        except User.brand.RelatedObjectDoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def is_brand_in_participants(self):
+        return self.brand in self.room.participants  # TODO change to self.scope['user']
 
     @database_sync_to_async
     def edit_message_in_db(self, msg_id: int, text: str) -> int:
@@ -428,18 +519,59 @@ class AdminRoomConsumer(ListModelMixin,
     @database_sync_to_async
     def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
         """
-        Delete messages from db. Can delete any message in current room.
+        Delete messages from db. Can only delete own messages in current room.
 
         Args:
             msg_id_list: list of ids of message to delete
 
         Returns number of messages deleted
         """
-        return Message.objects.filter(pk__in=msg_id_list, room=self.room).delete()[0]
+        return Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).delete()[0]
 
     @database_sync_to_async
-    def get_serialized_room(self, **kwargs):
-        serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
+    def get_or_create_support_room(self) -> tuple[Room, bool]:
+        """
+        Get support room for current brand. If room does not exist, then create it.
+
+        Returns room instance and status whether it was created or not.
+        """
+        created = False  # if a new room was created
+        try:
+            # room = self.brand.rooms.get(type=Room.SUPPORT) # TODO change to self.scope['user'] when change participants to users
+            room = self.scope['user'].rooms.get(type=Room.SUPPORT)
+        except Room.MultipleObjectsReturned:
+            raise ServerError('Multiple support rooms returned! Must be exactly one.')
+        except Room.DoesNotExist:
+            try:
+                with transaction.atomic():
+                    room = Room.objects.create(
+                        has_vusiness=self.brand.subscription.name == 'Бизнес',  # TODO change business sub definition
+                        type=Room.SUPPORT
+                    )
+                    # room.participants.add(self.brand)  # TODO change self.scope['user']
+                    room.participants.add(self.scope['user'])
+                    created = True
+            except DatabaseError:
+                raise ServerError('Room creation failed! Please try again.')
+
+        return room, created
+
+    @database_sync_to_async
+    def get_serialized_room(self, room: Optional[Room] = None, **kwargs):
+        """
+        Get serialized room data.
+        If room argument is passed, then serializes that room, otherwise serializes current room.
+
+        Returns serializer data.
+
+        Args:
+            room: room instance to be serialized [optional]
+            kwargs: keyword arguments from action
+        """
+        if room is None:
+            serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
+        else:
+            serializer = self.get_serializer(action_kwargs=kwargs, instance=room)
         return serializer.data
 
     @database_sync_to_async

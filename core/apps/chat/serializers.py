@@ -6,7 +6,7 @@ from core.apps.chat.models import Room, Message
 
 
 class RoomSerializer(serializers.ModelSerializer):
-    participants = BrandGetSerializer(many=True)
+    # participants = BrandGetSerializer(many=True)
     last_message = serializers.SerializerMethodField()
 
     class Meta:
@@ -18,7 +18,7 @@ class RoomSerializer(serializers.ModelSerializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
+    # user = UserSerializer()
     room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all())
 
     class Meta:
