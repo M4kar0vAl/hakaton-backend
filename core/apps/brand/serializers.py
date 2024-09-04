@@ -4,10 +4,11 @@ from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import InMemoryUploadedFile
-from django.db import transaction
+from django.db import transaction, DatabaseError
 from rest_framework import serializers, exceptions
 
 from core.apps.accounts.serializers import CreateUserSerializer
+from core.apps.analytics.utils import log_match_activity
 from core.apps.brand.models import (
     Brand,
     Category,
@@ -267,11 +268,11 @@ class BrandGetSerializer(serializers.ModelSerializer):
 
 class MatchSerializer(serializers.ModelSerializer):
     target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.all(), write_only=True)
-    is_match = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Match
         exclude = ['id', 'initiator']
+        read_only_fields = ['is_match', 'room']
 
     def validate(self, attrs):
         initiator = self.context['request'].user.brand
@@ -280,6 +281,29 @@ class MatchSerializer(serializers.ModelSerializer):
         if initiator == target:
             raise exceptions.ValidationError("You cannot 'like' yourself")
 
+        try:
+            # check if this brand have already performed that same 'like' action
+            match = Match.objects.get(initiator=initiator, target=target)
+            if match.is_match:
+                raise exceptions.ValidationError(f"You already have 'match' with this brand! Room id: {match.room.pk}.")
+            raise exceptions.ValidationError("You have already 'liked' this brand!")
+        except Match.DoesNotExist:
+            # at this point it means that there is no entry in db with that initiator and target,
+            # BUT there may be a reverse entry, which is checked further
+            pass
+
+        try:
+            # check if there is match
+            match = Match.objects.get(initiator=target, target=initiator)
+        except Match.DoesNotExist:
+            match = None
+
+        if match is not None and match.is_match:
+            # if is_match = True already, then raise an exception
+            raise exceptions.ValidationError(f"You already have 'match' with this brand! Room id: {match.room.pk}.")
+
+        # at this point match is either None or is_match = False, passed to create method
+        attrs['match'] = match
         attrs['initiator'] = initiator
 
         return attrs
@@ -287,26 +311,27 @@ class MatchSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         initiator = validated_data.get('initiator')
         target = validated_data.get('target')  # target contains Brand obj
+        match = validated_data.get('match')
 
         try:
-            match = Match.objects.get(initiator=target, target=initiator)
-        except Match.DoesNotExist:
-            match = None
+            with transaction.atomic():
+                if match is not None:
+                    # if not None, then is_match is False (checked in validate)
+                    match.is_match = True
+                    has_business = any([  # TODO change business sub definition
+                        initiator.subscription and initiator.subscription.name == 'Бизнес',
+                        target.subscription and target.subscription.name == 'Бизнес'
+                    ])
+                    room = Room.objects.create(has_business=has_business)
+                    room.participants.add(initiator, target)
+                    match.room = room
+                    match.save()
+                else:
+                    match = Match.objects.create(initiator=initiator, target=target)
 
-        if match:
-            if not match.is_match:  # if it is a new match, then update is_match and create room
-                match.is_match = True
-                match.save()
-                has_business = any([
-                    initiator.subscription and initiator.subscription.name == 'Бизнес',
-                    target.subscription and target.subscription.name == 'Бизнес'
-                ])
-                room = Room.objects.create(has_business=has_business)
-                # room.participants.add(initiator, target)
-                room.participants.add(initiator.user, target.user)
-            return match
-        else:
-            match = Match.objects.create(initiator=initiator, target=target)
+                log_match_activity(initiator=initiator, target=target, is_match=match.is_match)
+        except DatabaseError:
+            raise exceptions.ValidationError("Failed to perform action!")
 
         return match
 

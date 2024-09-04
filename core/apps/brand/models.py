@@ -230,3 +230,6 @@ class Match(models.Model):
         default=False,
         verbose_name='Метч'
     )
+    room = models.OneToOneField(
+        'chat.Room', on_delete=models.PROTECT, blank=True, null=True
+    )
