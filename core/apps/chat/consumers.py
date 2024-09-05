@@ -219,12 +219,10 @@ class RoomConsumer(ListModelMixin,
 
     @database_sync_to_async
     def get_brand(self) -> Brand:
-        # return Brand.objects.get(user=self.scope['user'])
         return self.scope['user'].brand
 
     @database_sync_to_async
     def get_brand_rooms_pk_set(self):
-        # return set(self.brand.rooms.values_list('pk', flat=True))
         return set(self.scope['user'].rooms.values_list('pk', flat=True))
 
     @database_sync_to_async
