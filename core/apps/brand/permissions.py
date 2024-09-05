@@ -15,6 +15,17 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
         return obj.user == request.user
 
 
+class IsBrand(permissions.BasePermission):
+    """
+    Allow access only to users that have brand associated with them.
+    Users, that may not have brand:
+      - admins
+      - users on trial subscription
+    """
+    def has_permission(self, request, view):
+        return hasattr(request.user, 'brand')
+
+
 class IsBusinessSub(permissions.BasePermission):
     """
     Allow access only to brands with business subscription.

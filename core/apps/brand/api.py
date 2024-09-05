@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from core.apps.brand.models import Brand
-from core.apps.brand.permissions import IsOwnerOrReadOnly, IsBusinessSub
+from core.apps.brand.permissions import IsOwnerOrReadOnly, IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
     BrandCreateSerializer,
     BrandGetSerializer,
@@ -35,12 +35,14 @@ class BrandViewSet(viewsets.ModelViewSet):
         return context
 
     def get_permissions(self):
-        if self.action in ('create', 'like'):
+        if self.action == 'create':
             permission_classes = [IsAuthenticated]
         elif self.action in ('update', 'partial_update', 'destroy'):
             permission_classes = [IsOwnerOrReadOnly]
+        elif self.action == 'like':
+            permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
-            permission_classes = [IsBusinessSub]
+            permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub]
         else:
             permission_classes = [AllowAny]
         return [permission() for permission in permission_classes]
