@@ -1,4 +1,3 @@
-import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -7,7 +6,6 @@ try:
 except ImportError:
     from .prod_settings import *
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY')
@@ -15,7 +13,6 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG')
 
 ALLOWED_HOSTS = ['.localhost', '127.0.0.1', '[::1]', 'server.w2w', 'django']
-
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -36,6 +33,7 @@ INSTALLED_APPS = [
     'core.apps.payments.apps.PaymentsConfig',
     'core.apps.questionnaire.apps.QuestionnaireConfig',
     'core.apps.chat.apps.ChatConfig',
+    'core.apps.analytics.apps.AnalyticsConfig',
 ]
 
 MIDDLEWARE = [
@@ -87,7 +85,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -95,7 +92,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
 
 STATIC_URL = 'static/'
 
@@ -109,7 +105,7 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',  # для входа в админ панель
 )
 
-#DRF
+# DRF
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -144,7 +140,7 @@ SPECTACULAR_SETTINGS = {
     ],
 }
 
-#JWT tokens
+# JWT tokens
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(weeks=4),
@@ -171,7 +167,6 @@ SIMPLE_JWT = {
 
     'JTI_CLAIM': 'jti',
 }
-
 
 # channels
 CHANNEL_LAYERS = {
