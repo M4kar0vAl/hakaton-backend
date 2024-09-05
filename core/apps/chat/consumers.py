@@ -30,8 +30,8 @@ class RoomConsumer(ListModelMixin,
     def get_queryset(self, **kwargs) -> QuerySet:
         if 'action' in kwargs:
             if kwargs['action'] == 'get_room_messages':
-                return Message.objects.filter(room=self.room)
-        # return self.brand.rooms.all()
+                return self.room.messages
+
         return self.scope['user'].rooms.all()
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
@@ -190,10 +190,16 @@ class RoomConsumer(ListModelMixin,
         )
 
     @action()
-    async def get_support_room(self, **kwargs):
-        room, created = await self.get_or_create_support_room()
+    async def get_room_of_type(self, type_, **kwargs):
+        if type_ in (Room.MATCH, Room.INSTANT):
+            raise BadRequest(
+                f"There can be multiple rooms of type [{type_}]. "
+                "Use 'list' action instead and filter result by type."
+            )
 
-        room_data = self.get_serialized_room(room=room, **kwargs)
+        room, created = await self.get_or_create_room(type_=type_)
+
+        room_data = await self.get_serialized_room(room=room, **kwargs)
 
         if created:
             return room_data, status.HTTP_201_CREATED
@@ -251,30 +257,33 @@ class RoomConsumer(ListModelMixin,
         return Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).delete()[0]
 
     @database_sync_to_async
-    def get_or_create_support_room(self) -> tuple[Room, bool]:
+    def get_or_create_room(self, type_: str) -> tuple[Room, bool]:
         """
-        Get support room for current brand. If room does not exist, then create it.
+        Get room of specific type for current brand. If room does not exist, then create it.
+        The room type being passed must be such that there can only be one room of that type.
+        Otherwise, ServerError (500) will be raised.
 
         Returns room instance and status whether it was created or not.
+
+        Args:
+            type_: room type, must be one of the Room.TYPE_CHOICES
         """
-        created = False  # if a new room was created
+        created = False  # whether a new room was created
         try:
-            # room = self.brand.rooms.get(type=Room.SUPPORT)
-            room = self.scope['user'].rooms.get(type=Room.SUPPORT)
+            room = self.scope['user'].rooms.get(type=type_)
         except Room.MultipleObjectsReturned:
-            raise ServerError('Multiple support rooms returned! Must be exactly one.')
+            raise ServerError("Multiple rooms returned! Must be exactly one.")
         except Room.DoesNotExist:
             try:
                 with transaction.atomic():
                     room = Room.objects.create(
-                        has_vusiness=self.brand.subscription.name == 'Бизнес',  # TODO change business sub definition
-                        type=Room.SUPPORT
+                        has_business=self.brand.subscription.name == 'Бизнес',  # TODO change business sub definition
+                        type=type_
                     )
-                    # room.participants.add(self.brand)
                     room.participants.add(self.scope['user'])
                     created = True
             except DatabaseError:
-                raise ServerError('Room creation failed! Please try again.')
+                raise ServerError("Room creation failed! Please try again.")
 
         return room, created
 
@@ -319,7 +328,7 @@ class AdminRoomConsumer(ListModelMixin,
     def get_queryset(self, **kwargs) -> QuerySet:
         if 'action' in kwargs:
             if kwargs['action'] == 'get_room_messages':
-                return Message.objects.filter(room=self.room)
+                return self.room.messages
         return super().get_queryset(**kwargs)
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
@@ -343,10 +352,7 @@ class AdminRoomConsumer(ListModelMixin,
 
         # can create/edit/delete messages only in support chat or in default after-match chat (if admin has brand)
         # can view messages in all chats
-        if self.brand is not None:
-            self.can_message = self.room.type == Room.SUPPORT or await self.is_brand_in_participants()
-        else:
-            self.can_message = self.room.type == Room.SUPPORT
+        self.can_message = self.room.type in [Room.SUPPORT, Room.HELP] or await self.is_user_in_participants()
 
         await self.add_group(self.room_group_name)
 
@@ -420,7 +426,8 @@ class AdminRoomConsumer(ListModelMixin,
         else:
             raise NotFound(
                 f"Message with id: {msg_id} and user: {self.scope['user'].email} not found! "
-                "Check whether the user is the author of the message and the id is correct!"
+                "Check whether the user is the author of the message and the id is correct! "
+                "Check if messages belong to the current user's room!"
             )
 
     @action()
@@ -430,7 +437,11 @@ class AdminRoomConsumer(ListModelMixin,
         deleted_count = await self.delete_messages_in_db(msg_id_list)
 
         if deleted_count == 0:
-            raise NotFound(f"Messages with ids: {msg_id_list} were not found! Nothing was deleted!")
+            raise NotFound(
+                f"Messages with ids: {msg_id_list} were not found! Nothing was deleted! "
+                "Check whether the user is the author of the message and the ids are correct! "
+                "Check if messages belong to the current user's room!"
+            )
 
         data = {
             'room_id': self.room.pk,
@@ -460,7 +471,7 @@ class AdminRoomConsumer(ListModelMixin,
     async def get_support_room(self, **kwargs):
         room, created = await self.get_or_create_support_room()
 
-        room_data = self.get_serialized_room(room=room, **kwargs)
+        room_data = await self.get_serialized_room(room=room, **kwargs)
 
         if created:
             return room_data, status.HTTP_201_CREATED
@@ -482,7 +493,8 @@ class AdminRoomConsumer(ListModelMixin,
             if not self.can_message:
                 raise PermissionDenied(
                     "Action not allowed. "
-                    "You cannot write to non support chat!"
+                    f"You cannot write to room of type [{self.room.get_type_display()}] "
+                    "if you are not a participant of it!"
                 )
         except AttributeError:
             raise BadRequest("Action not allowed. You are not in the room!")
@@ -495,8 +507,8 @@ class AdminRoomConsumer(ListModelMixin,
             return None
 
     @database_sync_to_async
-    def is_brand_in_participants(self):
-        return self.brand in self.room.participants  # TODO change to self.scope['user']
+    def is_user_in_participants(self):
+        return self.scope['user'] in self.room.participants.all()
 
     @database_sync_to_async
     def edit_message_in_db(self, msg_id: int, text: str) -> int:
@@ -531,24 +543,22 @@ class AdminRoomConsumer(ListModelMixin,
     @database_sync_to_async
     def get_or_create_support_room(self) -> tuple[Room, bool]:
         """
-        Get support room for current brand. If room does not exist, then create it.
+        Get support room for current user. If room does not exist, then create it.
 
         Returns room instance and status whether it was created or not.
         """
-        created = False  # if a new room was created
+        created = False  # whether a new room was created
         try:
-            # room = self.brand.rooms.get(type=Room.SUPPORT) # TODO change to self.scope['user'] when change participants to users
             room = self.scope['user'].rooms.get(type=Room.SUPPORT)
         except Room.MultipleObjectsReturned:
-            raise ServerError('Multiple support rooms returned! Must be exactly one.')
+            raise ServerError('Multiple rooms returned! Must be exactly one.')
         except Room.DoesNotExist:
             try:
                 with transaction.atomic():
                     room = Room.objects.create(
-                        has_vusiness=self.brand.subscription.name == 'Бизнес',  # TODO change business sub definition
+                        has_business=self.brand.subscription.name == 'Бизнес' if self.brand is not None else False,  # TODO change business sub definition
                         type=Room.SUPPORT
                     )
-                    # room.participants.add(self.brand)  # TODO change self.scope['user']
                     room.participants.add(self.scope['user'])
                     created = True
             except DatabaseError:

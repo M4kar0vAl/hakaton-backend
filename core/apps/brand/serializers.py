@@ -266,6 +266,31 @@ class BrandGetSerializer(serializers.ModelSerializer):
         exclude = []
 
 
+class GetShortBrandSerializer(serializers.ModelSerializer):
+    category = CategorySerializer()
+
+    class Meta:
+        model = Brand
+        fields = [
+            'id',
+            'brand_name_pos',
+            'fullname',
+            'logo',
+            'photo',
+            'product_photo',
+            'category'
+        ]
+        read_only_fields = [
+            'id',
+            'brand_name_pos',
+            'fullname',
+            'logo'
+            'photo',
+            'product_photo',
+            'category'
+        ]
+
+
 class MatchSerializer(serializers.ModelSerializer):
     target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.all(), write_only=True)
 
@@ -323,7 +348,8 @@ class MatchSerializer(serializers.ModelSerializer):
                         target.subscription and target.subscription.name == 'Бизнес'
                     ])
                     room = Room.objects.create(has_business=has_business)
-                    room.participants.add(initiator, target)
+                    # room.participants.add(initiator, target)
+                    room.participants.add(initiator.user, target.user)
                     match.room = room
                     match.save()
                 else:
@@ -359,7 +385,7 @@ class InstantCoopSerializer(serializers.ModelSerializer):
             # if initiator's instant rooms queryset and target's instant rooms queryset has common room,
             # then it means that they already have instant cooperation. No need to make another room
             common_room = (
-                    # initiator.rooms.filter(type=Room.INSTANT) & target.rooms.filter(type=Room.INSTANT)
+                # initiator.rooms.filter(type=Room.INSTANT) & target.rooms.filter(type=Room.INSTANT)
                     initiator.user.rooms.filter(type=Room.INSTANT) & target.user.rooms.filter(type=Room.INSTANT)
             ).get()
             # if common room exist, then raise an exception.

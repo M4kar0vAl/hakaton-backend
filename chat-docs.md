@@ -65,25 +65,41 @@ _**Получить список всех комнат, в которых сос
 
 ##### Пример ответа
 
+`participants` - id пользователей (не брендов)
+`interlocutors_brand` - короткая информация о бренде собеседника, используйте ее для отрисовки списка чатов. Когда пользователь захочет подробно про бренд посмотреть делайте запрос на `/api/v1/brand/{id}/` для получения всей информации.
+
+Для комнат поддержки/помощи `interlocutors_brand` вернет `null`. Возможно, потом заменю на бренд агентство W2W.
+
 ```json
 {
   "errors": [],
   "data": [
     {
-      "pk": 1,
+      "id": 1,
+      "last_message": {
+        "id": 1,
+        "room": 1,
+        "text": "text",
+        "created_at": "2024-09-04T11:22:02.474470Z",
+        "user": 1
+      },
+      "interlocutors_brand": {
+        "id": 1,
+        "brand_name_pos": "text",
+        "fullname": "text",
+        "logo": "path",
+        "photo": "path",
+        "product_photo": "path",
+        "category": {
+          "text": "text"
+        }
+      },
+      "has_business": true,
+      "type": "M",
       "participants": [
-        {},
-        {}
-      ],
-      "has_business": true
-    },
-    {
-      "pk": 2,
-      "participants": [
-        {},
-        {}
-      ],
-      "has_business": false
+        1,
+        2
+      ]
     }
   ],
   "action": "list",
@@ -123,18 +139,35 @@ _**Присоединиться к комнате**_
 
 В качестве ответа приходит комната в формате json, которую указали в запросе
 
-`participants` - список из двух объектов (структура такая же как у брендов, см. по http://127.0.0.1:80/api/docs/)
-
 ```json
 {
   "errors": [],
   "data": {
-   "pk": 1,
-   "participants": [
-     {},
-     {}
-   ],
-   "has_business": true
+    "id": 1,
+    "last_message": {
+      "id": 1,
+      "room": 1,
+      "text": "text",
+      "created_at": "2024-09-04T11:22:02.474470Z",
+      "user": 1
+    },
+    "interlocutors_brand": {
+      "id": 1,
+      "brand_name_pos": "text",
+      "fullname": "text",
+      "logo": "path",
+      "photo": "path",
+      "product_photo": "path",
+      "category": {
+        "text": "text"
+      }
+    },
+    "has_business": true,
+    "type": "M",
+    "participants": [
+      1,
+      2
+    ]
   },
   "action": "join_room",
   "response_status": 200,
@@ -220,18 +253,16 @@ _**Получить все сообщения комнаты**_
 
 ##### Пример ответа
 
+> [!NOTE]
+> Теперь вместо информации о пользователе возвращается его id
+
 ```json
 {
   "errors": [],
   "data": [
     {
       "id": 1,
-      "user": {
-        "id": 2,
-        "email": "admin@example.com",
-        "phone": "+79993332211",
-        "telegram_link": "https://t.me/W2W_Match_Hakaton_Bot?start=Mg"
-      },
+      "user": 1,
       "room": 1,
       "text": "Test message",
       "created_at": "2024-06-20T13:27:06.746701Z"
@@ -278,23 +309,15 @@ _**Написать сообщение**_
 
 ##### Пример ответа
 
-`user` и `participants` имеет структуру пользователя и бренда соответственно (см. по http://127.0.0.1:80/api/docs/)
-
 ```json
 {
   "errors": [],
   "data": {
-    "text": "hello",
-    "user": {},
-    "created_at": "2024-06-17T18:00:00.000Z",
-    "room": {
-      "pk": 1,
-      "participants": [
-        {},
-        {}
-      ],
-      "has_business": true
-    }
+    "id": 1,
+    "room": 1,
+    "text": "test",
+    "created_at": "2024-09-05T13:02:46.859077Z",
+    "user": 1
   },
   "action": "create_message",
   "response_status": 201,
@@ -448,13 +471,30 @@ _**Получить информацию о текущей комнате**_
 {
   "errors": [],
   "data": {
-    "pk": 1,
+    "id": 1,
+    "last_message": {
+      "room": null,
+      "text": "",
+      "user": null
+    },
+    "interlocutors_brand": {
+      "id": 1,
+      "brand_name_pos": "text",
+      "fullname": "text",
+      "logo": "path",
+      "photo": "path",
+      "product_photo": "path",
+      "category": {
+        "text": "text"
+      }
+    },
+    "has_business": true,
+    "type": "M",
     "participants": [
-      {},
-      {}
-    ],
-    "has_business": true
-  },
+      1,
+      2
+    ]
+    },
   "action": "current_room_info",
   "response_status": 200,
   "request_id": 1500000
@@ -472,9 +512,91 @@ _**Получить информацию о текущей комнате**_
     "errors": ["Action not allowed. You are not in the room!"]
     ```
 
+#### `get_room_of_type`
+
+**_Получить комнату определенного типа._**
+
+**_Должен быть использован для получения комнат, которых может быть максимум по одной на пользователя._**
+
+**_Типы таких комнат:_**
+- **_`'S'` (Support): комната поддержки_**
+- **_`'H'` (Help): комната индивидуальной помощи с коллаборациями_**
+
+**_Для других типов вернет 400._**
+
+**_Если тип верный, но по каким-то причинам комнат все равно больше, чем одна, то вернет 500._**
+**_В этом случае админам придется чинить через админку. Но само по себе такое произойти не может._**
+
+##### Параметры
+
+- `action`: str - _название action_
+- `type_`: str - _тип комнаты_ (`_` - не опечатка! Нужно, чтобы избежать конфликта со встроенной в язык функцией)
+- `request_id`: int - _уникальный id запроса (можно указать текущую дату-время в миллисекундах)_
+
+##### Пример запроса
+
+```json
+{
+  "action": "get_room_of_type",
+  "type_": "S",
+  "request_id": 1500000
+}
+```
+
+##### Пример ответа
+
+```json
+{
+  "errors": [],
+  "data": {
+    "id": 1,
+    "last_message": {
+      "id": 1,
+      "room": 1,
+      "text": "test",
+      "created_at": "2024-09-04T11:22:02.474470Z",
+      "user": 1
+    },
+    "interlocutors_brand": null,
+    "has_business": true,
+    "type": "S",
+    "participants": [
+        1
+    ]
+  },
+  "action": "get_room_of_type",
+  "response_status": 200,
+  "request_id": 1500000
+}
+```
+
+##### Возможные статусы
+
+- **200** - если комната существовала, то вернется она
+  - ```
+    "errors": []
+    ```
+- **201** - если комнаты не существовало она будет создана
+  - ```
+    "errors": []
+    ```
+- **400** - если указали тип, который было сказано не указывать
+  - ```
+    "errors": ["There can be multiple rooms of type [{type_}]. Use 'list' action instead and filter result by type."]
+    ```
+- **500** - если ошибка на стороне сервера. Кто-то из админов доигрался с количеством комнат или при обращении к базе данных какая-то ошибка произошла.
+  - ```
+    "errors": ["Multiple rooms returned! Must be exactly one."]
+    ```
+  - ```
+    "errors": ["Room creation failed! Please try again."]
+    ```
+
 ### `ws://localhost:80/ws/admin-chat/`
 
 **_Все те же actions, что и в обычном чате, но без `current_room_info`._**
+
+**_`get_room_of_type` заменено на `get_support_room`, потому что админы могут писать в поддержку (коллективный разум, все дела), но комнаты помощи им недоступны_**
 
 **_У некоторых actions изменено поведение (см. ниже)_**
 
@@ -562,4 +684,67 @@ _**Получить информацию о текущей комнате**_
 - **404**
   - ```
     "errors": ["Messages with ids: {msg_id_list} were not found! Nothing was deleted!"]
+    ```
+
+#### `get_support_room`
+
+**_Получить комнату поддержки._**
+
+##### Параметры
+
+Здесь, в отличие от `get_room_of_type`, не нужно передавать тип. Всегда вернется тип `'S'` (Support)
+
+- `action`: str - _название action_
+- `request_id`: int - _уникальный id запроса (можно указать текущую дату-время в миллисекундах)_
+
+##### Пример запроса
+
+```json
+{
+  "action": "get_support_room",
+  "request_id": 1500000
+}
+```
+
+##### Пример ответа
+
+```json
+{
+  "errors": [],
+  "data": {
+    "id": 1,
+    "last_message": {
+      "room": null,
+      "text": "",
+      "user": null
+    },
+    "interlocutors_brand": [],
+    "has_business": false,
+    "type": "S",
+    "participants": [
+        1
+    ]
+  },
+  "action": "get_support_room",
+  "response_status": 200,
+  "request_id": 1500000
+}
+```
+
+##### Возможные статусы
+
+- **200** - если комната существовала, то вернется она
+  - ```
+    "errors": []
+    ```
+- **201** - если комнаты не существовало она будет создана
+  - ```
+    "errors": []
+    ```
+- **500** - если ошибка на стороне сервера. Кто-то из админов доигрался с количеством комнат или при обращении к базе данных какая-то ошибка произошла.
+  - ```
+    "errors": ["Multiple rooms returned! Must be exactly one."]
+    ```
+  - ```
+    "errors": ["Room creation failed! Please try again."]
     ```
