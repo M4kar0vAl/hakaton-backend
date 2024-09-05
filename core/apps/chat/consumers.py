@@ -484,7 +484,7 @@ class AdminRoomConsumer(ListModelMixin,
         Check whether admin can create, edit and delete messages in room.
 
         If admin not connected to a room, then raises BadRequest exception.
-        If room is not support room, then raises PermissionDenied exception.
+        If room is not support or help room, then raises PermissionDenied exception.
         Otherwise, does nothing.
         """
         try:

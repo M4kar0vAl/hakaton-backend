@@ -13,10 +13,9 @@
 
 - чат для админов (для подключения нужно иметь права администратора)
 - присоединиться могут к любой комнате, чтобы просматривать сообщения
-- писать/редактировать/удалять сообщения могут только в чате, где есть бизнес тариф
+- писать/редактировать/удалять сообщения могут только в комнатах поддержки и помощи. В комнатах метчей могут только если это их метч (соответственно если у админа есть бренд, вероятно это только для самого W2W бренда)
 - писать/редактировать/удалять сообщения можно только присоединившись к комнате
-- редактировать могут только свои сообщения
-- удалять могут любые сообщения в текущей комнате
+- редактировать/удалять могут только свои сообщения
 
 ## Авторизация
 
@@ -600,6 +599,8 @@ _**Получить информацию о текущей комнате**_
 
 **_У некоторых actions изменено поведение (см. ниже)_**
 
+**_Во всех ответах, где есть `interlocutors_brand` возвращает список брендов всех участников комнаты, если они есть. Структура такая же, только вместо одного объекта - список объектов. (P.S. мне лень было определять, где админ, как админ, а где как пользователь, поэтому пока будет так)_**
+
 #### Необходимые разрешения
 
 - Пользователь должен быть **администратором**
@@ -607,7 +608,7 @@ _**Получить информацию о текущей комнате**_
 #### Права
 
 - Просматривать сообщения можно в **любой** комнате
-- `create_message`, `edit_message`, `delete_messages` доступны только в комнате с брендом, у которого бизнес тариф
+- `create_message`, `edit_message`, `delete_messages` доступны только в комнатах поддержки и помощи или метча, если это метч администратора (см. описание эндпоинта в начале документации)
 
 #### `list`
 
@@ -636,7 +637,7 @@ _**Получить информацию о текущей комнате**_
     ```
 - **403**
   - ```
-    "errors": ["Action not allowed. You cannot write to a chat that does not have brand with business subscription!"]
+    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}] if you are not a participant of it!"]
     ```
 
 #### `edit_message`
@@ -653,16 +654,16 @@ _**Получить информацию о текущей комнате**_
     ```
 - **403**
   - ```
-    "errors": ["Action not allowed. You cannot write to a chat that does not have brand with business subscription!"]
+    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}] if you are not a participant of it!"]
     ```
 - **404**
   - ```
-    "errors": ["Message with id: {msg_id} and user: {current_user.email} not found! Check whether the user is the author of the message and the id is correct!"]
+    "errors": ["Message with id: {msg_id} and user: {current_user.email} not found! Check whether the user is the author of the message and the id is correct! Check if messages belong to the current user's room!"]
     ```
 
 #### `delete_messages`
 
-**_Позволяет удалять любые сообщения в текущей комнате_**
+**_Только дл своих сообщений_**
 
 ##### Возможные статусы
 
@@ -671,7 +672,7 @@ _**Получить информацию о текущей комнате**_
     "errors": []
     ```
   - ```
-    "errors": ["Not all of the requested messages were deleted! Check whether the ids are correct and messages belong to the current user's room!"]
+    "errors": ["Not all of the requested messages were deleted! Check whether the user is the author of the message and the ids are correct! Check if messages belong to the current user's room!"]
     ```
 - **400**
   - ```
@@ -679,11 +680,11 @@ _**Получить информацию о текущей комнате**_
     ```
 - **403**
   - ```
-    "errors": ["Action not allowed. You cannot write to a chat that does not have brand with business subscription!"]
+    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}] if you are not a participant of it!"]
     ```
 - **404**
   - ```
-    "errors": ["Messages with ids: {msg_id_list} were not found! Nothing was deleted!"]
+    "errors": ["Messages with ids: {msg_id_list} were not found! Nothing was deleted! Check whether the user is the author of the message and the ids are correct! Check if messages belong to the current user's room!"]
     ```
 
 #### `get_support_room`
