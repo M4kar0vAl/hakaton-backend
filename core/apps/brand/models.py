@@ -73,7 +73,7 @@ class Brand(models.Model):
 class Category(models.Model):
     brand = models.OneToOneField(
         Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='category',
     )
     text = models.CharField(max_length=128)
@@ -92,7 +92,7 @@ class Category(models.Model):
 class PresenceType(models.Model):
     brand = models.OneToOneField(
         Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='presence_type'
     )
     text = models.CharField(max_length=128)
@@ -111,7 +111,7 @@ class PresenceType(models.Model):
 class ReadinessPublicSpeaker(models.Model):
     brand = models.OneToOneField(
         Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='public_speaker'
     )
     text = models.CharField(max_length=128)
@@ -130,7 +130,7 @@ class ReadinessPublicSpeaker(models.Model):
 class SubsCount(models.Model):
     brand = models.OneToOneField(
         Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='subs_count'
     )
     text = models.CharField(max_length=128)
@@ -149,7 +149,7 @@ class SubsCount(models.Model):
 class AvgBill(models.Model):
     brand = models.OneToOneField(
         Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='avg_bill'
     )
     text = models.CharField(max_length=128)
@@ -168,7 +168,7 @@ class AvgBill(models.Model):
 class Goal(models.Model):
     brand = models.ForeignKey(
         Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='goals'
     )
     text = models.CharField(max_length=128)
@@ -187,7 +187,7 @@ class Goal(models.Model):
 class Format(models.Model):
     brand = models.ForeignKey(
         Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='formats'
     )
     text = models.CharField(max_length=128)
@@ -206,7 +206,7 @@ class Format(models.Model):
 class CollaborationInterest(models.Model):
     brand = models.ForeignKey(
         Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='collaboration_interest'
     )
     text = models.CharField(max_length=128)
