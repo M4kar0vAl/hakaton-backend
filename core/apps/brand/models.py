@@ -225,13 +225,13 @@ class CollaborationInterest(models.Model):
 class Match(models.Model):
     initiator = models.ForeignKey(
         to=Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='initiator',
         verbose_name='Кто лайкнул'
     )
     target = models.ForeignKey(
         to=Brand,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='target',
         verbose_name='Кого лайкнули'
     )
@@ -240,5 +240,5 @@ class Match(models.Model):
         verbose_name='Метч'
     )
     room = models.OneToOneField(
-        'chat.Room', on_delete=models.PROTECT, blank=True, null=True
+        'chat.Room', on_delete=models.SET_NULL, blank=True, null=True
     )
