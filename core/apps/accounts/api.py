@@ -47,7 +47,7 @@ class UserViewSet(
 
         return super().get_permissions()
 
-    @action(['get', 'patch', 'delete'], detail=False, url_name='me')
+    @action(['get', 'patch'], detail=False, url_name='me')
     def me(self, request, *args, **kwargs):
         user = self.request.user
         if request.method == 'GET':
@@ -58,9 +58,6 @@ class UserViewSet(
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(data=serializer.data, status=200)
-        elif request.method == 'DELETE':
-            user.delete()
-            return Response(status=204)
 
     @action(['post'], detail=False, url_name='password_reset')
     def password_reset(self, request, *args, **kwargs):

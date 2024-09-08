@@ -1,3 +1,9 @@
+import os
+import shutil
+
+from django.conf import settings
+from django.db import transaction, DatabaseError
+from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -11,6 +17,7 @@ from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopSerializer,
 )
+from core.apps.chat.models import Room
 
 
 class BrandViewSet(viewsets.ModelViewSet):
@@ -46,6 +53,45 @@ class BrandViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [AllowAny]
         return [permission() for permission in permission_classes]
+
+    def perform_destroy(self, instance):
+        user_id = instance.user.id  # need to get it here cuz it will be unavailable once the user is deleted
+        try:
+            with transaction.atomic():
+                user = instance.user
+
+                # delete user's support and help chats
+                # messages in that chats will be deleted
+                user.rooms.filter(Q(type=Room.SUPPORT) | Q(type=Room.HELP)).delete()
+
+                # delete user, brand will remain with user=NULL
+                # all user's messages 'user' field in match and instant chats will be set to NULL
+                user.delete()
+
+                # need to call this before calling instance.save(),
+                # cuz instance think that 'user' field was changed to NULL (and wasn't saved)
+                # and it doesn't know user was deleted
+                instance.refresh_from_db()
+
+                # remove images urls from DB
+                instance.logo = None
+                instance.photo = None
+                instance.product_photo = None
+                instance.subscription = None
+                instance.sub_expire = None
+                instance.save()
+
+                # get path to 'deleted' user's media files directory (media/user_{user.id})
+                path_to_user_dir = os.path.join(settings.MEDIA_ROOT, f'user_{user_id}')
+
+                # delete user directory with all images in it
+                try:
+                    shutil.rmtree(path_to_user_dir)
+                except FileNotFoundError:
+                    # does nothing if directory was not found
+                    pass
+        except DatabaseError:
+            return Response({'detail': 'Unexpected database error. Please try again.'})
 
     @action(detail=False, methods=['post'])
     def like(self, request, pk=None):

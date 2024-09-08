@@ -66,6 +66,7 @@ class UserSerializer(serializers.ModelSerializer):
             'email',
             'phone',
             'telegram_link',
+            'brand',
         ]
 
     def get_telegram_link(self, obj):
