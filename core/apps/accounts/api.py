@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
 
-from rest_framework import viewsets, mixins, permissions
+from rest_framework import viewsets, mixins, permissions, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -9,8 +10,12 @@ from core.apps.accounts.serializers import (
     UserSerializer,
     UpdateUserSerializer,
     PasswordResetSerializer,
+    RequestPasswordRecoverySerializer,
+    RecoveryPasswordSerializer,
     UserTelegramID,
 )
+from core.apps.accounts.models import PasswordRecovery
+from core.apps.accounts.utils import send_password_recovery_email
 from .permissions import IsBot
 
 User = get_user_model()
@@ -83,3 +88,57 @@ class UserViewSet(
         user.save()
 
         return Response(data=serializer.data, status=200)
+
+
+class RequestPasswordRecoveryViewSet(generics.GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RequestPasswordRecoverySerializer
+
+    def post(self, request):
+        serializer = RequestPasswordRecoverySerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            user = User.objects.filter(email__iexact=email).first()
+
+            if user:
+                token = PasswordResetTokenGenerator().make_token(user)
+                reset = PasswordRecovery(email=email, token=token)
+                reset.save()
+
+                #TODO send mail
+                send_password_recovery_email(email, token, request.get_host())
+
+                return Response({"success": "Password recovery link sent"}, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "User with credentials not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RecoveryPasswordViewSet(generics.GenericAPIView):
+    permissions_classes = [permissions.AllowAny]
+    serializer_class = RecoveryPasswordSerializer
+
+    def post(self, request, token):
+        serializer = RecoveryPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            new_password = serializer.validated_data['new_password']
+            confirm_password = serializer.validated_data['confirm_password']
+            
+            if new_password != confirm_password:
+                return Response({"error": "Passwords don't match"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            reset_obj = PasswordRecovery.objects.filter(token=token).first()
+
+            if not reset_obj:
+                return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            user = User.objects.filter(email=reset_obj.email).first()
+
+            if not user:
+                return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            user.set_password(new_password)
+            user.save()
+            reset_obj.delete()
+            return Response({"success": "Password changed"}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

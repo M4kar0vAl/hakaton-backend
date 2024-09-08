@@ -93,6 +93,16 @@ class PasswordResetSerializer(
     password = serializers.CharField()
 
 
+class RequestPasswordRecoverySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class RecoveryPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, required=True)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+
+
+
 class UserDecodeID(serializers.Serializer):
     user_id = serializers.CharField()
 
