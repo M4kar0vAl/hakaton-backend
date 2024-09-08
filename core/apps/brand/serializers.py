@@ -132,7 +132,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         for field in ['logo', 'photo', 'product_photo']:
             img_b64 = data[field]
-            data[field] = self.convert_b64str_to_img(img_b64)
+            data[field] = self.convert_b64str_to_img(img_b64, field)
 
         return super().to_internal_value(data)
 
@@ -233,8 +233,8 @@ class BrandCreateSerializer(serializers.ModelSerializer):
         msg = self.errors_messages[key].format(**kwargs)
         self.fails.update({key: msg})
 
-    def convert_b64str_to_img(self, img_str: str) -> InMemoryUploadedFile:
-        file_name = f"{uuid.uuid4()}.png"
+    def convert_b64str_to_img(self, img_str: str, field: str) -> InMemoryUploadedFile:
+        file_name = f"{field}_{uuid.uuid4()}.png"
         image_data = base64.b64decode(img_str)
         image_io = BytesIO(image_data)
 

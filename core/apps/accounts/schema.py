@@ -74,10 +74,9 @@ def user_me_postprocessing_hook(result, generator, request, public):
     description = {
         'get': {'description': 'Получить данные авторизованного пользователя'},
         'patch': {'description': 'Выборочно обновить данные авторизованного пользователя'},
-        'delete': {'description': 'Удалить авторизованного пользователя'},
     }
 
-    methods = ['get', 'patch', 'delete']
+    methods = ['get', 'patch']
     endpoints = ['/auth/users/me/']
 
     for endpoint in endpoints:

@@ -5,9 +5,18 @@ from core.apps.payments.models import Subscription
 from core.apps.questionnaire.models import Question
 
 
+def user_directory_path(instance, filename):
+    # file will be uploaded to MEDIA_ROOT/user_<id>/<filename>
+    # in case of brand there will be a user_{id} directory with 3 files:
+    # - logo_{uuid}.png
+    # - photo_{uuid}.png
+    # - product_photo_{uuid}.png
+    return f'user_{instance.user.id}/{filename}'
+
+
 class Brand(models.Model):
     user = models.OneToOneField(
-        to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE
+        to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
     )
     published = models.BooleanField(
         default=False, verbose_name='Опубликовано'
@@ -44,12 +53,12 @@ class Brand(models.Model):
     business_group = models.CharField(
         'Сообщество предпринимателей', max_length=512
     )
-    logo = models.ImageField('Лого', upload_to='logos')
+    logo = models.ImageField('Лого', upload_to=user_directory_path, null=True)
     photo = models.ImageField(
-        'Фото представителя', upload_to='photos'
+        'Фото представителя', upload_to=user_directory_path, null=True
     )
     product_photo = models.ImageField(
-        'Фото продукта', upload_to='product_photos'
+        'Фото продукта', upload_to=user_directory_path, null=True
     )
     fullname = models.CharField('Фамилия и имя', max_length=512)
 

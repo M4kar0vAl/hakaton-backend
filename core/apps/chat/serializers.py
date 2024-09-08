@@ -32,7 +32,7 @@ class RoomSerializer(serializers.ModelSerializer):
                     )
                 ).data
             except Brand.DoesNotExist:
-                return None  # this is only for support and help rooms. Maybe return W2W agency
+                return None  # this is only for support and help rooms OR if user was deleted. Maybe return W2W agency
 
 
 class MessageSerializer(serializers.ModelSerializer):
