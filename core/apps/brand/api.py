@@ -9,6 +9,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
+from core.apps.analytics.models import BrandActivity
+from core.apps.analytics.utils import log_brand_activity
 from core.apps.brand.models import Brand
 from core.apps.brand.permissions import IsOwnerOrReadOnly, IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
@@ -90,6 +92,8 @@ class BrandViewSet(viewsets.ModelViewSet):
                 except FileNotFoundError:
                     # does nothing if directory was not found
                     pass
+
+                log_brand_activity(brand=instance, action=BrandActivity.DELETION)
         except DatabaseError:
             return Response({'detail': 'Unexpected database error. Please try again.'})
 

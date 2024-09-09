@@ -8,7 +8,8 @@ from django.db import transaction, DatabaseError
 from rest_framework import serializers, exceptions
 
 from core.apps.accounts.serializers import CreateUserSerializer
-from core.apps.analytics.utils import log_match_activity
+from core.apps.analytics.models import BrandActivity
+from core.apps.analytics.utils import log_match_activity, log_brand_activity
 from core.apps.brand.models import (
     Brand,
     Category,
@@ -226,6 +227,8 @@ class BrandCreateSerializer(serializers.ModelSerializer):
                 if goal['text'].startswith('Свой вариант: '):
                     goal['text'] = goal['text'].lstrip('Свой вариант: ')
                 Goal.objects.create(brand=brand, **goal)
+
+            log_brand_activity(brand=brand, action=BrandActivity.REGISTRATION)
 
         return brand
 
