@@ -36,3 +36,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __repr__(self):
         return f"User {self.email}"
+
+
+class PasswordRecovery(models.Model):
+    #TODO сделать автоматическую очистку устаревших моделей
+    email = models.EmailField()
+    token = models.CharField()
+    created = models.DateTimeField(auto_now_add=True)

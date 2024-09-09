@@ -65,6 +65,31 @@ class Fix3(OpenApiViewExtension):
 
         return Fixed
 
+class Fix4(OpenApiViewExtension):
+    """
+    Описание к запросу на восстановление пароля.
+    """
+    target_class = 'core.apps.accounts.api.RequestPasswordRecoveryViewSet'
+
+    def view_replacement(self):
+        class Fixed(self.target_class):
+            """Запрос на восстановление пароля. Принимается email."""
+            pass
+
+        return Fixed
+
+class Fix4(OpenApiViewExtension):
+    """
+    Описание к восстановлению пароля.
+    """
+    target_class = 'core.apps.accounts.api.RecoveryPasswordViewSet'
+
+    def view_replacement(self):
+        class Fixed(self.target_class):
+            """Восстановление пароля. Принимается новый пароль и его подтверждение."""
+            pass
+
+        return Fixed
 
 def user_me_postprocessing_hook(result, generator, request, public):
     """
