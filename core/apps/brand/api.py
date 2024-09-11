@@ -18,6 +18,7 @@ from core.apps.brand.serializers import (
     BrandGetSerializer,
     MatchSerializer,
     InstantCoopSerializer,
+    CollaborationSerializer,
 )
 from core.apps.chat.models import Room
 
@@ -33,6 +34,8 @@ class BrandViewSet(viewsets.ModelViewSet):
             return MatchSerializer
         elif self.action == 'instant_coop':
             return InstantCoopSerializer
+        elif self.action == 'report_collab':
+            return CollaborationSerializer
 
         return super().get_serializer_class()
 
@@ -48,7 +51,7 @@ class BrandViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         elif self.action in ('update', 'partial_update', 'destroy'):
             permission_classes = [IsOwnerOrReadOnly]
-        elif self.action == 'like':
+        elif self.action in ('like', 'report_collab'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub]
@@ -116,6 +119,20 @@ class BrandViewSet(viewsets.ModelViewSet):
         Business subscription only.
         """
         serializer = self.get_serializer(data={})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def report_collab(self, request):
+        """
+        Report collaboration results of two brands.
+
+        collab_with: id of brand with which collaborated.
+
+        Returns collaboration instance.
+        """
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(data=serializer.data, status=status.HTTP_201_CREATED)

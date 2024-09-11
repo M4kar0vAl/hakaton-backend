@@ -242,3 +242,13 @@ class Match(models.Model):
     room = models.OneToOneField(
         'chat.Room', on_delete=models.SET_NULL, blank=True, null=True
     )
+
+
+class Collaboration(models.Model):
+    reporter = models.ForeignKey(
+        Brand, on_delete=models.PROTECT, related_name='collab_reporter', verbose_name='Кто поделился'
+    )
+    collab_with = models.ForeignKey(
+        Brand, on_delete=models.PROTECT, related_name='collab_participant', verbose_name='Коллаборация с'
+    )
+

@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema
 from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopRequestSerializer,
-    InstantCoopSerializer
+    InstantCoopSerializer, CollaborationSerializer
 )
 
 
@@ -67,5 +67,12 @@ class Fix1(OpenApiViewExtension):
             )
             def instant_coop(self, request, *args, **kwargs):
                 return super().instant_coop(request, *args, **kwargs)
+
+            @extend_schema(
+                tags=['Brand'],
+                responses={201: CollaborationSerializer}
+            )
+            def report_collab(self, request, *args, **kwargs):
+                return super().report_collab(request, *args, **kwargs)
 
         return Fixed

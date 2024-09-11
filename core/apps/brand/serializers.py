@@ -20,7 +20,7 @@ from core.apps.brand.models import (
     SubsCount,
     AvgBill,
     CollaborationInterest,
-    Match,
+    Match, Collaboration,
 )
 from core.apps.chat.models import Room
 from core.apps.payments.serializers import SubscriptionSerializer
@@ -412,3 +412,41 @@ class InstantCoopSerializer(serializers.ModelSerializer):
 
 class InstantCoopRequestSerializer(serializers.Serializer):
     target = serializers.IntegerField(write_only=True)
+
+
+class CollaborationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Collaboration
+        exclude = []
+        read_only_fields = ['reporter']
+
+    def validate(self, attrs):
+        reporter = self.context['request'].user.brand
+        collab_with = attrs.get('collab_with')
+
+        try:
+            collab_with_brand = Brand.objects.get(pk=collab_with)
+        except Brand.DoesNotExist:
+            raise exceptions.ValidationError(f"Brand with id: {collab_with} not found!")
+
+        if Collaboration.objects.filter(reporter=reporter, collab_with=collab_with_brand).exists():
+            raise exceptions.ValidationError("You have already reported collaboration with that brand!")
+
+        # validate other fields if necessary
+
+        attrs['reporter'] = reporter
+        attrs['collab_with'] = collab_with_brand
+        return attrs
+
+    def create(self, validated_data):
+        reporter = validated_data.pop('reporter')
+        collab_with = validated_data.pop('collab_with')
+
+        try:
+            with transaction.atomic():
+                collab = Collaboration.objects.create(reporter=reporter, collab_with=collab_with, **validated_data)
+                log_match_activity(initiator=reporter, target=collab_with, is_match=True, collab=collab)
+                # TODO add points to reported brand
+        except DatabaseError:
+            raise exceptions.ValidationError("Failed to perform action!")
+        return collab

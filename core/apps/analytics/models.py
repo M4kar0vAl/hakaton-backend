@@ -1,6 +1,6 @@
 from django.db import models
 
-from core.apps.brand.models import Brand
+from core.apps.brand.models import Brand, Collaboration
 
 
 class MatchActivity(models.Model):
@@ -12,6 +12,9 @@ class MatchActivity(models.Model):
     )
     is_match = models.BooleanField(verbose_name='Метч')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
+    collab = models.ForeignKey(
+        Collaboration, on_delete=models.PROTECT, related_name='activity', null=True, verbose_name='Коллаборация'
+    )
 
 
 class BrandActivity(models.Model):
