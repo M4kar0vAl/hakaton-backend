@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 from core.apps.payments.models import Subscription
@@ -251,4 +252,38 @@ class Collaboration(models.Model):
     collab_with = models.ForeignKey(
         Brand, on_delete=models.PROTECT, related_name='collab_participant', verbose_name='Коллаборация с'
     )
+    # overall success
+    success_assessment = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='Оценка по 10 бальной шкале'
+    )
+    success_reason = models.CharField(max_length=512, verbose_name='Причина успеха')
+    to_improve = models.CharField(max_length=512, verbose_name='Что улучшить')
 
+    # quantitative indicators
+    subs_received = models.IntegerField(verbose_name='Получено подписчиков')
+    leads_received = models.IntegerField(verbose_name='Получено лидов/заявок')
+    sales_growth = models.CharField(max_length=128, verbose_name='Прирост продаж')
+    audience_reach = models.PositiveIntegerField(verbose_name='Охват аудитории')
+    bill_change = models.CharField(max_length=128, verbose_name='Изменение ср. чека')
+
+    # partnership
+    new_offers = models.BooleanField(verbose_name='Новые предложения')
+    new_offers_comment = models.CharField(max_length=512, blank=True, verbose_name='Комментарий про предложения')
+
+    # reputation
+    perception_change = models.BooleanField(verbose_name='Изменение восприятия бренда')
+
+    # compliance
+    brand_compliance = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='Соответствие брендов'
+    )
+
+    # platform interaction
+    platform_help = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        verbose_name='Помощь платформы'
+    )
+    difficulties = models.BooleanField(verbose_name='Трудности')
+    difficulties_comment = models.CharField(max_length=512, blank=True, verbose_name='Комментарий про трудности')
