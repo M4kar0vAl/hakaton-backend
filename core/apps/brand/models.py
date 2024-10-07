@@ -252,6 +252,9 @@ class Collaboration(models.Model):
     collab_with = models.ForeignKey(
         Brand, on_delete=models.PROTECT, related_name='collab_participant', verbose_name='Коллаборация с'
     )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
+
     # overall success
     success_assessment = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(10)],
