@@ -13,6 +13,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_length=12,
         validators=[phone_validator, ]
     )
+    fullname = models.CharField(max_length=512, verbose_name='ФИО')
     telegram_id = models.BigIntegerField('Идентификатор телеграм', null=True)
     date_joined = models.DateTimeField(
         'Дата создания',
@@ -39,7 +40,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class PasswordRecovery(models.Model):
-    #TODO сделать автоматическую очистку устаревших моделей
+    # TODO сделать автоматическую очистку устаревших моделей
     email = models.EmailField()
     token = models.CharField()
     created = models.DateTimeField(auto_now_add=True)

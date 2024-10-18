@@ -19,14 +19,14 @@ class Fix1(OpenApiViewExtension):
         class Fixed(self.target_class):
             @extend_schema(
                 description='Создать бренд\n\n'
-                            'Тип медиа application/json\n\n'
-                            'Вложенные объекты (с вариантами ответов):\n\n'
-                            '::text: Текст ответа, в точности как в вариантах ответа на вопрос.'
-                            ' Если вариант "Свой вариант", должен быть передан как '
-                            '{"text": "Свой вариант: мой вариант ответа"} '
-                            '(с пробелом после двоеточия)\n\n'
-                            '::question: id вопроса, на который отправляется ответ.\n\n'
-                            'Изображения передавать в виде строки base64'
+                            'Тип медиа multipart/form-data\n\n'
+                            'Объекты и списки (кроме изображений) передавать в виде json строки.\n\n'
+                            'Изображения передавать как файлы.\n\n'
+                            'Необязательные поля исключать из тела запроса, если они не заполнены.\n\n'
+                            'Для категорий, тегов, форматов, целей:\n\n'
+                            '\tДругое передавать обязательно с "is_other": true\n\n'
+                            '\tВ тех, что получили из /api/v1/questionnaire_choices/ '
+                            'можно указать "is_other": false, либо не указывать вовсе'
             )
             def create(self, request, *args, **kwargs):
                 return super().create(request, *args, **kwargs)
@@ -67,5 +67,19 @@ class Fix1(OpenApiViewExtension):
             )
             def instant_coop(self, request, *args, **kwargs):
                 return super().instant_coop(request, *args, **kwargs)
+
+        return Fixed
+
+
+class Fix2(OpenApiViewExtension):
+    target_class = 'core.apps.brand.api.QuestionnaireChoicesListView'
+
+    def view_replacement(self):
+        @extend_schema(tags=['Questionnaire'])
+        class Fixed(self.target_class):
+            """
+            Get answer choices for questionnaire choices questions
+            """
+            pass
 
         return Fixed

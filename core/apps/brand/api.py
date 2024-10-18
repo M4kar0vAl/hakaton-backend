@@ -1,25 +1,50 @@
+import json
 import os
 import shutil
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.db.models import Q
-from rest_framework import viewsets, status
+from django.http import QueryDict
+from rest_framework import viewsets, status, generics, serializers
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand
+from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag
 from core.apps.brand.permissions import IsOwnerOrReadOnly, IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
+    QuestionnaireChoicesSerializer,
     BrandCreateSerializer,
     BrandGetSerializer,
     MatchSerializer,
     InstantCoopSerializer,
 )
 from core.apps.chat.models import Room
+
+
+class QuestionnaireChoicesListView(generics.GenericAPIView):
+    """
+    Api method to get answer choices for questionnaire choices questions.
+    """
+    serializer_class = QuestionnaireChoicesSerializer
+
+    def get(self, request, *args, **kwargs):
+        categories = Category.objects.filter(is_other=False)
+        tags = Tag.objects.filter(is_other=False)
+        formats = Format.objects.filter(is_other=False)
+        goals = Goal.objects.filter(is_other=False)
+
+        serializer = self.get_serializer({
+            'categories': categories,
+            'tags': tags,
+            'formats': formats,
+            'goals': goals
+        })
+
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
 class BrandViewSet(viewsets.ModelViewSet):
@@ -56,6 +81,45 @@ class BrandViewSet(viewsets.ModelViewSet):
             permission_classes = [AllowAny]
         return [permission() for permission in permission_classes]
 
+    def transform_request_data(self, data):
+        """
+        Transform request data to support nested objects with multipart/form-data
+        Nested objects should be sent as json string
+        """
+        force_dict_data = data
+        if isinstance(force_dict_data, QueryDict):
+            force_dict_data = force_dict_data.dict()
+            force_dict_data.update({
+                'product_photos_match': data.getlist('product_photos_match'),
+                'product_photos_card': data.getlist('product_photos_card'),
+                'gallery_photos_list': data.getlist('gallery_photos_list')
+            })
+
+        # transform JSON string to dictionary for each many field
+        serializer = self.get_serializer()
+
+        for key, value in serializer.get_fields().items():
+            if isinstance(value, serializers.ListSerializer) or isinstance(value, serializers.ModelSerializer):
+                if key in force_dict_data and isinstance(force_dict_data[key], str):
+                    if force_dict_data[key] == '':
+                        force_dict_data[key] = None
+                    else:
+                        try:
+                            force_dict_data[key] = json.loads(force_dict_data[key])
+                        except:
+                            pass
+
+        return force_dict_data
+
+    def create(self, request, *args, **kwargs):
+        transformed_data = self.transform_request_data(request.data)
+        serializer = self.get_serializer(data=transformed_data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     def perform_destroy(self, instance):
         user_id = instance.user.id  # need to get it here cuz it will be unavailable once the user is deleted
         try:
@@ -75,13 +139,37 @@ class BrandViewSet(viewsets.ModelViewSet):
                 # and it doesn't know user was deleted
                 instance.refresh_from_db()
 
-                # remove images urls from DB
-                instance.logo = None
-                instance.photo = None
-                instance.product_photo = None
-                instance.subscription = None
-                instance.sub_expire = None
+                ProductPhoto.objects.filter(brand=instance).delete()
+                GalleryPhoto.objects.filter(brand=instance).delete()
+
+                # ---remove fields that are no value for analytics---
+                for field in [
+                    'subscription',
+                    'sub_expire'
+                ]:
+                    setattr(instance, field, None)
+
+                for field in [
+                    'logo',
+                    'photo',
+                    'tg_nickname',
+                    'blog_url',
+                    'inst_url',
+                    'vk_url',
+                    'tg_url',
+                    'wb_url',
+                    'lamoda_url',
+                    'site_url',
+                    'uniqueness',
+                    'description',
+                    'mission_statement',
+                    'offline_space',
+                    'problem_solving'
+                ]:
+                    setattr(instance, field, '')
+
                 instance.save()
+                # ---------------------------------------------------
 
                 # get path to 'deleted' user's media files directory (media/user_{user.id})
                 path_to_user_dir = os.path.join(settings.MEDIA_ROOT, f'user_{user_id}')
