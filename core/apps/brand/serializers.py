@@ -1,10 +1,11 @@
-import base64
-import uuid
-from io import BytesIO
+import os.path
+import shutil
+from functools import reduce
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.db import transaction, DatabaseError
+from django.db.models import Q, QuerySet
 from rest_framework import serializers, exceptions
 
 from core.apps.accounts.serializers import CreateUserSerializer
@@ -15,16 +16,16 @@ from core.apps.brand.models import (
     Category,
     Format,
     Goal,
-    PresenceType,
-    ReadinessPublicSpeaker,
-    SubsCount,
-    AvgBill,
-    CollaborationInterest,
     Match,
+    ProductPhoto,
+    Age,
+    Gender,
+    GEO,
+    TargetAudience,
+    GalleryPhoto, Tag, BusinessGroup
 )
 from core.apps.chat.models import Room
 from core.apps.payments.serializers import SubscriptionSerializer
-from core.apps.questionnaire.models import AnswerChoice
 
 User = get_user_model()
 
@@ -32,159 +33,168 @@ User = get_user_model()
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['text', 'question']
-        extra_kwargs = {
-            'question': {'write_only': True},
-        }
-
-
-class PresenceTypeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PresenceType
-        fields = ['text', 'question']
-        extra_kwargs = {
-            'question': {'write_only': True},
-        }
-
-
-class ReadinessPublicSpeakerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ReadinessPublicSpeaker
-        fields = ['text', 'question']
-        extra_kwargs = {
-            'question': {'write_only': True},
-        }
-
-
-class SubsCountSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SubsCount
-        fields = ['text', 'question']
-        extra_kwargs = {
-            'question': {'write_only': True},
-        }
-
-
-class AvgBillSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = AvgBill
-        fields = ['text', 'question']
-        extra_kwargs = {
-            'question': {'write_only': True},
-        }
-
-
-class CollaborationInterestSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Category
-        fields = ['text', 'question']
-        extra_kwargs = {
-            'question': {'write_only': True},
-        }
+        exclude = []
+        extra_kwargs = {'is_other': {'write_only': True, 'required': False}}
 
 
 class FormatSerializer(serializers.ModelSerializer):
     class Meta:
         model = Format
-        fields = ['text', 'question']
-        extra_kwargs = {
-            'question': {'write_only': True},
-        }
+        exclude = []
+        extra_kwargs = {'is_other': {'write_only': True, 'required': False}}
 
 
 class GoalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Goal
-        fields = ['text', 'question']
-        extra_kwargs = {
-            'question': {'write_only': True},
-        }
+        exclude = []
+        extra_kwargs = {'is_other': {'write_only': True, 'required': False}}
+
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        exclude = []
+        extra_kwargs = {'is_other': {'write_only': True, 'required': False}}
+
+
+class QuestionnaireChoicesSerializer(serializers.Serializer):
+    categories = CategorySerializer(many=True, read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    formats = FormatSerializer(many=True, read_only=True)
+    goals = GoalSerializer(many=True, read_only=True)
+
+
+# -----target audience serializers-----
+class AgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Age
+        exclude = ['id']
+
+
+class GenderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Gender
+        exclude = ['id']
+
+
+class GEOSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GEO
+        exclude = ['target_audience', 'id']
+
+
+class TargetAudienceSerializer(serializers.ModelSerializer):
+    age = AgeSerializer()
+    gender = GenderSerializer()
+    geos = GEOSerializer(many=True)
+
+    class Meta:
+        model = TargetAudience
+        exclude = []
+
+
+# -------------------------------------
+
+
+class ProductPhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductPhoto
+        exclude = ['brand']
+
+
+class GalleryPhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GalleryPhoto
+        exclude = ['brand']
+
+
+class BusinessGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessGroup
+        exclude = ['brand']
 
 
 class BrandCreateSerializer(serializers.ModelSerializer):
-    errors_messages = {
-        'category': 'Invalid value for text: {category}',
-        'presence_type': 'Invalid value for text: {presence_type}',
-        'public_speaker': 'Invalid value for text: {public_speaker}.',
-        'subs_count': 'Invalid value for text: {subs_count}',
-        'avg_bill': 'Invalid value for text: {avg_bill}',
-        'goals': 'Invalid value for text: {goal}',
-        'formats': 'Invalid value for text: {format_}',
-        'collaboration_interest': 'Invalid value for text: {business}',
-    }
-    fails = {}
-
-    user = CreateUserSerializer(read_only=True)
-    subscription = SubscriptionSerializer(read_only=True)
     category = CategorySerializer()
-    presence_type = PresenceTypeSerializer()
-    public_speaker = ReadinessPublicSpeakerSerializer()
-    subs_count = SubsCountSerializer()
-    avg_bill = AvgBillSerializer()
-    goals = GoalSerializer(many=True)
-    formats = FormatSerializer(many=True)
-    collaboration_interest = CollaborationInterestSerializer(many=True)
+    target_audience = TargetAudienceSerializer(required=False, allow_null=True)
+
+    # photos write fields
+    product_photos_match = serializers.ListField(child=serializers.ImageField(), write_only=True)
+    product_photos_card = serializers.ListField(child=serializers.ImageField(), write_only=True)
+    gallery_photos_list = serializers.ListField(child=serializers.ImageField(), required=False, write_only=True)
+
+    # photos read fields
+    product_photos = ProductPhotoSerializer(many=True, read_only=True)
+    gallery_photos = GalleryPhotoSerializer(many=True, read_only=True)
+
+    tags = TagSerializer(many=True)
+    formats = FormatSerializer(many=True, required=False)
+    goals = GoalSerializer(many=True, required=False)
+    categories_of_interest = CategorySerializer(many=True, required=False)
+    business_groups = BusinessGroupSerializer(many=True, required=False)
 
     class Meta:
         model = Brand
-        read_only_fields = ['sub_expire']
-        exclude = ['published', ]
-
-    def to_internal_value(self, data):
-        for field in ['logo', 'photo', 'product_photo']:
-            img_b64 = data[field]
-            data[field] = self.convert_b64str_to_img(img_b64, field)
-
-        return super().to_internal_value(data)
+        # the only way to include non-model writable fields
+        fields = [
+            'id', 'tg_nickname', 'blog_url', 'name', 'position', 'category', 'inst_url', 'vk_url', 'tg_url', 'wb_url',
+            'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags', 'uniqueness', 'logo', 'photo', 'description',
+            'mission_statement', 'formats', 'goals', 'offline_space', 'problem_solving', 'target_audience',
+            'categories_of_interest', 'business_groups', 'product_photos_match', 'product_photos_card',
+            'gallery_photos_list', 'gallery_photos', 'product_photos'
+        ]
+        read_only_fields = ['user', 'sub_expire']
 
     def validate(self, attrs):
-        self.fails = {}
-        # one-to-one
-
         category = attrs.get('category')
-        presence_type = attrs.get('presence_type')
-        public_speaker = attrs.get('public_speaker')
-        subs_count = attrs.get('subs_count')
-        avg_bill = attrs.get('avg_bill')
+        if 'is_other' in category:
+            if category['is_other']:
+                # user selected "other" variant, so create category with given name
+                category_obj = Category.objects.create(**category)
+            else:
+                try:
+                    # user selected one of the given categories, so get instance from db
+                    category_obj = Category.objects.get(**category)
+                except Category.DoesNotExist:
+                    raise exceptions.ValidationError(f"Category with name: {category['name']} does not exist!")
+        else:
+            try:
+                # is_other wasn't passed, so get instance from db
+                category_obj = Category.objects.get(**category)
+            except Category.DoesNotExist:
+                raise exceptions.ValidationError(f"Category with name: {category['name']} does not exist!")
 
-        # FK
-        goals = attrs.get('goals')
-        formats = attrs.get('formats')
-        collaboration_interest = attrs.get('collaboration_interest')
+        # if target audience wasn't passed, then data will not contain this key
+        target_audience = attrs.get('target_audience')
 
-        if not AnswerChoice.objects.filter(**category).exists():
-            self.efail('category', category=category)
+        # -----target audience creation-----
+        if target_audience is not None:
+            try:
+                with transaction.atomic():
+                    # create age and gender
+                    age_obj = Age.objects.create(**target_audience.pop('age'))
+                    gender_obj = Gender.objects.create(**target_audience.pop('gender'))
 
-        if not AnswerChoice.objects.filter(**presence_type).exists():
-            self.efail('presence_type', presence_type=presence_type)
+                    # get geos request data
+                    geos = target_audience.pop('geos')
 
-        if not AnswerChoice.objects.filter(**public_speaker).exists():
-            self.efail('public_speaker', public_speaker=public_speaker)
+                    # create target audience using age, gender and income
+                    target_audience_obj = TargetAudience.objects.create(age=age_obj, gender=gender_obj,
+                                                                        **target_audience)
 
-        if not AnswerChoice.objects.filter(**subs_count).exists():
-            self.efail('subs_count', subs_count=subs_count)
+                    # create geos objects in 1 query
+                    GEO.objects.bulk_create([GEO(**geo, target_audience=target_audience_obj) for geo in geos])
+            except Exception:
+                raise exceptions.ValidationError(
+                    "Failed to create target audience object. Check request data and try again"
+                )
+        else:
+            target_audience_obj = None
+        # ----------------------------------
 
-        if not AnswerChoice.objects.filter(**avg_bill).exists():
-            self.efail('avg_bill', avg_bill=avg_bill)
-
-        for goal in goals:
-            if goal['text'].startswith('Свой вариант'):
-                continue
-            elif not AnswerChoice.objects.filter(**goal).exists():
-                self.efail('goals', goal=goal)
-
-        for format_ in formats:
-            if not AnswerChoice.objects.filter(**format_).exists():
-                self.efail('formats', format_=format_)
-
-        for business in collaboration_interest:
-            if not AnswerChoice.objects.filter(**business).exists():
-                self.efail('collaboration_interest', business=business)
-
-        if self.fails:
-            raise exceptions.ValidationError(
-                detail=self.fails
-            )
+        attrs['category'] = category_obj
+        attrs['target_audience'] = target_audience_obj
 
         return attrs
 
@@ -192,77 +202,159 @@ class BrandCreateSerializer(serializers.ModelSerializer):
         """
         Метод для создания бренда. Здесь обрабатываются поля-внешние ключи
         """
+        # o2o
         user = self.context['request'].user
 
-        # one-to-one
-        category = validated_data.pop('category')
-        presence_type = validated_data.pop('presence_type')
-        public_speaker = validated_data.pop('public_speaker')
-        subs_count = validated_data.pop('subs_count')
-        avg_bill = validated_data.pop('avg_bill')
-
         # FK
-        goals = validated_data.pop('goals')
-        formats = validated_data.pop('formats')
-        collaboration_interest = validated_data.pop('collaboration_interest')
+        category = validated_data.pop('category')
+        product_photos_match = validated_data.pop('product_photos_match')
+        product_photos_card = validated_data.pop('product_photos_card')
+        gallery_photos = validated_data.pop('gallery_photos_list')  # will be empty list if wasn't passed in form body
+        business_groups = validated_data.pop('business_groups')
 
-        # Создаем объект бренда в БД и связанных моделей
-        with transaction.atomic():
-            brand = Brand.objects.create(user_id=user.id, **validated_data)
+        # m2m
+        tags = validated_data.pop('tags')
 
-            # записываем ответы анкеты
-            Category.objects.create(brand=brand, **category)
-            PresenceType.objects.create(brand=brand, **presence_type)
-            ReadinessPublicSpeaker.objects.create(brand=brand, **public_speaker)
-            SubsCount.objects.create(brand=brand, **subs_count)
-            AvgBill.objects.create(brand=brand, **avg_bill)
+        try:
+            formats = validated_data.pop('formats')
+            goals = validated_data.pop('goals')
+            cats_of_interest = validated_data.pop('categories_of_interest')
+        except KeyError:
+            formats = []
+            goals = []
+            cats_of_interest = []
 
-            # записываем ответы для FK связей
-            [Format.objects.create(brand=brand, **obj) for obj in formats]
-            [CollaborationInterest.objects.create(
-                brand=brand, **obj
-            ) for obj in collaboration_interest]
+        tags_query, tags_for_bulk_create = self.get_query_and_list_for_bulk_create(tags, Tag)
 
-            for goal in goals:
-                if goal['text'].startswith('Свой вариант: '):
-                    goal['text'] = goal['text'].lstrip('Свой вариант: ')
-                Goal.objects.create(brand=brand, **goal)
+        if formats:
+            formats_query, formats_for_bulk_create = self.get_query_and_list_for_bulk_create(formats, Format)
 
-            log_brand_activity(brand=brand, action=BrandActivity.REGISTRATION)
+        if goals:
+            goals_query, goals_for_bulk_create = self.get_query_and_list_for_bulk_create(goals, Goal)
+
+        if cats_of_interest:
+            cats_of_interest_query, cats_of_interest_for_bulk_create = self.get_query_and_list_for_bulk_create(
+                cats_of_interest, Category
+            )
+
+        # Создаем объект бренда и связанных моделей в БД
+        try:
+            with transaction.atomic():
+                brand = Brand.objects.create(
+                    user=user, category=category, **validated_data
+                )
+
+                if business_groups:
+                    BusinessGroup.objects.bulk_create([
+                        BusinessGroup(**business_group, brand=brand) for business_group in business_groups
+                    ])
+
+                # -----handle m2m relations-----
+                tag_list = self.get_list_for_m2m_relation(tags_query, tags_for_bulk_create, Tag)
+                brand.tags.set(tag_list)
+
+                if formats:
+                    format_list = self.get_list_for_m2m_relation(formats_query, formats_for_bulk_create, Format)
+                    brand.formats.set(format_list)
+
+                if goals:
+                    goal_list = self.get_list_for_m2m_relation(goals_query, goals_for_bulk_create, Goal)
+                    brand.goals.set(goal_list)
+
+                if cats_of_interest:
+                    cats_of_interest_list = self.get_list_for_m2m_relation(
+                        cats_of_interest_query, cats_of_interest_for_bulk_create, Category
+                    )
+                    brand.categories_of_interest.set(cats_of_interest_list)
+                # ------------------------------
+
+                # ----------photos----------
+                # create lists of ProductPhoto objects
+                product_photos_match_obj_list = [
+                    ProductPhoto(image=photo, format=ProductPhoto.MATCH, brand=brand) for photo in product_photos_match
+                ]
+                product_photos_card_obj_list = [
+                    ProductPhoto(image=photo, format=ProductPhoto.CARD, brand=brand) for photo in product_photos_card
+                ]
+
+                # create photos in db in 1 query per db table
+                ProductPhoto.objects.bulk_create([*product_photos_match_obj_list, *product_photos_card_obj_list])
+
+                if gallery_photos:
+                    GalleryPhoto.objects.bulk_create(
+                        [GalleryPhoto(image=photo, brand=brand) for photo in gallery_photos])
+                # --------------------------
+
+                log_brand_activity(brand=brand, action=BrandActivity.REGISTRATION)
+        except Exception:
+            try:
+                # delete saved photos on server in case of exception
+                shutil.rmtree(os.path.join(settings.MEDIA_ROOT, f"user_{self.context['request'].user.id}"))
+            except FileNotFoundError:
+                pass
+            raise exceptions.ValidationError("Failed to perform action. Please, try again.")
 
         return brand
 
-    def efail(self, key: str, **kwargs) -> None:
-        msg = self.errors_messages[key].format(**kwargs)
-        self.fails.update({key: msg})
+    def get_query_and_list_for_bulk_create(
+            self, lst: list[dict], model: type[Tag] | type[Format] | type[Goal] | type[Category]
+    ) -> (Q, list[Tag | Format | Goal | Category]):
+        obj_list_for_query = [
+            {**obj, 'is_other': False}
+            for obj in lst if 'is_other' not in obj or not obj['is_other']
+        ]
 
-    def convert_b64str_to_img(self, img_str: str, field: str) -> InMemoryUploadedFile:
-        file_name = f"{field}_{uuid.uuid4()}.png"
-        image_data = base64.b64decode(img_str)
-        image_io = BytesIO(image_data)
+        obj_list_for_bulk_create = [
+            model(**obj)
+            for obj in lst if 'is_other' in obj and obj['is_other']
+        ]
 
-        django_img = InMemoryUploadedFile(
-            file=image_io,
-            field_name=None,
-            name=file_name,
-            content_type='image/png',
-            size=image_io.getbuffer().nbytes,
-            charset=None
-        )
-        return django_img
+        query = reduce(lambda x, y: x | Q(**y), obj_list_for_query[1:], Q(**obj_list_for_query[0]))
+
+        return query, obj_list_for_bulk_create
+
+    def get_given_objects_from_db(
+            self, query: Q, model: type[Tag] | type[Format] | type[Goal] | type[Category]
+    ) -> QuerySet:
+        """
+        Get "given" objects from db
+        """
+        return model.objects.filter(query)
+
+    def create_other_objects_in_db(
+            self,
+            other_list: list[Tag | Format | Goal | Category],
+            model: type[Tag] | type[Format] | type[Goal] | type[Category]
+    ) -> list[Tag | Format | Goal | Category]:
+        """
+        Create "other" objects in db in 1 query
+        """
+        return model.objects.bulk_create(other_list)
+
+    def get_list_for_m2m_relation(
+            self,
+            query: Q,
+            lst_for_bulk_create: list[Tag | Format | Goal | Category],
+            model: type[Tag] | type[Format] | type[Goal] | type[Category],
+    ) -> list[Tag | Format | Goal | Category]:
+        """
+        Get list to use in model.<related_name>.set()
+        Gets "given" objects from db and creates "other" objects
+        """
+        objs = self.get_given_objects_from_db(query, model)
+        other_objs = []
+        if lst_for_bulk_create:
+            other_objs = self.create_other_objects_in_db(lst_for_bulk_create, model)
+
+        return list(objs) + other_objs
 
 
 class BrandGetSerializer(serializers.ModelSerializer):
-    user = CreateUserSerializer(read_only=True)
+    user = CreateUserSerializer(read_only=True)  # TODO change to UserSerializer
     subscription = SubscriptionSerializer(read_only=True)
     category = CategorySerializer()
-    presence_type = PresenceTypeSerializer()
-    public_speaker = ReadinessPublicSpeakerSerializer()
-    subs_count = SubsCountSerializer()
-    avg_bill = AvgBillSerializer()
     goals = GoalSerializer(many=True)
     formats = FormatSerializer(many=True)
-    collaboration_interest = CollaborationInterestSerializer(many=True)
 
     class Meta:
         model = Brand
