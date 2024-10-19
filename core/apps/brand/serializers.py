@@ -22,12 +22,18 @@ from core.apps.brand.models import (
     Gender,
     GEO,
     TargetAudience,
-    GalleryPhoto, Tag, BusinessGroup
+    GalleryPhoto, Tag, BusinessGroup, Blog
 )
 from core.apps.chat.models import Room
 from core.apps.payments.serializers import SubscriptionSerializer
 
 User = get_user_model()
+
+
+class BlogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Blog
+        exclude = ['brand']
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -91,7 +97,7 @@ class TargetAudienceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TargetAudience
-        exclude = []
+        exclude = ['id']
 
 
 # -------------------------------------
@@ -116,6 +122,7 @@ class BusinessGroupSerializer(serializers.ModelSerializer):
 
 
 class BrandCreateSerializer(serializers.ModelSerializer):
+    blogs = BlogSerializer(many=True, required=False)
     category = CategorySerializer()
     target_audience = TargetAudienceSerializer(required=False, allow_null=True)
 
@@ -138,7 +145,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
         model = Brand
         # the only way to include non-model writable fields
         fields = [
-            'id', 'tg_nickname', 'blog_url', 'name', 'position', 'category', 'inst_url', 'vk_url', 'tg_url', 'wb_url',
+            'id', 'tg_nickname', 'blogs', 'name', 'position', 'category', 'inst_url', 'vk_url', 'tg_url', 'wb_url',
             'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags', 'uniqueness', 'logo', 'photo', 'description',
             'mission_statement', 'formats', 'goals', 'offline_space', 'problem_solving', 'target_audience',
             'categories_of_interest', 'business_groups', 'product_photos_match', 'product_photos_card',
@@ -157,13 +164,15 @@ class BrandCreateSerializer(serializers.ModelSerializer):
                     # user selected one of the given categories, so get instance from db
                     category_obj = Category.objects.get(**category)
                 except Category.DoesNotExist:
-                    raise exceptions.ValidationError(f"Category with name: {category['name']} does not exist!")
+                    raise serializers.ValidationError(
+                        {"category": f"Category with name: {category['name']} does not exist!"}
+                    )
         else:
             try:
                 # is_other wasn't passed, so get instance from db
                 category_obj = Category.objects.get(**category)
             except Category.DoesNotExist:
-                raise exceptions.ValidationError(f"Category with name: {category['name']} does not exist!")
+                raise serializers.ValidationError({"category": f"Category with name: {category['name']} does not exist!"})
 
         # if target audience wasn't passed, then data will not contain this key
         target_audience = attrs.get('target_audience')
@@ -180,13 +189,14 @@ class BrandCreateSerializer(serializers.ModelSerializer):
                     geos = target_audience.pop('geos')
 
                     # create target audience using age, gender and income
-                    target_audience_obj = TargetAudience.objects.create(age=age_obj, gender=gender_obj,
-                                                                        **target_audience)
+                    target_audience_obj = TargetAudience.objects.create(
+                        age=age_obj, gender=gender_obj, **target_audience
+                    )
 
                     # create geos objects in 1 query
                     GEO.objects.bulk_create([GEO(**geo, target_audience=target_audience_obj) for geo in geos])
             except Exception:
-                raise exceptions.ValidationError(
+                raise serializers.ValidationError(
                     "Failed to create target audience object. Check request data and try again"
                 )
         else:
@@ -212,7 +222,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
         gallery_photos = validated_data.pop('gallery_photos_list')  # will be empty list if wasn't passed in form body
         business_groups = validated_data.pop('business_groups')
 
-        # m2m
+        # ---------------m2m---------------
         tags = validated_data.pop('tags')
 
         try:
@@ -236,6 +246,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
             cats_of_interest_query, cats_of_interest_for_bulk_create = self.get_query_and_list_for_bulk_create(
                 cats_of_interest, Category
             )
+        # ---------------------------------
 
         # Создаем объект бренда и связанных моделей в БД
         try:
@@ -292,9 +303,58 @@ class BrandCreateSerializer(serializers.ModelSerializer):
                 shutil.rmtree(os.path.join(settings.MEDIA_ROOT, f"user_{self.context['request'].user.id}"))
             except FileNotFoundError:
                 pass
-            raise exceptions.ValidationError("Failed to perform action. Please, try again.")
+            raise serializers.ValidationError("Failed to perform action. Please, try again.")
 
         return brand
+
+    def validate_tags(self, tags):
+        common_num = 0
+        other_num = 0
+
+        for tag in tags:
+            if 'is_other' not in tag or not tag['is_other']:
+                common_num += 1
+                if common_num > 5:
+                    raise serializers.ValidationError('You can only specify 5 or less "common" tags')
+            elif 'is_other' in tag and tag['is_other']:
+                other_num += 1
+                if other_num > 1:
+                    raise serializers.ValidationError('You can only specify no more than 1 "other" tag')
+
+        return tags
+
+    def validate_formats(self, formats):
+        other_num = 0
+
+        for format_ in formats:
+            if 'is_other' in format_ and format_['is_other']:
+                other_num += 1
+                if other_num > 1:
+                    raise serializers.ValidationError('You can only specify no more than 1 "other" format')
+
+        return formats
+
+    def validate_goals(self, goals):
+        other_num = 0
+
+        for goal in goals:
+            if 'is_other' in goal and goal['is_other']:
+                other_num += 1
+                if other_num > 1:
+                    raise serializers.ValidationError('You can only specify no more than 1 "other" goal')
+
+        return goals
+
+    def validate_categories_of_interest(self, categories):
+        other_num = 0
+
+        for cat in categories:
+            if 'is_other' in cat and cat['is_other']:
+                other_num += 1
+                if other_num > 1:
+                    raise serializers.ValidationError('You can only specify no more than 1 "other" category')
+
+        return categories
 
     def get_query_and_list_for_bulk_create(
             self, lst: list[dict], model: type[Tag] | type[Format] | type[Goal] | type[Category]
@@ -309,6 +369,7 @@ class BrandCreateSerializer(serializers.ModelSerializer):
             for obj in lst if 'is_other' in obj and obj['is_other']
         ]
 
+        # make query by combining Q objects for every obj in list using OR
         query = reduce(lambda x, y: x | Q(**y), obj_list_for_query[1:], Q(**obj_list_for_query[0]))
 
         return query, obj_list_for_bulk_create
@@ -399,14 +460,14 @@ class MatchSerializer(serializers.ModelSerializer):
         target = attrs.get('target')
 
         if initiator == target:
-            raise exceptions.ValidationError("You cannot 'like' yourself")
+            raise serializers.ValidationError("You cannot 'like' yourself")
 
         try:
             # check if this brand have already performed that same 'like' action
             match = Match.objects.get(initiator=initiator, target=target)
             if match.is_match:
-                raise exceptions.ValidationError(f"You already have 'match' with this brand! Room id: {match.room.pk}.")
-            raise exceptions.ValidationError("You have already 'liked' this brand!")
+                raise serializers.ValidationError(f"You already have 'match' with this brand! Room id: {match.room.pk}.")
+            raise serializers.ValidationError("You have already 'liked' this brand!")
         except Match.DoesNotExist:
             # at this point it means that there is no entry in db with that initiator and target,
             # BUT there may be a reverse entry, which is checked further
@@ -420,7 +481,7 @@ class MatchSerializer(serializers.ModelSerializer):
 
         if match is not None and match.is_match:
             # if is_match = True already, then raise an exception
-            raise exceptions.ValidationError(f"You already have 'match' with this brand! Room id: {match.room.pk}.")
+            raise serializers.ValidationError(f"You already have 'match' with this brand! Room id: {match.room.pk}.")
 
         # at this point match is either None or is_match = False, passed to create method
         attrs['match'] = match
@@ -451,7 +512,7 @@ class MatchSerializer(serializers.ModelSerializer):
 
                 log_match_activity(initiator=initiator, target=target, is_match=match.is_match)
         except DatabaseError:
-            raise exceptions.ValidationError("Failed to perform action!")
+            raise serializers.ValidationError("Failed to perform action!")
 
         return match
 
@@ -467,7 +528,7 @@ class InstantCoopSerializer(serializers.ModelSerializer):
         target_id = self.context['target_id']
 
         if initiator.pk == target_id:
-            raise exceptions.ValidationError("You cannot cooperate with yourself!")
+            raise serializers.ValidationError("You cannot cooperate with yourself!")
 
         try:
             target = Brand.objects.get(pk=target_id)
@@ -482,7 +543,7 @@ class InstantCoopSerializer(serializers.ModelSerializer):
                 initiator.user.rooms.filter(type=Room.INSTANT).intersection(target.user.rooms.filter(type=Room.INSTANT))
             ).get()
             # if common room exist, then raise an exception.
-            raise exceptions.ValidationError(f"You already have a chat with this brand! Room id: {common_room.pk}.")
+            raise serializers.ValidationError(f"You already have a chat with this brand! Room id: {common_room.pk}.")
         except Room.DoesNotExist:
             # if common room does not exist, then everything is fine. Continue and create one.
             pass

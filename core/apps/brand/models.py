@@ -49,7 +49,6 @@ class Brand(models.Model):
 
     # PART 1 (everything is required except social media and marketplaces)
     tg_nickname = models.CharField('Ник в телеграме', blank=True, max_length=64)
-    blog_url = models.URLField(blank=True, verbose_name='Блог бренда')
     name = models.CharField(max_length=256, verbose_name='Название бренда')
     position = models.CharField(max_length=256, verbose_name='Должность')
     category = models.ForeignKey(
@@ -100,6 +99,11 @@ class Brand(models.Model):
 
     def __repr__(self):
         return f'Brand: {self.name}'
+
+
+class Blog(models.Model):
+    brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='blogs', verbose_name='Бренд')
+    blog = models.URLField(verbose_name='Блог')
 
 
 class Category(models.Model):

@@ -13,7 +13,7 @@ from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag
+from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup
 from core.apps.brand.permissions import IsOwnerOrReadOnly, IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
@@ -141,6 +141,7 @@ class BrandViewSet(viewsets.ModelViewSet):
 
                 ProductPhoto.objects.filter(brand=instance).delete()
                 GalleryPhoto.objects.filter(brand=instance).delete()
+                BusinessGroup.objects.filter(brand=instance).delete()
 
                 # ---remove fields that are no value for analytics---
                 for field in [
