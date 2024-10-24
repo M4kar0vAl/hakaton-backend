@@ -20,7 +20,7 @@ from core.apps.brand.serializers import (
     BrandCreateSerializer,
     BrandGetSerializer,
     MatchSerializer,
-    InstantCoopSerializer,
+    InstantCoopSerializer, BrandUpdateSerializer,
 )
 from core.apps.chat.models import Room
 
@@ -50,10 +50,21 @@ class QuestionnaireChoicesListView(generics.GenericAPIView):
 class BrandViewSet(viewsets.ModelViewSet):
     queryset = Brand.objects.all()
     serializer_class = BrandGetSerializer
+    http_method_names = [
+        "get",
+        "post",
+        "patch",
+        "delete",
+        "head",
+        "options",
+        "trace",
+    ]  # remove put from allowed methods
 
     def get_serializer_class(self):
         if self.action == 'create':
             return BrandCreateSerializer
+        elif self.action == 'partial_update':
+            return BrandUpdateSerializer
         elif self.action == 'like':
             return MatchSerializer
         elif self.action == 'instant_coop':
@@ -71,7 +82,7 @@ class BrandViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'create':
             permission_classes = [IsAuthenticated]
-        elif self.action in ('update', 'partial_update', 'destroy'):
+        elif self.action in ('partial_update', 'destroy'):
             permission_classes = [IsOwnerOrReadOnly]
         elif self.action == 'like':
             permission_classes = [IsAuthenticated, IsBrand]
@@ -89,26 +100,37 @@ class BrandViewSet(viewsets.ModelViewSet):
         force_dict_data = data
         if isinstance(force_dict_data, QueryDict):
             force_dict_data = force_dict_data.dict()
-            force_dict_data.update({
-                'product_photos_match': data.getlist('product_photos_match'),
-                'product_photos_card': data.getlist('product_photos_card'),
-                'gallery_photos_list': data.getlist('gallery_photos_list')
-            })
+
+            # populate transformed data with all values of a multiple photos fields using QueryDict.getlist()
+            # otherwise only last photo of the list will be taken
+            for field in (
+                    'product_photos_match', 'product_photos_card', 'gallery_photos_list', 'gallery_add'
+            ):
+                if field in data:
+                    force_dict_data.update({
+                        field: data.getlist(field)
+                    })
 
         # transform JSON string to dictionary for each many field
         serializer = self.get_serializer()
 
+        # key - field name, value - field instance
         for key, value in serializer.get_fields().items():
-            if isinstance(value, serializers.ListSerializer) or isinstance(value, serializers.ModelSerializer):
+            if (
+                isinstance(value, serializers.ListSerializer)  # ModelSerializer with many=True
+                or isinstance(value, serializers.ModelSerializer)  # ModelSerializer
+                or isinstance(value, serializers.ListField)  # ListField
+                or isinstance(value, serializers.Serializer)  # non-model serializer
+            ):
+                # if key in data and value of this key is string, it means that this string is JSON string
                 if key in force_dict_data and isinstance(force_dict_data[key], str):
                     if force_dict_data[key] == '':
                         force_dict_data[key] = None
                     else:
                         try:
                             force_dict_data[key] = json.loads(force_dict_data[key])
-                        except:
+                        except Exception:
                             pass
-
         return force_dict_data
 
     def create(self, request, *args, **kwargs):
@@ -119,6 +141,20 @@ class BrandViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def partial_update(self, request, *args, **kwargs):
+        transformed_data = self.transform_request_data(request.data)
+        instance = Brand.objects.select_related(
+            'user',
+            'category',
+            'target_audience__age',
+            'target_audience__gender'
+        ).get(pk=kwargs['pk'])
+        serializer = self.get_serializer(instance, data=transformed_data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
         user_id = instance.user.id  # need to get it here cuz it will be unavailable once the user is deleted

@@ -39,9 +39,9 @@ class Fix1(OpenApiViewExtension):
             def retrieve(self, request, *args, **kwargs):
                 return super().retrieve(request, *args, **kwargs)
 
-            @extend_schema(description='Полное обновление бренда')
-            def update(self, request, *args, **kwargs):
-                return super().update(request, *args, **kwargs)
+            # @extend_schema(description='Полное обновление бренда')
+            # def update(self, request, *args, **kwargs):
+            #     return super().update(request, *args, **kwargs)
 
             @extend_schema(description='Частичное обновление бренда')
             def partial_update(self, request, *args, **kwargs):

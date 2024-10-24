@@ -1,17 +1,39 @@
+import os
+import uuid
+
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils.deconstruct import deconstructible
 
+from core.apps.brand.utils import get_file_extension
 from core.apps.payments.models import Subscription
 
 
-def user_directory_path(instance, filename):
-    # file will be uploaded to MEDIA_ROOT/user_<id>/<filename>
-    return f'user_{instance.user.id}/{filename}'
+@deconstructible
+class UserDirectoryPath:
+    """
+    Construct path to user directory.
+
+    Accepts field as an argument.
+    Returns callable to use as ImageField and FileField upload_to callable
+
+    Need this for migrations to work.
+    https://code.djangoproject.com/ticket/22999
+    """
+
+    def __init__(self, field: str):
+        self.field = field
+
+    def __call__(self, instance, filename):
+        # file will be uploaded to MEDIA_ROOT/user_<id>/<field>.<extension>
+        extension = get_file_extension(filename)
+        new_filename = self.field + extension
+        return os.path.join(f'user_{instance.user.id}', f'{new_filename}')
 
 
 def product_photo_path(instance, filename):
-    # file will be uploaded to MEDIA_ROOT/user_<id>/product_photos/<format>/<filename>
+    # file will be uploaded to MEDIA_ROOT/user_<id>/product_photos/<format>/<uuid4>.<ext>
     format_ = None
     instance_class = instance.__class__
     match instance.format:
@@ -22,12 +44,17 @@ def product_photo_path(instance, filename):
         case _:
             pass
 
-    return f'user_{instance.brand.user.id}/product_photos/{format_}/{filename}'
+    extension = get_file_extension(filename)
+    new_filename = f'{uuid.uuid4()}{extension}'
+
+    return f'user_{instance.brand.user.id}/product_photos/{format_}/{new_filename}'
 
 
 def gallery_path(instance, filename):
-    # file will be uploaded to MEDIA_ROOT/user_<id>/gallery/<filename>
-    return f'user_{instance.brand.user.id}/gallery/{filename}'
+    # file will be uploaded to MEDIA_ROOT/user_<id>/gallery/<uuid4>.<ext>
+    extension = get_file_extension(filename)
+    new_filename = f'{uuid.uuid4()}{extension}'
+    return f'user_{instance.brand.user.id}/gallery/{new_filename}'
 
 
 class Brand(models.Model):
@@ -72,8 +99,8 @@ class Brand(models.Model):
     avg_bill = models.PositiveIntegerField(verbose_name='Средний чек')
     tags = models.ManyToManyField(to='Tag', related_name='brands', verbose_name='Ценности')
     uniqueness = models.CharField(max_length=512, verbose_name='Уникальность бренда')
-    logo = models.ImageField('Лого', upload_to=user_directory_path)
-    photo = models.ImageField('Фото представителя', upload_to=user_directory_path)
+    logo = models.ImageField('Лого', upload_to=UserDirectoryPath('logo'))
+    photo = models.ImageField('Фото представителя', upload_to=UserDirectoryPath('photo'))
 
     # PART 2 (optional fields)
     description = models.CharField(max_length=512, blank=True, verbose_name='Описание бренда')
@@ -232,10 +259,16 @@ class GEO(models.Model):
 
 
 class TargetAudience(models.Model):
-    age = models.OneToOneField(Age, on_delete=models.PROTECT, related_name='target_audience', verbose_name='Возраст')
-    gender = models.OneToOneField(Gender, on_delete=models.PROTECT, related_name='target_audience', verbose_name='Пол')
+    age = models.OneToOneField(
+        Age, on_delete=models.SET_NULL, blank=True, null=True, related_name='target_audience', verbose_name='Возраст'
+    )
+    gender = models.OneToOneField(
+        Gender, on_delete=models.SET_NULL, blank=True, null=True, related_name='target_audience', verbose_name='Пол'
+    )
     income = models.PositiveIntegerField(
         validators=[MinValueValidator(50000), MaxValueValidator(1000000)],
+        blank=True,
+        null=True,
         verbose_name='Доход'
     )
 
