@@ -284,7 +284,7 @@ class BrandUpdateSerializer(
     # new_product_photos_match = PhotoListUpdateSerializer(write_only=True)
     # new_product_photos_card = PhotoListUpdateSerializer(write_only=True)
     gallery_add = serializers.ListField(child=serializers.ImageField(), write_only=True)
-    gallery_remove = serializers.ListField(child=serializers.CharField(), write_only=True)
+    gallery_remove = serializers.ListField(child=serializers.IntegerField(), write_only=True)
 
     # read only
     blogs = BlogSerializer(many=True, read_only=True)
@@ -434,23 +434,19 @@ class BrandUpdateSerializer(
                 # handle gallery photos removal
                 if gallery_remove:
                     # if gallery_remove is not None and not empty list
-                    # calculate query to delete instances from db
-                    query = Q(image__endswith=gallery_remove[0])
-                    for filename in gallery_remove[1:]:
-                        query |= Q(image__endswith=filename)
+                    # get images paths
+                    # need to call list() on queryset to instantly evaluate it, because next operation deletes instances
+                    paths = list(GalleryPhoto.objects.filter(
+                        pk__in=gallery_remove, brand=instance
+                    ).values_list('image', flat=True))
 
                     # delete instances from db
-                    GalleryPhoto.objects.filter(query, brand=instance).delete()
+                    GalleryPhoto.objects.filter(pk__in=gallery_remove, brand=instance).delete()
 
-                    for filename in gallery_remove:
-                        # get list of files' paths, expected to be a list of 1 string
-                        file_path = glob.glob(
-                            os.path.join(settings.MEDIA_ROOT, f'user_{instance.user.id}', 'gallery', filename)
-                        )
-
-                        # remove file from the server
+                    # remove files from server
+                    for path in paths:
                         try:
-                            os.remove(file_path[0])
+                            os.remove(os.path.join(settings.MEDIA_ROOT, path))
                         except (FileNotFoundError, OSError):
                             # do nothing if file was not found or path is a directory
                             pass
@@ -494,21 +490,17 @@ class BrandUpdateSerializer(
 
         return target_audience
 
-    def validate_gallery_remove(self, filenames):
-        query = Q(image__endswith=filenames[0])
-        for filename in filenames[1:]:
-            query |= Q(image__endswith=filename)
+    def validate_gallery_remove(self, ids):
+        to_remove_num = GalleryPhoto.objects.filter(pk__in=ids, brand=self.instance).count()
 
-        to_remove_num = GalleryPhoto.objects.filter(query, brand=self.instance).count()
-
-        requested_to_remove = len(filenames)
+        requested_to_remove = len(ids)
         if to_remove_num != requested_to_remove:
             raise serializers.ValidationError(
                 "Number of files and objects selected for removal do not match! "
                 f"Requested: {requested_to_remove}, found: {to_remove_num}"
             )
 
-        return filenames
+        return ids
 
     def split_common_other(self, obj_list: list[dict]) -> tuple[list[str], list[str]]:
         new_common_objs_names = []
