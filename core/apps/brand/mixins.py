@@ -1,10 +1,28 @@
+import re
+
 from rest_framework import serializers
 
 from core.apps.brand.models import Category
 
 
 class BrandValidateMixin:
+    def validate_tg_nickname(self, tg_nickname):
+        # telegram username need to be 5-32 characters long
+        # and only consist of Latin letters, digits and underscores
+        if not re.fullmatch(r'@[a-zA-Z\d_]{5,32}', tg_nickname):
+            raise serializers.ValidationError(
+                'Username must be 5-32 characters long. '
+                'Allowed characters: Latin letters, digits and underscores'
+            )
+        return tg_nickname
+
     def validate_category(self, category):
+        if not category:
+            raise serializers.ValidationError('Category is required!')
+
+        if 'name' not in category:
+            raise serializers.ValidationError('Category must have "name" key!')
+
         if 'is_other' in category:
             if category['is_other']:
                 # user selected "other" variant, so create category with given name
@@ -14,16 +32,13 @@ class BrandValidateMixin:
                     # user selected one of the given categories, so get instance from db
                     category_obj = Category.objects.get(**category)
                 except Category.DoesNotExist:
-                    raise serializers.ValidationError(
-                        {"category": f"Category with name: {category['name']} does not exist!"}
-                    )
+                    raise serializers.ValidationError(f"Category with name: {category['name']} does not exist!")
         else:
             try:
                 # is_other wasn't passed, so get instance from db
                 category_obj = Category.objects.get(**category)
             except Category.DoesNotExist:
-                raise serializers.ValidationError(
-                    {"category": f"Category with name: {category['name']} does not exist!"})
+                raise serializers.ValidationError(f"Category with name: {category['name']} does not exist!")
 
         return category_obj
 
