@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema
 from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopRequestSerializer,
-    InstantCoopSerializer
+    InstantCoopSerializer, CollaborationSerializer
 )
 
 
@@ -105,6 +105,24 @@ class Fix2(OpenApiViewExtension):
         class Fixed(self.target_class):
             """
             Get answer choices for questionnaire choices questions
+            """
+            pass
+
+        return Fixed
+
+
+class Fix3(OpenApiViewExtension):
+    target_class = 'core.apps.brand.api.CollaborationCreateView'
+
+    def view_replacement(self):
+        @extend_schema(tags=['Collaboration'])
+        class Fixed(self.target_class):
+            """
+            Report about collaboration with brand.
+
+            collab_with: id of brand to report collaboration with
+
+            Authenticated brand only.
             """
             pass
 

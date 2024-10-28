@@ -25,7 +25,11 @@ from core.apps.brand.models import (
     Gender,
     GEO,
     TargetAudience,
-    GalleryPhoto, Tag, BusinessGroup, Blog
+    GalleryPhoto,
+    Tag,
+    BusinessGroup,
+    Blog,
+    Collaboration
 )
 from core.apps.chat.models import Room
 from core.apps.payments.serializers import SubscriptionSerializer
@@ -918,3 +922,45 @@ class InstantCoopSerializer(serializers.ModelSerializer):
 
 class InstantCoopRequestSerializer(serializers.Serializer):
     target = serializers.IntegerField(write_only=True)
+
+
+class CollaborationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Collaboration
+        exclude = []
+        read_only_fields = ['reporter', 'created_at']
+
+    def validate(self, attrs):
+        reporter = self.context['request'].user.brand
+        collab_with = attrs.get('collab_with')  # brand obj
+
+        if reporter.id == collab_with.id:
+            raise serializers.ValidationError('You cannot report collaboration with yourself!')
+
+        if not Match.objects.filter(
+                Q(initiator=reporter, target=collab_with) | Q(initiator=collab_with, target=reporter), is_match=True
+        ).exists():
+            raise serializers.ValidationError(
+                'You cannot report about collaboration with brand you do not have match with!'
+            )
+
+        if Collaboration.objects.filter(reporter=reporter, collab_with=collab_with).exists():
+            raise serializers.ValidationError("You have already reported collaboration with that brand!")
+
+        attrs['reporter'] = reporter
+
+        return attrs
+
+    def create(self, validated_data):
+        reporter = validated_data.pop('reporter')
+        collab_with = validated_data.pop('collab_with')
+
+        try:
+            with transaction.atomic():
+                collab = Collaboration.objects.create(reporter=reporter, collab_with=collab_with, **validated_data)
+                log_match_activity(initiator=reporter, target=collab_with, is_match=True, collab=collab)
+                # TODO add points to reported brand
+        except DatabaseError:
+            raise exceptions.ValidationError("Failed to perform action!")
+
+        return collab

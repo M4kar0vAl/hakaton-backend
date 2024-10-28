@@ -350,3 +350,50 @@ class BusinessGroup(models.Model):
         to=Brand, on_delete=models.CASCADE, related_name='business_groups', verbose_name='Бренд'
     )
     name = models.CharField(max_length=200, verbose_name='Название или ссылка')
+
+
+class Collaboration(models.Model):
+    reporter = models.ForeignKey(
+        Brand, on_delete=models.PROTECT, related_name='collab_reporter', verbose_name='Кто поделился'
+    )
+    collab_with = models.ForeignKey(
+        Brand, on_delete=models.PROTECT, related_name='collab_participant', verbose_name='Коллаборация с'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
+
+    # overall success
+    success_assessment = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='Оценка по 10 бальной шкале'
+    )
+    success_reason = models.CharField(max_length=512, verbose_name='Причина успеха')
+    to_improve = models.CharField(max_length=512, verbose_name='Что улучшить')
+
+    # quantitative indicators
+    subs_received = models.IntegerField(verbose_name='Получено подписчиков')
+    leads_received = models.IntegerField(verbose_name='Получено лидов/заявок')
+    sales_growth = models.CharField(max_length=128, verbose_name='Прирост продаж')
+    audience_reach = models.PositiveIntegerField(verbose_name='Охват аудитории')
+    bill_change = models.CharField(max_length=128, verbose_name='Изменение ср. чека')
+
+    # partnership
+    new_offers = models.BooleanField(verbose_name='Новые предложения')
+    new_offers_comment = models.CharField(max_length=512, blank=True, verbose_name='Комментарий про предложения')
+
+    # reputation
+    perception_change = models.BooleanField(verbose_name='Изменение восприятия бренда')
+
+    # compliance
+    brand_compliance = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        verbose_name='Соответствие брендов'
+    )
+
+    # platform interaction
+    platform_help = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        verbose_name='Помощь платформы'
+    )
+    difficulties = models.BooleanField(verbose_name='Трудности')
+    difficulties_comment = models.CharField(max_length=512, blank=True, verbose_name='Комментарий про трудности')

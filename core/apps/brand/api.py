@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.db.models import Q
 from django.http import QueryDict
-from rest_framework import viewsets, status, generics, serializers
+from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -20,7 +20,9 @@ from core.apps.brand.serializers import (
     BrandCreateSerializer,
     BrandGetSerializer,
     MatchSerializer,
-    InstantCoopSerializer, BrandUpdateSerializer,
+    InstantCoopSerializer,
+    BrandUpdateSerializer,
+    CollaborationSerializer,
 )
 from core.apps.chat.models import Room
 
@@ -245,3 +247,8 @@ class BrandViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CollaborationCreateView(generics.CreateAPIView):
+    serializer_class = CollaborationSerializer
+    permission_classes = [IsAuthenticated, IsBrand]
