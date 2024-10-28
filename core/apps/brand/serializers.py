@@ -928,24 +928,27 @@ class CollaborationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Collaboration
         exclude = []
-        read_only_fields = ['reporter']
+        read_only_fields = ['reporter', 'created_at']
 
     def validate(self, attrs):
         reporter = self.context['request'].user.brand
-        collab_with = attrs.get('collab_with')
+        collab_with = attrs.get('collab_with')  # brand obj
 
-        try:
-            collab_with_brand = Brand.objects.get(pk=collab_with)
-        except Brand.DoesNotExist:
-            raise exceptions.ValidationError(f"Brand with id: {collab_with} not found!")
+        if reporter.id == collab_with.id:
+            raise serializers.ValidationError('You cannot report collaboration with yourself!')
 
-        if Collaboration.objects.filter(reporter=reporter, collab_with=collab_with_brand).exists():
-            raise exceptions.ValidationError("You have already reported collaboration with that brand!")
+        if not Match.objects.filter(
+                Q(initiator=reporter, target=collab_with) | Q(initiator=collab_with, target=reporter), is_match=True
+        ).exists():
+            raise serializers.ValidationError(
+                'You cannot report about collaboration with brand you do not have match with!'
+            )
 
-        # validate other fields if necessary
+        if Collaboration.objects.filter(reporter=reporter, collab_with=collab_with).exists():
+            raise serializers.ValidationError("You have already reported collaboration with that brand!")
 
         attrs['reporter'] = reporter
-        attrs['collab_with'] = collab_with_brand
+
         return attrs
 
     def create(self, validated_data):
@@ -959,4 +962,5 @@ class CollaborationSerializer(serializers.ModelSerializer):
                 # TODO add points to reported brand
         except DatabaseError:
             raise exceptions.ValidationError("Failed to perform action!")
+
         return collab

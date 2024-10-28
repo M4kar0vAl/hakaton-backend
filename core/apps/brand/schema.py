@@ -94,13 +94,6 @@ class Fix1(OpenApiViewExtension):
             def instant_coop(self, request, *args, **kwargs):
                 return super().instant_coop(request, *args, **kwargs)
 
-            @extend_schema(
-                tags=['Brand'],
-                responses={201: CollaborationSerializer}
-            )
-            def report_collab(self, request, *args, **kwargs):
-                return super().report_collab(request, *args, **kwargs)
-
         return Fixed
 
 
@@ -112,6 +105,24 @@ class Fix2(OpenApiViewExtension):
         class Fixed(self.target_class):
             """
             Get answer choices for questionnaire choices questions
+            """
+            pass
+
+        return Fixed
+
+
+class Fix3(OpenApiViewExtension):
+    target_class = 'core.apps.brand.api.CollaborationCreateView'
+
+    def view_replacement(self):
+        @extend_schema(tags=['Collaboration'])
+        class Fixed(self.target_class):
+            """
+            Report about collaboration with brand.
+
+            collab_with: id of brand to report collaboration with
+
+            Authenticated brand only.
             """
             pass
 

@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.db.models import Q
 from django.http import QueryDict
-from rest_framework import viewsets, status, generics, serializers
+from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -71,8 +71,6 @@ class BrandViewSet(viewsets.ModelViewSet):
             return MatchSerializer
         elif self.action == 'instant_coop':
             return InstantCoopSerializer
-        elif self.action == 'report_collab':
-            return CollaborationSerializer
 
         return super().get_serializer_class()
 
@@ -88,7 +86,7 @@ class BrandViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         elif self.action in ('partial_update', 'destroy'):
             permission_classes = [IsOwnerOrReadOnly]
-        elif self.action in ('like', 'report_collab'):
+        elif self.action == 'like':
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub]
@@ -250,16 +248,7 @@ class BrandViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response(data=serializer.data, status=status.HTTP_201_CREATED)
 
-    @action(detail=False, methods=['post'])
-    def report_collab(self, request):
-        """
-        Report collaboration results of two brands.
 
-        collab_with: id of brand with which collaborated.
-
-        Returns collaboration instance.
-        """
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+class CollaborationCreateView(generics.CreateAPIView):
+    serializer_class = CollaborationSerializer
+    permission_classes = [IsAuthenticated, IsBrand]
