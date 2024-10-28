@@ -659,7 +659,7 @@ class BrandUpdateSerializer(
             # if 'other' wasn't passed in request, then delete current 'other'
             getattr(instance, related_name).filter(is_other=True).delete()
 
-        common = model.objects.filter(name__in=new_common_objs_names)  # new common objs
+        common = model.objects.filter(name__in=new_common_objs_names, is_other=False)  # new common objs
 
         # will remove objs that are not in new list, will add only objs that are not already set
         getattr(instance, related_name).set(list(common) + other)
