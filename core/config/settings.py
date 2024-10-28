@@ -31,7 +31,6 @@ INSTALLED_APPS = [
     'core.apps.accounts.apps.AccountsConfig',
     'core.apps.brand.apps.BrandConfig',
     'core.apps.payments.apps.PaymentsConfig',
-    'core.apps.questionnaire.apps.QuestionnaireConfig',
     'core.apps.chat.apps.ChatConfig',
     'core.apps.analytics.apps.AnalyticsConfig',
 ]
@@ -97,6 +96,8 @@ STATIC_URL = 'static/'
 
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
+
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5Mb
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

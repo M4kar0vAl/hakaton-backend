@@ -35,6 +35,7 @@ class CreateUserSerializer(
         model = User
         fields = [
             'id',
+            'fullname',
             'email',
             'phone',
             'password',
@@ -63,6 +64,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id',
+            'fullname',
             'email',
             'phone',
             'telegram_link',
@@ -82,6 +84,7 @@ class UpdateUserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'email']
         fields = [
             'id',
+            'fullname',
             'email',
             'phone',
         ]

@@ -19,14 +19,16 @@ class Fix1(OpenApiViewExtension):
         class Fixed(self.target_class):
             @extend_schema(
                 description='Создать бренд\n\n'
-                            'Тип медиа application/json\n\n'
-                            'Вложенные объекты (с вариантами ответов):\n\n'
-                            '::text: Текст ответа, в точности как в вариантах ответа на вопрос.'
-                            ' Если вариант "Свой вариант", должен быть передан как '
-                            '{"text": "Свой вариант: мой вариант ответа"} '
-                            '(с пробелом после двоеточия)\n\n'
-                            '::question: id вопроса, на который отправляется ответ.\n\n'
-                            'Изображения передавать в виде строки base64'
+                            'Тип медиа multipart/form-data\n\n'
+                            'Объекты и списки (кроме изображений) передавать в виде json строки.\n\n'
+                            'Изображения передавать как файлы.\n\n'
+                            'Необязательные поля исключать из тела запроса, если они не заполнены.\n\n'
+                            'Для категорий, тегов:\n\n'
+                            '\tДругое передавать обязательно с "is_other": true\n\n'
+                            '\tВ тех, что получили из /api/v1/questionnaire_choices/ '
+                            'можно указать "is_other": false, либо не указывать вовсе\n\n'
+                            '\tНесуществующие будут проигнорированы при создании, '
+                            'НО участвуют в валидации на количество!'
             )
             def create(self, request, *args, **kwargs):
                 return super().create(request, *args, **kwargs)
@@ -39,11 +41,35 @@ class Fix1(OpenApiViewExtension):
             def retrieve(self, request, *args, **kwargs):
                 return super().retrieve(request, *args, **kwargs)
 
-            @extend_schema(description='Полное обновление бренда')
-            def update(self, request, *args, **kwargs):
-                return super().update(request, *args, **kwargs)
-
-            @extend_schema(description='Частичное обновление бренда')
+            @extend_schema(
+                description='Частичное обновление бренда\n\n'
+                            'Тип медиа multipart/form-data\n\n'
+                            'Объекты и списки (кроме изображений) передавать в виде json строки.\n\n'
+                            'Изображения передавать как файлы.\n\n'
+                            'Все ключи, значением которых является объект или список (кроме изображений) '
+                            '- это новое состояние этого объекта/списка.\n'
+                            'Т.е. если хотите добавить что-то к предыдущим значениям, '
+                            'то указываете все предыдущие значения + новое. Для удаления то же самое.\n\n'
+                            'Для категорий, тегов, форматов, целей:\n\n'
+                            '\tДругое передавать обязательно с "is_other": true\n\n'
+                            '\tВ тех, что получили из /api/v1/questionnaire_choices/ '
+                            'можно указать "is_other": false, либо не указывать вовсе\n\n'
+                            '\tНесуществующие будут проигнорированы при создании, '
+                            'НО участвуют в валидации на количество!\n\n'
+                            'Целевая аудитория:\n\n'
+                            '\tМожно указывать ключи верхнего уровня (age, gender, geos, income) в любой комбинации, '
+                            'хоть один, хоть все. НО структура их значений строго ограничена! '
+                            'Указывать все ключи, которые в них есть. '
+                            'Если передать дополнительные ключи, они будут проигнорированы.\n\n'
+                            '\tЧтобы удалить значение ключа верхнего уровня нужно передавать:\n\n'
+                            '\t - age: {}\n'
+                            '\t - gender: {}\n'
+                            '\t - geos: []\n'
+                            '\t - income: null\n\n'
+                            'Изображения, которых может быть несколько, разделены на _add и _remove.\n\n'
+                            '\tВ _add передается список изображений, которые надо добавить.\n\n'
+                            '\tВ _remove передается список идентификаторов изображений, которые надо удалить.\n\n'
+            )
             def partial_update(self, request, *args, **kwargs):
                 return super().partial_update(request, *args, **kwargs)
 
@@ -74,5 +100,19 @@ class Fix1(OpenApiViewExtension):
             )
             def report_collab(self, request, *args, **kwargs):
                 return super().report_collab(request, *args, **kwargs)
+
+        return Fixed
+
+
+class Fix2(OpenApiViewExtension):
+    target_class = 'core.apps.brand.api.QuestionnaireChoicesListView'
+
+    def view_replacement(self):
+        @extend_schema(tags=['Questionnaire'])
+        class Fixed(self.target_class):
+            """
+            Get answer choices for questionnaire choices questions
+            """
+            pass
 
         return Fixed
