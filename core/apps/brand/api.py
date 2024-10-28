@@ -13,7 +13,7 @@ from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup
+from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog
 from core.apps.brand.permissions import IsOwnerOrReadOnly, IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
@@ -104,7 +104,8 @@ class BrandViewSet(viewsets.ModelViewSet):
             # populate transformed data with all values of a multiple photos fields using QueryDict.getlist()
             # otherwise only last photo of the list will be taken
             for field in (
-                    'product_photos_match', 'product_photos_card', 'gallery_photos_list', 'gallery_add'
+                    'product_photos_match', 'product_photos_card', 'gallery_photos_list', 'gallery_add',
+                    'product_photos_match_add', 'product_photos_card_add'
             ):
                 if field in data:
                     force_dict_data.update({
@@ -175,6 +176,7 @@ class BrandViewSet(viewsets.ModelViewSet):
                 # and it doesn't know user was deleted
                 instance.refresh_from_db()
 
+                Blog.objects.filter(brand=instance).delete()
                 ProductPhoto.objects.filter(brand=instance).delete()
                 GalleryPhoto.objects.filter(brand=instance).delete()
                 BusinessGroup.objects.filter(brand=instance).delete()
@@ -190,7 +192,6 @@ class BrandViewSet(viewsets.ModelViewSet):
                     'logo',
                     'photo',
                     'tg_nickname',
-                    'blog_url',
                     'inst_url',
                     'vk_url',
                     'tg_url',

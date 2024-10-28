@@ -125,18 +125,13 @@ class BusinessGroupSerializer(serializers.ModelSerializer):
         exclude = ['brand']
 
 
-class PhotoListUpdateSerializer(serializers.Serializer):
-    remove = serializers.ListField(child=serializers.IntegerField(), write_only=True)
-    add = serializers.ListField(child=serializers.ImageField(), write_only=True)
-
-
 class BrandCreateSerializer(
     BrandValidateMixin,
     serializers.ModelSerializer
 ):
     user = UserSerializer(required=False, read_only=True)
     blogs = BlogSerializer(many=True, read_only=True)
-    blogs_list = serializers.ListField(child=serializers.CharField(), write_only=True, required=False)
+    blogs_list = serializers.ListField(child=serializers.URLField(), write_only=True, required=False)
     category = CategorySerializer()
     tags = TagSerializer(many=True)
 
@@ -156,6 +151,12 @@ class BrandCreateSerializer(
             'uniqueness', 'logo', 'photo', 'product_photos_match', 'product_photos_card', 'product_photos'
         ]
 
+    def validate(self, attrs):
+        if Brand.objects.filter(user=self.context['request'].user).exists():
+            raise serializers.ValidationError('You already have brand!')
+
+        return attrs
+
     def create(self, validated_data):
         """
         Метод для создания бренда. Здесь обрабатываются поля-внешние ключи
@@ -164,11 +165,10 @@ class BrandCreateSerializer(
         user = self.context['request'].user
 
         # FK
-        try:
-            blogs = validated_data.pop('blogs_list')
-        except KeyError:
-            blogs = None
+        # optional
+        blogs = validated_data.pop('blogs_list', None)
 
+        # required
         category = validated_data.pop('category')
         product_photos_match = validated_data.pop('product_photos_match')
         product_photos_card = validated_data.pop('product_photos_card')
@@ -210,7 +210,7 @@ class BrandCreateSerializer(
                 # --------------------------
 
                 log_brand_activity(brand=brand, action=BrandActivity.REGISTRATION)
-        except Exception:
+        except DatabaseError:
             try:
                 # delete saved photos on server in case of exception
                 shutil.rmtree(os.path.join(settings.MEDIA_ROOT, f"user_{self.context['request'].user.id}"))
@@ -281,8 +281,10 @@ class BrandUpdateSerializer(
     # write only
     new_blogs = serializers.ListField(child=serializers.CharField(), write_only=True)
     new_business_groups = serializers.ListField(child=serializers.CharField(), write_only=True)
-    # new_product_photos_match = PhotoListUpdateSerializer(write_only=True)
-    # new_product_photos_card = PhotoListUpdateSerializer(write_only=True)
+    product_photos_match_add = serializers.ListField(child=serializers.ImageField(), write_only=True)
+    product_photos_match_remove = serializers.ListField(child=serializers.IntegerField(), write_only=True)
+    product_photos_card_add = serializers.ListField(child=serializers.ImageField(), write_only=True)
+    product_photos_card_remove = serializers.ListField(child=serializers.IntegerField(), write_only=True)
     gallery_add = serializers.ListField(child=serializers.ImageField(), write_only=True)
     gallery_remove = serializers.ListField(child=serializers.IntegerField(), write_only=True)
 
@@ -306,13 +308,29 @@ class BrandUpdateSerializer(
             'wb_url', 'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags', 'uniqueness', 'logo', 'photo',
             'description', 'mission_statement', 'formats', 'goals', 'offline_space', 'problem_solving',
             'target_audience', 'categories_of_interest', 'business_groups', 'new_business_groups',
-            # 'new_product_photos_match', 'new_product_photos_card',
-            'gallery_add', 'gallery_remove',
+            'product_photos_match_add', 'product_photos_match_remove', 'product_photos_card_add',
+            'product_photos_card_remove', 'gallery_add', 'gallery_remove',
             'gallery_photos', 'product_photos',
         ]
 
+    def validate(self, attrs):
+        match_add = attrs.get('product_photos_match_add', [])
+        match_remove = attrs.get('product_photos_match_remove', [])
+        card_add = attrs.get('product_photos_card_add', [])
+        card_remove = attrs.get('product_photos_card_remove', [])
+
+        current_match_num = self.instance.product_photos.filter(format=ProductPhoto.MATCH).count()
+        current_card_num = self.instance.product_photos.filter(format=ProductPhoto.CARD).count()
+
+        if current_match_num + len(match_add) - len(match_remove) <= 0:
+            raise serializers.ValidationError('The overall number of match product photos cannot be <= 0')
+
+        if current_card_num + len(card_add) - len(card_remove) <= 0:
+            raise serializers.ValidationError('The overall number of brand card product photos cannot be <= 0')
+
+        return attrs
+
     def update(self, instance, validated_data):
-        # TODO handle product photos
         new_blogs = validated_data.pop('new_blogs', None)
         category = validated_data.pop('category', None)
 
@@ -345,6 +363,11 @@ class BrandUpdateSerializer(
 
         gallery_add = validated_data.pop('gallery_add', None)
         gallery_remove = validated_data.pop('gallery_remove', None)
+
+        product_photos_match_add = validated_data.pop('product_photos_match_add', None)
+        product_photos_match_remove = validated_data.pop('product_photos_match_remove', None)
+        product_photos_card_add = validated_data.pop('product_photos_card_add', None)
+        product_photos_card_remove = validated_data.pop('product_photos_card_remove', None)
 
         if target_audience is not None:
             age = target_audience.get('age')
@@ -431,17 +454,61 @@ class BrandUpdateSerializer(
                         instance=instance, age=age, gender=gender, income=income, geos=geos
                     )
 
+                if product_photos_match_remove:
+                    paths = list(instance.product_photos.filter(
+                        pk__in=product_photos_match_remove, brand=instance, format=ProductPhoto.MATCH
+                    ).values_list('image', flat=True))
+
+                    instance.product_photos.filter(
+                        pk__in=product_photos_match_remove, format=ProductPhoto.MATCH
+                    ).delete()
+
+                    for path in paths:
+                        try:
+                            os.remove(os.path.join(settings.MEDIA_ROOT, path))
+                        except (FileNotFoundError, OSError):
+                            # do nothing if file was not found or path is a directory
+                            pass
+
+                if product_photos_card_remove:
+                    paths = list(instance.product_photos.filter(
+                        pk__in=product_photos_card_remove, format=ProductPhoto.CARD
+                    ).values_list('image', flat=True))
+
+                    instance.product_photos.filter(pk__in=product_photos_card_remove, format=ProductPhoto.CARD).delete()
+
+                    for path in paths:
+                        try:
+                            os.remove(os.path.join(settings.MEDIA_ROOT, path))
+                        except (FileNotFoundError, OSError):
+                            # do nothing if file was not found or path is a directory
+                            pass
+
+                if product_photos_match_add:
+                    ProductPhoto.objects.bulk_create(
+                        [
+                            ProductPhoto(image=image, format=ProductPhoto.MATCH, brand=instance)
+                            for image in product_photos_match_add
+                        ]
+                    )
+
+                if product_photos_card_add:
+                    ProductPhoto.objects.bulk_create(
+                        [
+                            ProductPhoto(image=image, format=ProductPhoto.CARD, brand=instance)
+                            for image in product_photos_card_add
+                        ]
+                    )
+
                 # handle gallery photos removal
                 if gallery_remove:
                     # if gallery_remove is not None and not empty list
                     # get images paths
                     # need to call list() on queryset to instantly evaluate it, because next operation deletes instances
-                    paths = list(GalleryPhoto.objects.filter(
-                        pk__in=gallery_remove, brand=instance
-                    ).values_list('image', flat=True))
+                    paths = list(instance.gallery_photos.filter(pk__in=gallery_remove).values_list('image', flat=True))
 
                     # delete instances from db
-                    GalleryPhoto.objects.filter(pk__in=gallery_remove, brand=instance).delete()
+                    instance.gallery_photos.filter(pk__in=gallery_remove).delete()
 
                     # remove files from server
                     for path in paths:
