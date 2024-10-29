@@ -14,6 +14,7 @@ class BoardTestCase(APITestCase):
         user_data = {
             'email': 'user1@example.com',
             'phone': '+79993332211',
+            'fullname': 'Юзеров Юзер Юзерович',
             'password': 'Pass!234',
             'is_active': True,
         }
