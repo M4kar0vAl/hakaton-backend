@@ -1,5 +1,6 @@
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from rest_framework import status
 
 from rest_framework.test import APITestCase, APIClient
 
@@ -25,6 +26,7 @@ class BoardTestCase(APITestCase):
         data = {
             'email': 'test@mail.com',
             'phone': '+79087917702',
+            'fullname': 'Юзеров Юзер Юзерович',
             'password': 'Pass!234'
         }
         response = self.client.post(reverse('users-list'), data)
@@ -35,6 +37,7 @@ class BoardTestCase(APITestCase):
         data = {
             'email': 'testmail.com',
             'phone': '+79087917702',
+            'fullname': 'Юзеров Юзер Юзерович',
             'password': 'Pass!234'
         }
         response = self.client.post(reverse('users-list'), data)
@@ -45,6 +48,7 @@ class BoardTestCase(APITestCase):
         data = {
             'email': 'test@mail.com',
             'phone': '+79993332211',
+            'fullname': 'Юзеров Юзер Юзерович',
             'password': '1234'
         }
         response = self.client.post(reverse('users-list'), data)
@@ -55,6 +59,7 @@ class BoardTestCase(APITestCase):
         data = {
             'email': 'test@mail.com',
             'phone': '+7999333',
+            'fullname': 'Юзеров Юзер Юзерович',
             'password': 'Pass!234'
         }
         response = self.client.post(reverse('users-list'), data)
@@ -65,6 +70,7 @@ class BoardTestCase(APITestCase):
         data = {
             'email': 'user1@example.com',
             'phone': '+79087917702',
+            'fullname': 'Юзеров Юзер Юзерович',
             'password': 'Pass!234'
         }
         response = self.client.post(reverse('users-list'), data)
@@ -121,7 +127,7 @@ class BoardTestCase(APITestCase):
 
     def test_delete_user(self):
         response = self.auth_client.delete(reverse('users-me'))
-        self.assertEqual(204, response.status_code)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_pass_reset(self):
         data = {
