@@ -171,3 +171,24 @@ class CollaborationTestCase(APITestCase):
         self.assertEqual(activity_obj.initiator, self.brand1)
         self.assertEqual(activity_obj.target, self.brand2)
         self.assertTrue(activity_obj.is_match)
+
+    def test_unauthenticated_not_allowed(self):
+        response = self.client.post(self.url, {**self.collaboration_data, 'collab_with': self.brand2.id})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_user_without_brand_not_allowed(self):
+        user = User.objects.create_user(
+            email='user3@example.com',
+            phone='+79993332213',
+            fullname='Юзеров Юзер2 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        no_brand_auth_client = APIClient()
+        no_brand_auth_client.force_authenticate(user)
+
+        response = no_brand_auth_client.post(self.url, {**self.collaboration_data, 'collab_with': self.brand2.id})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
