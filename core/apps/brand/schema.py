@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema
 from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopRequestSerializer,
-    InstantCoopSerializer, CollaborationSerializer
+    InstantCoopSerializer, CollaborationSerializer, LikedBySerializer
 )
 
 
@@ -93,6 +93,16 @@ class Fix1(OpenApiViewExtension):
             )
             def instant_coop(self, request, *args, **kwargs):
                 return super().instant_coop(request, *args, **kwargs)
+
+            @extend_schema(
+                tags=['Brand'],
+                description="Get a list of brands that liked the current one.\n\n"
+                            "Excludes matches and likes of current brand.\n\n"
+                            "Authenticated brand only.",
+                responses={200: LikedBySerializer(many=True)}
+            )
+            def liked_by(self, request, *args, **kwargs):
+                return super().liked_by(request, *args, **kwargs)
 
         return Fixed
 
