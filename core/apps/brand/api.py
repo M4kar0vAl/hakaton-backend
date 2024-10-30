@@ -4,7 +4,7 @@ import shutil
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
-from django.db.models import Q
+from django.db.models import Q, Subquery
 from django.http import QueryDict
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
@@ -22,7 +22,7 @@ from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopSerializer,
     BrandUpdateSerializer,
-    CollaborationSerializer,
+    CollaborationSerializer, LikedBySerializer,
 )
 from core.apps.chat.models import Room
 
@@ -62,6 +62,13 @@ class BrandViewSet(viewsets.ModelViewSet):
         "trace",
     ]  # remove put from allowed methods
 
+    def get_queryset(self):
+        if self.action == 'liked_by':
+            # get all brands which liked current one and haven't been liked in response yet
+            liked_by_ids = self.request.user.brand.target.filter(is_match=False).values_list('initiator', flat=True)
+            return Brand.objects.filter(pk__in=Subquery(liked_by_ids))
+        return super().get_queryset()
+
     def get_serializer_class(self):
         if self.action == 'create':
             return BrandCreateSerializer
@@ -71,6 +78,8 @@ class BrandViewSet(viewsets.ModelViewSet):
             return MatchSerializer
         elif self.action == 'instant_coop':
             return InstantCoopSerializer
+        elif self.action == 'liked_by':
+            return LikedBySerializer
 
         return super().get_serializer_class()
 
@@ -86,7 +95,7 @@ class BrandViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAuthenticated]
         elif self.action in ('partial_update', 'destroy'):
             permission_classes = [IsOwnerOrReadOnly]
-        elif self.action == 'like':
+        elif self.action in ('like', 'liked_by'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub]
@@ -247,6 +256,12 @@ class BrandViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(data=serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_name='liked_by')
+    def liked_by(self, request):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
 class CollaborationCreateView(generics.CreateAPIView):

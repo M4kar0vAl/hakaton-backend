@@ -964,3 +964,9 @@ class CollaborationSerializer(serializers.ModelSerializer):
             raise exceptions.ValidationError("Failed to perform action!")
 
         return collab
+
+
+class LikedBySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = ['id', 'name', 'logo']
