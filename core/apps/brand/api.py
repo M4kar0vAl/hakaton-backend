@@ -49,18 +49,13 @@ class QuestionnaireChoicesListView(generics.GenericAPIView):
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-class BrandViewSet(viewsets.ModelViewSet):
+class BrandViewSet(
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet
+):
     queryset = Brand.objects.all()
     serializer_class = BrandGetSerializer
-    http_method_names = [
-        "get",
-        "post",
-        "patch",
-        "delete",
-        "head",
-        "options",
-        "trace",
-    ]  # remove put from allowed methods
 
     def get_queryset(self):
         if self.action == 'liked_by':
@@ -72,8 +67,11 @@ class BrandViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return BrandCreateSerializer
-        elif self.action == 'partial_update':
-            return BrandUpdateSerializer
+        elif self.action == 'me':
+            if self.request.method == 'GET':
+                return BrandGetSerializer
+            elif self.request.method == 'PATCH':
+                return BrandUpdateSerializer
         elif self.action == 'like':
             return MatchSerializer
         elif self.action == 'instant_coop':
@@ -93,8 +91,9 @@ class BrandViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'create':
             permission_classes = [IsAuthenticated]
-        elif self.action in ('partial_update', 'destroy'):
-            permission_classes = [IsOwnerOrReadOnly]
+        elif self.action == 'me':
+            if self.request.method in ('GET', 'PATCH', 'DELETE'):
+                permission_classes = [IsAuthenticated, IsBrand]
         elif self.action in ('like', 'liked_by'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
@@ -154,85 +153,98 @@ class BrandViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    def partial_update(self, request, *args, **kwargs):
-        transformed_data = self.transform_request_data(request.data)
-        instance = Brand.objects.select_related(
-            'user',
-            'category',
-            'target_audience__age',
-            'target_audience__gender'
-        ).get(pk=kwargs['pk'])
-        serializer = self.get_serializer(instance, data=transformed_data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-
-        return Response(data=serializer.data, status=status.HTTP_200_OK)
-
     def perform_destroy(self, instance):
         user_id = instance.user.id  # need to get it here cuz it will be unavailable once the user is deleted
-        try:
-            with transaction.atomic():
-                user = instance.user
 
-                # delete user's support and help chats
-                # messages in that chats will be deleted
-                user.rooms.filter(Q(type=Room.SUPPORT) | Q(type=Room.HELP)).delete()
+        with transaction.atomic():
+            user = instance.user
 
-                # delete user, brand will remain with user=NULL
-                # all user's messages 'user' field in match and instant chats will be set to NULL
-                user.delete()
+            # delete user's support and help chats
+            # messages in that chats will be deleted
+            user.rooms.filter(Q(type=Room.SUPPORT) | Q(type=Room.HELP)).delete()
 
-                # need to call this before calling instance.save(),
-                # cuz instance think that 'user' field was changed to NULL (and wasn't saved)
-                # and it doesn't know user was deleted
-                instance.refresh_from_db()
+            # delete user, brand will remain with user=NULL
+            # all user's messages 'user' field in match and instant chats will be set to NULL
+            user.delete()
 
-                Blog.objects.filter(brand=instance).delete()
-                ProductPhoto.objects.filter(brand=instance).delete()
-                GalleryPhoto.objects.filter(brand=instance).delete()
-                BusinessGroup.objects.filter(brand=instance).delete()
+            # need to call this before calling instance.save(),
+            # cuz instance think that 'user' field was changed to NULL (and wasn't saved)
+            # and it doesn't know user was deleted
+            instance.refresh_from_db()
 
-                # ---remove fields that are no value for analytics---
-                for field in [
-                    'subscription',
-                    'sub_expire'
-                ]:
-                    setattr(instance, field, None)
+            Blog.objects.filter(brand=instance).delete()
+            ProductPhoto.objects.filter(brand=instance).delete()
+            GalleryPhoto.objects.filter(brand=instance).delete()
+            BusinessGroup.objects.filter(brand=instance).delete()
 
-                for field in [
-                    'logo',
-                    'photo',
-                    'tg_nickname',
-                    'inst_url',
-                    'vk_url',
-                    'tg_url',
-                    'wb_url',
-                    'lamoda_url',
-                    'site_url',
-                    'uniqueness',
-                    'description',
-                    'mission_statement',
-                    'offline_space',
-                    'problem_solving'
-                ]:
-                    setattr(instance, field, '')
+            # ---remove fields that are no value for analytics---
+            for field in [
+                'subscription',
+                'sub_expire'
+            ]:
+                setattr(instance, field, None)
 
-                instance.save()
-                # ---------------------------------------------------
+            for field in [
+                'logo',
+                'photo',
+                'tg_nickname',
+                'inst_url',
+                'vk_url',
+                'tg_url',
+                'wb_url',
+                'lamoda_url',
+                'site_url',
+                'uniqueness',
+                'description',
+                'mission_statement',
+                'offline_space',
+                'problem_solving'
+            ]:
+                setattr(instance, field, '')
 
-                # get path to 'deleted' user's media files directory (media/user_{user.id})
-                path_to_user_dir = os.path.join(settings.MEDIA_ROOT, f'user_{user_id}')
+            instance.save()
+            # ---------------------------------------------------
 
-                # delete user directory with all images in it
-                try:
-                    shutil.rmtree(path_to_user_dir)
-                except FileNotFoundError:
-                    # does nothing if directory was not found
-                    pass
+            # get path to 'deleted' user's media files directory (media/user_{user.id})
+            path_to_user_dir = os.path.join(settings.MEDIA_ROOT, f'user_{user_id}')
 
-                log_brand_activity(brand=instance, action=BrandActivity.DELETION)
-        except DatabaseError:
-            return Response({'detail': 'Unexpected database error. Please try again.'})
+            # delete user directory with all images in it
+            try:
+                shutil.rmtree(path_to_user_dir)
+            except FileNotFoundError:
+                # does nothing if directory was not found
+                pass
+
+            log_brand_activity(brand=instance, action=BrandActivity.DELETION)
+
+    @action(detail=False, methods=['get', 'patch', 'delete'], url_name='me')
+    def me(self, request, *args, **kwargs):
+        brand = request.user.brand
+        if request.method == 'GET':
+            serializer = self.get_serializer(brand)
+
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        elif request.method == 'PATCH':
+            transformed_data = self.transform_request_data(request.data)
+
+            instance = Brand.objects.select_related(
+                'user',
+                'category',
+                'target_audience__age',
+                'target_audience__gender'
+            ).get(pk=request.user.brand.id)
+
+            serializer = self.get_serializer(instance, data=transformed_data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+        elif request.method == 'DELETE':
+            try:
+                self.perform_destroy(brand)
+            except DatabaseError:
+                return Response({'detail': 'Unexpected database error. Please, try again!'})
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'])
     def like(self, request, pk=None):
