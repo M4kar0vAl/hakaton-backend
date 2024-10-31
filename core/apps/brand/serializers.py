@@ -920,8 +920,12 @@ class InstantCoopSerializer(serializers.ModelSerializer):
         initiator = validated_data.get('initiator')
         target = validated_data.get('target')
 
-        room = Room.objects.create(has_business=True, type=Room.INSTANT)
-        room.participants.add(initiator.user, target.user)
+        try:
+            with transaction.atomic():
+                room = Room.objects.create(has_business=True, type=Room.INSTANT)
+                room.participants.add(initiator.user, target.user)
+        except DatabaseError:
+            raise serializers.ValidationError('Failed to perform action. Please, try again!')
 
         return room
 

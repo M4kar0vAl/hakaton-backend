@@ -881,6 +881,7 @@ class BrandDeleteTestCase(APITestCase):
         # check user media directory
         self.assertFalse(default_storage.exists(os.path.join(settings.MEDIA_ROOT, f'user_{self.user_id}')))
 
+
 class BrandRetrieveTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
@@ -962,6 +963,7 @@ class BrandRetrieveTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertEqual(response.data['id'], self.brand2.id)
+
 
 class BrandMeGetTestCase(APITestCase):
     @classmethod
