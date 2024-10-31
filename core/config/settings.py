@@ -137,6 +137,7 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     'POSTPROCESSING_HOOKS': [
         'core.apps.accounts.schema.user_me_postprocessing_hook',
+        'core.apps.brand.schema.brand_me_postprocessing_hook',
         'drf_spectacular.hooks.postprocess_schema_enums',
     ],
 }

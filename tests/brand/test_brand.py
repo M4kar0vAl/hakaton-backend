@@ -235,7 +235,7 @@ class BrandUpdateTestCase(APITestCase):
 
         response = self.auth_client.post(reverse('brand-list'), data, format='multipart')
         self.brand = Brand.objects.get(id=response.data['id'])
-        self.url = reverse('brand-detail', kwargs={'pk': self.brand.id})
+        self.url = reverse('brand-me')
 
     def tearDown(self):
         # delete created media files after each test
@@ -245,6 +245,25 @@ class BrandUpdateTestCase(APITestCase):
         response = self.auth_client.put(self.url, {}, format='multipart')
 
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_brand_update_unauthenticated_not_allowed(self):
+        response = self.client.patch(self.url, {}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_brand_update_wo_brand_not_allowed(self):
+        user_wo_brand = User.objects.create_user(
+            email='user2@example.com',
+            phone='+79993332212',
+            fullname='Юзеров Юзер1 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+        auth_client_wo_brand = APIClient()
+        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        response = auth_client_wo_brand.patch(self.url, {}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_brand_partial_update_whole_data(self):
         other_small_gif = (
@@ -759,7 +778,7 @@ class BrandDeleteTestCase(APITestCase):
 
         response = self.auth_client.post(reverse('brand-list'), data, format='multipart')
         self.brand = Brand.objects.get(id=response.data['id'])
-        self.url = reverse('brand-detail', kwargs={'pk': self.brand.id})
+        self.url = reverse('brand-me')
 
         update_data = {
             'description': 'description',
@@ -796,6 +815,26 @@ class BrandDeleteTestCase(APITestCase):
 
     def tearDown(self):
         shutil.rmtree(os.path.join(settings.MEDIA_ROOT))
+
+    def test_brand_delete_unauthenticated_not_allowed(self):
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_brand_delete_wo_brand_not_allowed(self):
+        user_wo_brand = User.objects.create_user(
+            email='user2@example.com',
+            phone='+79993332212',
+            fullname='Юзеров Юзер1 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+        auth_client_wo_brand = APIClient()
+        auth_client_wo_brand.force_authenticate(user_wo_brand)
+
+        response = auth_client_wo_brand.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_brand_delete(self):
         response = self.auth_client.delete(self.url)
@@ -841,3 +880,151 @@ class BrandDeleteTestCase(APITestCase):
 
         # check user media directory
         self.assertFalse(default_storage.exists(os.path.join(settings.MEDIA_ROOT, f'user_{self.user_id}')))
+
+
+class BrandRetrieveTestCase(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user1 = User.objects.create_user(
+            email='user1@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+        cls.user2 = User.objects.create_user(
+            email='user2@example.com',
+            phone='+79993332212',
+            fullname='Юзеров Юзер1 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        cls.auth_client1 = APIClient()
+        cls.auth_client2 = APIClient()
+        cls.auth_client1.force_authenticate(cls.user1)
+        cls.auth_client2.force_authenticate(cls.user2)
+
+        brand_data = {
+            'tg_nickname': '@asfhbnaf',
+            'name': 'brand1',
+            'position': 'position',
+            'category': Category.objects.get(pk=1),
+            'inst_url': 'https://example.com',
+            'vk_url': 'https://example.com',
+            'tg_url': 'https://example.com',
+            'wb_url': 'https://example.com',
+            'lamoda_url': 'https://example.com',
+            'site_url': 'https://example.com',
+            'subs_count': 10000,
+            'avg_bill': 10000,
+            'uniqueness': 'uniqueness',
+            'logo': 'string',
+            'photo': 'string'
+        }
+
+        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
+        cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
+
+        cls.url = reverse('brand-detail', kwargs={'pk': cls.brand2.pk})
+
+    def test_brand_retrieve_unauthenticated_not_allowed(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_brand_retieve_wo_brand(self):
+        user_wo_brand = User.objects.create_user(
+            email='user3@example.com',
+            phone='+79993332213',
+            fullname='Юзеров Юзер2 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        auth_client_wo_brand = APIClient()
+        auth_client_wo_brand.force_authenticate(user_wo_brand)
+
+        response = auth_client_wo_brand.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['id'], self.brand2.id)
+
+    def test_brand_retrieve_other_brand(self):
+        response = self.auth_client1.get(self.url)  # brand1 gets info about brand2
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(response.data['id'], self.brand2.id)
+
+    def test_brand_retrieve_self(self):
+        response = self.auth_client2.get(self.url)  # brand2 gets info about brand2
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(response.data['id'], self.brand2.id)
+
+
+class BrandMeGetTestCase(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(
+            email='user1@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        cls.auth_client = APIClient()
+        cls.auth_client.force_authenticate(cls.user)
+
+        brand_data = {
+            'tg_nickname': '@asfhbnaf',
+            'name': 'brand1',
+            'position': 'position',
+            'category': Category.objects.get(pk=1),
+            'inst_url': 'https://example.com',
+            'vk_url': 'https://example.com',
+            'tg_url': 'https://example.com',
+            'wb_url': 'https://example.com',
+            'lamoda_url': 'https://example.com',
+            'site_url': 'https://example.com',
+            'subs_count': 10000,
+            'avg_bill': 10000,
+            'uniqueness': 'uniqueness',
+            'logo': 'string',
+            'photo': 'string'
+        }
+
+        cls.brand = Brand.objects.create(user=cls.user, **brand_data)
+
+        cls.url = reverse('brand-me')
+
+    def test_brand_me_get_unauthenticated_not_allowed(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_brand_me_get_wo_brand_not_allowed(self):
+        user_wo_brand = User.objects.create_user(
+            email='user2@example.com',
+            phone='+79993332212',
+            fullname='Юзеров Юзер2 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        auth_client_wo_brand = APIClient()
+        auth_client_wo_brand.force_authenticate(user_wo_brand)
+
+        response = auth_client_wo_brand.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_brand_me_get(self):
+        response = self.auth_client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(response.data['id'], self.brand.id)

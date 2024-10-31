@@ -767,11 +767,17 @@ class BrandUpdateSerializer(
 
 
 class BrandGetSerializer(serializers.ModelSerializer):
-    user = CreateUserSerializer(read_only=True)  # TODO change to UserSerializer
-    subscription = SubscriptionSerializer(read_only=True)
-    category = CategorySerializer()
-    goals = GoalSerializer(many=True)
-    formats = FormatSerializer(many=True)
+    user = UserSerializer(read_only=True)
+    category = CategorySerializer(read_only=True)
+    blogs = BlogSerializer(many=True, read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    goals = GoalSerializer(many=True, read_only=True)
+    formats = FormatSerializer(many=True, read_only=True)
+    categories_of_interest = CategorySerializer(many=True, read_only=True)
+    business_groups = BusinessGroupSerializer(many=True, read_only=True)
+    gallery_photos = GalleryPhotoSerializer(many=True, read_only=True)
+    product_photos = ProductPhotoSerializer(many=True, read_only=True)
+    target_audience = TargetAudienceSerializer(read_only=True)
 
     class Meta:
         model = Brand
@@ -914,8 +920,12 @@ class InstantCoopSerializer(serializers.ModelSerializer):
         initiator = validated_data.get('initiator')
         target = validated_data.get('target')
 
-        room = Room.objects.create(has_business=True, type=Room.INSTANT)
-        room.participants.add(initiator.user, target.user)
+        try:
+            with transaction.atomic():
+                room = Room.objects.create(has_business=True, type=Room.INSTANT)
+                room.participants.add(initiator.user, target.user)
+        except DatabaseError:
+            raise serializers.ValidationError('Failed to perform action. Please, try again!')
 
         return room
 
