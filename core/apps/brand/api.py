@@ -4,7 +4,7 @@ import shutil
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
-from django.db.models import Q, Subquery
+from django.db.models import Q, Subquery, Prefetch
 from django.http import QueryDict
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
@@ -23,7 +23,7 @@ from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopSerializer,
     BrandUpdateSerializer,
-    CollaborationSerializer, LikedBySerializer,
+    CollaborationSerializer, LikedBySerializer, MyLikesSerializer,
 )
 from core.apps.chat.models import Room
 
@@ -63,6 +63,26 @@ class BrandViewSet(
             # get all brands which liked current one and haven't been liked in response yet
             liked_by_ids = self.request.user.brand.target.filter(is_match=False).values_list('initiator', flat=True)
             return Brand.objects.filter(pk__in=Subquery(liked_by_ids))
+
+        elif self.action == 'my_likes':
+            my_likes_ids = self.request.user.brand.initiator.filter(is_match=False).values_list('target', flat=True)
+
+            # get all brands that were like by current brand.
+            # Prefetch product_photos of format CARD to improve performance and set them to 'card_photos' attribute
+            # prefetch instant rooms for brand user
+            return Brand.objects.filter(pk__in=Subquery(my_likes_ids)).select_related('user').prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.CARD),
+                    to_attr='card_photos'
+                ),
+                Prefetch(
+                    'user__rooms',
+                    queryset=Room.objects.filter(type=Room.INSTANT),
+                    to_attr='instant_rooms'
+                )
+            )
+
         return super().get_queryset()
 
     def get_serializer_class(self):
@@ -79,6 +99,8 @@ class BrandViewSet(
             return InstantCoopSerializer
         elif self.action == 'liked_by':
             return LikedBySerializer
+        elif self.action == 'my_likes':
+            return MyLikesSerializer
 
         return super().get_serializer_class()
 
@@ -86,6 +108,14 @@ class BrandViewSet(
         context = super().get_serializer_context()
         if self.action == 'instant_coop':
             context['target_id'] = context['request'].data.get('target')
+
+        elif self.action == 'my_likes':
+            # pass ids of current user's rooms
+            # evaluate queryset here to avoid reevaluating it each time
+            # self.context['current_user_instant_room_ids'] is called
+            context['current_user_instant_rooms_ids'] = set(context['request'].user.rooms.filter(
+                type=Room.INSTANT
+            ).values_list('pk', flat=True))
 
         return context
 
@@ -95,7 +125,7 @@ class BrandViewSet(
         elif self.action == 'me':
             if self.request.method in ('GET', 'PATCH', 'DELETE'):
                 permission_classes = [IsAuthenticated, IsBrand]
-        elif self.action in ('like', 'liked_by'):
+        elif self.action in ('like', 'liked_by', 'my_likes'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub]
@@ -272,6 +302,12 @@ class BrandViewSet(
 
     @action(detail=False, methods=['get'], url_name='liked_by')
     def liked_by(self, request):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_name='my_likes')
+    def my_likes(self, request):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)

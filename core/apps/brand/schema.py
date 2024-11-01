@@ -104,6 +104,15 @@ class Fix1(OpenApiViewExtension):
             def liked_by(self, request, *args, **kwargs):
                 return super().liked_by(request, *args, **kwargs)
 
+            @extend_schema(
+                tags=['Brand'],
+                description="Get a list of liked brands.\n\n"
+                            "instant_room: id of a room of type 'I' if it already exists OR null if it doesn't.\n\n"
+                            "Authenticated brand only."
+            )
+            def my_likes(self, request, *args, **kwargs):
+                return super().my_likes(request, *args, **kwargs)
+
         return Fixed
 
 

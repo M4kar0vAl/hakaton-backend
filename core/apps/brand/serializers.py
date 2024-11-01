@@ -8,9 +8,10 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import TemporaryUploadedFile, InMemoryUploadedFile
 from django.db import transaction, DatabaseError
 from django.db.models import Q, QuerySet
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers, exceptions
 
-from core.apps.accounts.serializers import CreateUserSerializer, UserSerializer
+from core.apps.accounts.serializers import UserSerializer
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_match_activity, log_brand_activity
 from core.apps.brand.mixins import BrandValidateMixin
@@ -980,3 +981,47 @@ class LikedBySerializer(serializers.ModelSerializer):
     class Meta:
         model = Brand
         fields = ['id', 'name', 'logo']
+
+
+class MyLikesSerializer(serializers.ModelSerializer):
+    product_photos_card = serializers.SerializerMethodField()
+    instant_room = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Brand
+        fields = [
+            'id', 'instant_room', 'product_photos_card', 'name', 'photo', 'description', 'offline_space', 'subs_count'
+        ]
+
+    @extend_schema_field(ProductPhotoSerializer(many=True))
+    def get_product_photos_card(self, brand):
+        # card_photos are prefetched in BrandViewSet.get_queryset method
+        return ProductPhotoSerializer(brand.card_photos, many=True).data
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_instant_room(self, brand):
+        """
+        Get instant room id for a pair of current user and liked brand user for each brand in queryset
+
+        Returns:
+            id of a common instant room if it exists or None if it doesn't
+
+        To avoid N + 1 problems:
+         - rooms are being prefetched for each brand in BrandViewSet.get_queryset method
+         - current user rooms ids are evaluated when calling BrandViewSet.get_serializer_context method
+         - intersection of sets is made in python
+        """
+        current_user_rooms_ids = self.context['current_user_instant_rooms_ids']
+        brand_user_rooms_ids = set(room.id for room in brand.user.instant_rooms)  # get a set of instant rooms ids
+
+        # intersection of sets, get common ids
+        # result expected to be a set containing one integer because every pair of users can only have 1 instant room
+        common_room_id_set = current_user_rooms_ids & brand_user_rooms_ids
+
+        if not common_room_id_set:
+            return None
+
+        # extract id from set
+        [common_room_id] = common_room_id_set
+
+        return common_room_id
