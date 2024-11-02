@@ -8,14 +8,13 @@ from django.db.models import Q, Subquery, Prefetch
 from django.http import QueryDict
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog, \
-    Match
-from core.apps.brand.permissions import IsOwnerOrReadOnly, IsBusinessSub, IsBrand
+from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog
+from core.apps.brand.permissions import IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
     BrandCreateSerializer,
@@ -23,7 +22,7 @@ from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopSerializer,
     BrandUpdateSerializer,
-    CollaborationSerializer, LikedBySerializer, MyLikesSerializer,
+    CollaborationSerializer, LikedBySerializer, MyLikesSerializer, MyMatchesSerializer,
 )
 from core.apps.chat.models import Room
 
@@ -83,6 +82,34 @@ class BrandViewSet(
                 )
             )
 
+        elif self.action == 'my_matches':
+            # get ids of brands that have match with current brand as initiator
+            my_matches_ids_as_initiator = self.request.user.brand.initiator.filter(
+                is_match=True
+            ).values_list('target', flat=True)
+
+            # get ids of brands that have match with current brand as target
+            my_matches_ids_as_target = self.request.user.brand.target.filter(
+                is_match=True
+            ).values_list('initiator', flat=True)
+
+            # get all brands that have match with current brand
+            # prefetch card photos and match rooms to improve performance
+            return Brand.objects.filter(
+                Q(pk__in=Subquery(my_matches_ids_as_initiator)) | Q(pk__in=Subquery(my_matches_ids_as_target))
+            ).select_related('user').prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.CARD),
+                    to_attr='card_photos'
+                ),
+                Prefetch(
+                    'user__rooms',
+                    queryset=Room.objects.filter(type=Room.MATCH),
+                    to_attr='match_rooms'
+                )
+            )
+
         return super().get_queryset()
 
     def get_serializer_class(self):
@@ -101,6 +128,8 @@ class BrandViewSet(
             return LikedBySerializer
         elif self.action == 'my_likes':
             return MyLikesSerializer
+        elif self.action == 'my_matches':
+            return MyMatchesSerializer
 
         return super().get_serializer_class()
 
@@ -117,6 +146,11 @@ class BrandViewSet(
                 type=Room.INSTANT
             ).values_list('pk', flat=True))
 
+        elif self.action == 'my_matches':
+            context['current_user_match_rooms_ids'] = set(context['request'].user.rooms.filter(
+                type=Room.MATCH
+            ).values_list('pk', flat=True))
+
         return context
 
     def get_permissions(self):
@@ -125,7 +159,7 @@ class BrandViewSet(
         elif self.action == 'me':
             if self.request.method in ('GET', 'PATCH', 'DELETE'):
                 permission_classes = [IsAuthenticated, IsBrand]
-        elif self.action in ('like', 'liked_by', 'my_likes'):
+        elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub]
@@ -159,10 +193,10 @@ class BrandViewSet(
         # key - field name, value - field instance
         for key, value in serializer.get_fields().items():
             if (
-                isinstance(value, serializers.ListSerializer)  # ModelSerializer with many=True
-                or isinstance(value, serializers.ModelSerializer)  # ModelSerializer
-                or isinstance(value, serializers.ListField)  # ListField
-                or isinstance(value, serializers.Serializer)  # non-model serializer
+                    isinstance(value, serializers.ListSerializer)  # ModelSerializer with many=True
+                    or isinstance(value, serializers.ModelSerializer)  # ModelSerializer
+                    or isinstance(value, serializers.ListField)  # ListField
+                    or isinstance(value, serializers.Serializer)  # non-model serializer
             ):
                 # if key in data and value of this key is string, it means that this string is JSON string
                 if key in force_dict_data and isinstance(force_dict_data[key], str):
@@ -308,6 +342,12 @@ class BrandViewSet(
 
     @action(detail=False, methods=['get'], url_name='my_likes')
     def my_likes(self, request):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_name='my_matches')
+    def my_matches(self, request):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)

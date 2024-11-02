@@ -33,7 +33,6 @@ from core.apps.brand.models import (
     Collaboration
 )
 from core.apps.chat.models import Room
-from core.apps.payments.serializers import SubscriptionSerializer
 
 User = get_user_model()
 
@@ -986,17 +985,22 @@ class LikedBySerializer(serializers.ModelSerializer):
 class MyLikesSerializer(serializers.ModelSerializer):
     product_photos_card = serializers.SerializerMethodField()
     instant_room = serializers.SerializerMethodField()
+    user_fullname = serializers.SerializerMethodField()
 
     class Meta:
         model = Brand
         fields = [
-            'id', 'instant_room', 'product_photos_card', 'name', 'photo', 'description', 'offline_space', 'subs_count'
+            'id', 'instant_room', 'product_photos_card', 'user_fullname',
+            'name', 'photo', 'description', 'offline_space', 'subs_count'
         ]
 
     @extend_schema_field(ProductPhotoSerializer(many=True))
     def get_product_photos_card(self, brand):
         # card_photos are prefetched in BrandViewSet.get_queryset method
         return ProductPhotoSerializer(brand.card_photos, many=True).data
+
+    def get_user_fullname(self, brand):
+        return brand.user.fullname
 
     @extend_schema_field(serializers.IntegerField)
     def get_instant_room(self, brand):
@@ -1011,12 +1015,15 @@ class MyLikesSerializer(serializers.ModelSerializer):
          - current user rooms ids are evaluated when calling BrandViewSet.get_serializer_context method
          - intersection of sets is made in python
         """
-        current_user_rooms_ids = self.context['current_user_instant_rooms_ids']
-        brand_user_rooms_ids = set(room.id for room in brand.user.instant_rooms)  # get a set of instant rooms ids
+        current_user_instant_rooms_ids = self.context['current_user_instant_rooms_ids']
+
+        # get a set of instant rooms ids
+        brand_user_instant_rooms_ids = set(room.id for room in brand.user.instant_rooms)
 
         # intersection of sets, get common ids
         # result expected to be a set containing one integer because every pair of users can only have 1 instant room
-        common_room_id_set = current_user_rooms_ids & brand_user_rooms_ids
+        # OR empty set if there is no instant cooperation between these brands
+        common_room_id_set = current_user_instant_rooms_ids & brand_user_instant_rooms_ids
 
         if not common_room_id_set:
             return None
@@ -1025,3 +1032,36 @@ class MyLikesSerializer(serializers.ModelSerializer):
         [common_room_id] = common_room_id_set
 
         return common_room_id
+
+
+class MyMatchesSerializer(serializers.ModelSerializer):
+    product_photos_card = serializers.SerializerMethodField()
+    match_room = serializers.SerializerMethodField()
+    user_fullname = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Brand
+        fields = [
+            'id', 'match_room', 'product_photos_card', 'user_fullname',
+            'name', 'photo', 'description', 'offline_space', 'subs_count'
+        ]
+
+    @extend_schema_field(ProductPhotoSerializer(many=True))
+    def get_product_photos_card(self, brand):
+        return ProductPhotoSerializer(brand.card_photos, many=True).data
+
+    def get_user_fullname(self, brand):
+        return brand.user.fullname
+
+    @extend_schema_field(serializers.IntegerField)
+    def get_match_room(self, brand):
+        current_user_match_rooms_ids = self.context['current_user_match_rooms_ids']
+        brand_user_match_rooms_ids = set(room.id for room in brand.user.match_rooms)  # get a set of match rooms ids
+
+        # get common room set for current pair of users
+        # result expected to be a set containing one integer because every pair of users can only have 1 match room
+        common_room_id_set = current_user_match_rooms_ids & brand_user_match_rooms_ids
+
+        [common_room] = common_room_id_set
+
+        return common_room

@@ -1,19 +1,16 @@
-from datetime import timedelta
-
 from django.contrib.auth import get_user_model
 from django.test import tag
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.brand.models import Category, Brand
-from core.apps.payments.models import Subscription
+from core.apps.brand.models import Brand, Category
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 User = get_user_model()
 
 
-class BrandMyLikesTestCase(
+class BrandMyMatchesTestCase(
     APITestCase,
     AssertNumQueriesLessThanMixin
 ):
@@ -69,18 +66,26 @@ class BrandMyLikesTestCase(
             'photo': 'string'
         }
 
-        # TODO change business sub definition
-        cls.business_sub = Subscription.objects.create(name='Бизнес', cost=1000, duration=timedelta(days=180))
-
-        cls.brand1 = Brand.objects.create(user=cls.user1, subscription=cls.business_sub, **brand_data)
+        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
         cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
-        cls.brand3 = Brand.objects.create(user=cls.user3, subscription=cls.business_sub, **brand_data)
+        cls.brand3 = Brand.objects.create(user=cls.user3, **brand_data)
 
-        cls.url = reverse('brand-my_likes')
+        cls.url = reverse('brand-my_matches')
         cls.like_url = reverse('brand-like')
-        cls.instant_coop_url = reverse('brand-instant-coop')
 
-    def create_n_likes(self, n: int) -> APIClient:
+    def create_n_matches(self, n: int) -> APIClient:
+        """
+        Create n matches in db.
+
+        Will be created:
+         - n users
+         - n brands
+
+        Also: 2n times will be called 'like' action
+
+        Returns:
+            APIClient instance that have n matches associated with it
+        """
         users = User.objects.bulk_create([User(
             email=f'trash_user{i}@example.com',
             phone='+79993332211',
@@ -111,20 +116,26 @@ class BrandMyLikesTestCase(
 
         brands = Brand.objects.bulk_create([Brand(user=user, **brand_data) for user in users])
 
-        client = APIClient()
-        client.force_authenticate(users[0])
+        auth_clients = [APIClient() for _ in range(n + 1)]
 
-        for brand in brands[1:]:
-            client.post(self.like_url, {'target': brand.id})
+        for i in range(n + 1):
+            auth_clients[i].force_authenticate(users[i])
 
-        return client
+        client_to_return = auth_clients[0]
+        brand = brands[0]
 
-    def test_my_likes_unauthenticated_not_allowed(self):
+        for i in range(1, n + 1):
+            client_to_return.post(self.like_url, {'target': brands[i].id})  # brand0 likes brandi
+            auth_clients[i].post(self.like_url, {'target': brand.id})  # brandi likes brand0 MATCH
+
+        return client_to_return
+
+    def test_my_matches_unauthenticated_not_allowed(self):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_my_likes_wo_brand_not_allowed(self):
+    def test_my_matches_wo_brand_not_allowed(self):
         user_wo_brand = User.objects.create_user(
             email='user4@example.com',
             phone='+79993332214',
@@ -140,7 +151,7 @@ class BrandMyLikesTestCase(
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_my_likes_no_likes(self):
+    def test_my_matches_no_matches(self):
         response = self.auth_client1.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -148,59 +159,32 @@ class BrandMyLikesTestCase(
         # check that returned list is empty
         self.assertFalse(response.data)
 
-    def test_my_likes_no_instant_coops(self):
+    def test_my_matches(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
-        response = self.auth_client1.get(self.url)  # get brands that were liked by brand1
+        match_response = self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        client1_response = self.auth_client1.get(self.url)
+        client2_response = self.auth_client2.get(self.url)
 
-        # check that there is only one brand that was liked by brand1
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(client1_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(client2_response.status_code, status.HTTP_200_OK)
 
-        # check that there is no instant room for these brands
-        self.assertIsNone(response.data[0]['instant_room'])
+        self.assertEqual(len(client1_response.data), 1)
+        self.assertEqual(len(client2_response.data), 1)
 
-    def test_my_likes_with_instant_coop(self):
-        self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
+        # check that both brands will receive each other
+        self.assertEqual(client1_response.data[0]['id'], self.brand2.id)
+        self.assertEqual(client2_response.data[0]['id'], self.brand1.id)
 
-        # brand1 instant coops brand2, INSTANT room is created
-        instant_coop_resp = self.auth_client1.post(self.instant_coop_url, {'target': self.brand2.id})
+        # check that both brands will receive same room
+        self.assertEqual(client1_response.data[0]['match_room'], match_response.data['room'])
+        self.assertEqual(client2_response.data[0]['match_room'], match_response.data['room'])
 
-        response = self.auth_client1.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # check that instant room is not None
-        self.assertIsNotNone(response.data[0]['instant_room'])
-
-        self.assertEqual(response.data[0]['instant_room'], instant_coop_resp.data['id'])
-
-    def test_my_likes_includes_only_likes_of_current_brand(self):
-        self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
-        self.auth_client3.post(self.like_url, {'target': self.brand1.id})  # brand3 likes brand1
-
-        response = self.auth_client1.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # check that there is only 1 liked brand
-        self.assertEqual(len(response.data), 1)
-
-    def test_my_likes_exclude_matches(self):
-        self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
-        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
-
-        response = self.auth_client1.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # check that response is empty
-        self.assertFalse(response.data)
-
-    def test_my_likes_can_return_more_than_one_brand(self):
+    def test_my_matches_can_return_more_than_one_brand(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
         self.auth_client1.post(self.like_url, {'target': self.brand3.id})  # brand1 likes brand3
-        self.auth_client1.post(self.instant_coop_url, {'target': self.brand2.id})  # brand 1 instant coops brand2
+        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
+        self.auth_client3.post(self.like_url, {'target': self.brand1.id})  # brand3 likes brand1 MATCH
 
         response = self.auth_client1.get(self.url)
 
@@ -208,10 +192,38 @@ class BrandMyLikesTestCase(
 
         self.assertEqual(len(response.data), 2)
 
+    def test_my_matches_returns_matches_of_current_brand(self):
+        self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
+        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
+
+        self.auth_client2.post(self.like_url, {'target': self.brand3.id})  # brand2 likes brand3
+        self.auth_client3.post(self.like_url, {'target': self.brand2.id})  # brand3 likes brand2 MATCH
+
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(response.data), 1)
+
+    def test_my_matches_excludes_likes(self):
+        self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
+        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
+        self.auth_client1.post(self.like_url, {'target': self.brand3.id})  # brand1 likes brand3
+
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(response.data), 1)
+
     @tag('slow')
     def test_number_of_queries_less_than_7(self):
-        client = self.create_n_likes(50)
+        """
+        Test that calling my_likes action results in less than 7 queries in db,
+        no matter how many matches the brand has
+        """
+        auth_client_50_matches = self.create_n_matches(50)
 
         with self.assertNumQueriesLessThan(7, verbose=True):
-            response = client.get(self.url)
+            response = auth_client_50_matches.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_200_OK)
