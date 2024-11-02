@@ -4,7 +4,7 @@ from drf_spectacular.utils import extend_schema
 from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopRequestSerializer,
-    InstantCoopSerializer, CollaborationSerializer, LikedBySerializer
+    InstantCoopSerializer, LikedBySerializer
 )
 
 
@@ -104,6 +104,24 @@ class Fix1(OpenApiViewExtension):
             def liked_by(self, request, *args, **kwargs):
                 return super().liked_by(request, *args, **kwargs)
 
+            @extend_schema(
+                tags=['Brand'],
+                description="Get a list of liked brands.\n\n"
+                            "instant_room: id of a room of type 'I' if it already exists OR null if it doesn't.\n\n"
+                            "Authenticated brand only."
+            )
+            def my_likes(self, request, *args, **kwargs):
+                return super().my_likes(request, *args, **kwargs)
+
+            @extend_schema(
+                tags=['Brand'],
+                description="Get a list of matches of the current brand.\n\n"
+                            "match_room: id of a room of type 'M'\n\n"
+                            "Authenticated brand only."
+            )
+            def my_matches(self, request, *args, **kwargs):
+                return super().my_matches(request, *args, **kwargs)
+
         return Fixed
 
 
@@ -137,6 +155,7 @@ class Fix3(OpenApiViewExtension):
             pass
 
         return Fixed
+
 
 def brand_me_postprocessing_hook(result, generator, request, public):
     description = {
