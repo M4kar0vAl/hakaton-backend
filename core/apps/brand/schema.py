@@ -1,11 +1,15 @@
 from drf_spectacular.extensions import OpenApiViewExtension
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopRequestSerializer,
-    InstantCoopSerializer, LikedBySerializer
+    InstantCoopSerializer,
+    LikedBySerializer,
+    RecommendedBrandsSerializer
 )
+from core.apps.brand.utils import get_paginated_response_serializer
 
 
 class Fix1(OpenApiViewExtension):
@@ -121,6 +125,52 @@ class Fix1(OpenApiViewExtension):
             )
             def my_matches(self, request, *args, **kwargs):
                 return super().my_matches(request, *args, **kwargs)
+
+            @extend_schema(
+                tags=['Brand'],
+                description="Get a list of recommended brands.\n\n"
+                            "Supports filtering.\n\n"
+                            "Filters are joined with AND statement.\n\n"
+                            "Authenticated brand only.",
+                parameters=[
+                    OpenApiParameter(
+                        'avg_bill',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        description='Filter by average bill.'
+                    ),
+                    OpenApiParameter(
+                        'subs_count',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        description='Filter by number of subscribers.'
+                    ),
+                    OpenApiParameter(
+                        'tags',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        many=True,
+                        description='Filter by tags. '
+                                    'If brand has at least one of the specified tags it will be included.'
+                    ),
+                    OpenApiParameter(
+                        'page',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        description='Page number. '
+                                    'To get next or previous page use "next" and "previous" links from the response.'
+                    ),
+                    OpenApiParameter(
+                        'page_size',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        description='Number of objects per page. default: 100, min: 1, max: 1000.'
+                    )
+                ],
+                responses={200: get_paginated_response_serializer(RecommendedBrandsSerializer)}
+            )
+            def recommended_brands(self, request, *args, **kwargs):
+                return super().recommended_brands(request, *args, **kwargs)
 
         return Fixed
 

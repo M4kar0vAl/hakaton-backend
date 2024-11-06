@@ -1065,3 +1065,16 @@ class MyMatchesSerializer(serializers.ModelSerializer):
         [common_room] = common_room_id_set
 
         return common_room
+
+
+class RecommendedBrandsSerializer(serializers.ModelSerializer):
+    match_photos = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Brand
+        fields = [
+            'id', 'name', 'offline_space', 'subs_count', 'logo', 'category', 'description', 'match_photos'
+        ]
+
+    def get_match_photos(self, brand):
+        return ProductPhotoSerializer(brand.match_photos, many=True).data

@@ -3,11 +3,14 @@ import os
 import shutil
 
 from django.conf import settings
+from django.core.paginator import Paginator
 from django.db import transaction, DatabaseError
-from django.db.models import Q, Subquery, Prefetch
+from django.db.models import Q, Subquery, Prefetch, Value, Count
 from django.http import QueryDict
+from django.utils.functional import cached_property
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -22,7 +25,11 @@ from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopSerializer,
     BrandUpdateSerializer,
-    CollaborationSerializer, LikedBySerializer, MyLikesSerializer, MyMatchesSerializer,
+    CollaborationSerializer,
+    LikedBySerializer,
+    MyLikesSerializer,
+    MyMatchesSerializer,
+    RecommendedBrandsSerializer,
 )
 from core.apps.chat.models import Room
 
@@ -49,6 +56,20 @@ class QuestionnaireChoicesListView(generics.GenericAPIView):
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
+class FasterDjangoPaginator(Paginator):
+    # doesn't execute counting query
+    @cached_property
+    def count(self):
+        return len(self.object_list)
+
+
+class StandardResultsSetPagination(PageNumberPagination):
+    django_paginator_class = FasterDjangoPaginator
+    page_size = 100
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
+
+
 class BrandViewSet(
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
@@ -56,6 +77,7 @@ class BrandViewSet(
 ):
     queryset = Brand.objects.all()
     serializer_class = BrandGetSerializer
+    pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         if self.action == 'liked_by':
@@ -110,6 +132,372 @@ class BrandViewSet(
                 )
             )
 
+        elif self.action == 'recommended_brands':
+            avg_bill = self.request.query_params.get('avg_bill')
+            subs_count = self.request.query_params.get('subs_count')
+            tags = self.request.query_params.getlist('tags')
+            # TODO filter TA
+
+            filter_kwargs = {}
+            if avg_bill is not None:
+                filter_kwargs['avg_bill'] = avg_bill
+
+            if subs_count is not None:
+                filter_kwargs['subs_count'] = subs_count
+
+            if tags:
+                filter_kwargs['tags__in'] = tags
+
+            initial_brands = Brand.objects.filter(**filter_kwargs).distinct()
+
+            current_brand = self.request.user.brand
+
+            # get ids of current brand m2m and instantly evaluate it to avoid unnecessary subqueries
+            current_brand_tags = list(current_brand.tags.values_list('id', flat=True))
+            current_brand_formats = list(current_brand.formats.values_list('id', flat=True))
+            current_brand_goals = list(current_brand.goals.values_list('id', flat=True))
+            current_brand_categories_of_interest = list(
+                current_brand.categories_of_interest.values_list('id', flat=True)
+            )
+
+            is_trial = False  # TODO change trial definition when trial is ready
+            if is_trial:
+                # priority1 only
+                priority1 = initial_brands.filter(
+                    tags__in=current_brand_tags,
+                    avg_bill=current_brand.avg_bill,
+                    subs_count=current_brand.subs_count
+                ).distinct().exclude(
+                    pk=current_brand.id
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(1),
+                    tags_matches_num=Count('tags')
+                )
+
+                # priority1 ids
+                priority1_ids = list(initial_brands.filter(
+                    tags__in=current_brand_tags,
+                    avg_bill=current_brand.avg_bill,
+                    subs_count=current_brand.subs_count
+                ).distinct().exclude(
+                    pk=current_brand.id
+                ).values_list('pk', flat=True))
+
+                # priority2 only
+                priority2 = initial_brands.filter(
+                    tags__in=current_brand_tags,
+                    avg_bill=current_brand.avg_bill
+                ).distinct().exclude(
+                    Q(pk=current_brand.id) | Q(pk__in=priority1_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(2),
+                    tags_matches_num=Count('tags')
+                )
+
+                # priority2 ids
+                priority2_ids = list(initial_brands.filter(
+                    tags__in=current_brand_tags,
+                    avg_bill=current_brand.avg_bill
+                ).distinct().exclude(
+                    Q(pk=current_brand.id) | Q(pk__in=priority1_ids)
+                ).values_list('pk', flat=True))
+
+                # priority3 only
+                priority3 = initial_brands.filter(
+                    tags__in=current_brand_tags
+                ).distinct().exclude(
+                    Q(pk=current_brand.id) | Q(pk__in=priority1_ids) | Q(pk__in=priority2_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(3),
+                    tags_matches_num=Count('tags')
+                )
+
+                # priority3 ids
+                priority3_ids = list(initial_brands.filter(
+                    tags__in=current_brand_tags
+                ).distinct().exclude(
+                    Q(pk=current_brand.id) | Q(pk__in=priority1_ids) | Q(pk__in=priority2_ids)
+                ).values_list('pk', flat=True))
+
+                # priority4 only
+                priority4 = initial_brands.exclude(
+                    Q(pk=current_brand.id)
+                    | Q(pk__in=priority1_ids)
+                    | Q(pk__in=priority2_ids)
+                    | Q(pk__in=priority3_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(4),
+                    tags_matches_num=Value(0)
+                )
+
+                result = priority1.union(
+                    priority2, priority3, priority4
+                ).order_by(
+                    'priority', '-tags_matches_num'
+                )
+
+                return result
+
+            else:
+                # priority1 only
+                priority_1 = initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                    tags__in=current_brand_tags,
+                    goals__in=current_brand_goals,
+                    avg_bill=current_brand.avg_bill,
+                    subs_count=current_brand.subs_count
+                ).distinct().exclude(
+                    pk=current_brand.id
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(1),
+                    formats_matches_num=Count('formats'),
+                    tags_matches_num=Count('tags'),
+                    goals_matches_num=Count('goals'),
+                )
+
+                # priority1 ids
+                # only ids, no annotation, no aggregation
+                # used for excluding this priority objects from next-tier priority
+                priority_1_ids = list(initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                    tags__in=current_brand_tags,
+                    goals__in=current_brand_goals,
+                    avg_bill=current_brand.avg_bill,
+                    subs_count=current_brand.subs_count
+                ).distinct().exclude(
+                    pk=current_brand.id
+                ).values_list('id', flat=True))
+
+                # priority2 only
+                priority_2 = initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                    tags__in=current_brand_tags,
+                    goals__in=current_brand_goals,
+                    avg_bill=current_brand.avg_bill
+                ).distinct().exclude(
+                    Q(pk=current_brand.id) | Q(pk__in=priority_1_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(2),
+                    formats_matches_num=Count('formats'),
+                    tags_matches_num=Count('tags'),
+                    goals_matches_num=Count('goals'),
+                )
+
+                # priority2 ids
+                priority_2_ids = list(initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                    tags__in=current_brand_tags,
+                    goals__in=current_brand_goals,
+                    avg_bill=current_brand.avg_bill
+                ).distinct().exclude(
+                    Q(pk=current_brand.id) | Q(pk__in=priority_1_ids)
+                ).values_list('id', flat=True))
+
+                # priority3 only
+                priority_3 = initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                    tags__in=current_brand_tags,
+                    goals__in=current_brand_goals,
+                ).distinct().exclude(
+                    Q(pk=current_brand.id) | Q(pk__in=priority_1_ids) | Q(pk__in=priority_2_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(3),
+                    formats_matches_num=Count('formats'),
+                    tags_matches_num=Count('tags'),
+                    goals_matches_num=Count('goals'),
+                )
+
+                # priority3 ids
+                priority_3_ids = list(initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                    tags__in=current_brand_tags,
+                    goals__in=current_brand_goals,
+                ).distinct().exclude(
+                    Q(pk=current_brand.id) | Q(pk__in=priority_1_ids) | Q(pk__in=priority_2_ids)
+                ).values_list('id', flat=True))
+
+                # priority4 only
+                priority_4 = initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                    tags__in=current_brand_tags,
+                ).distinct().exclude(
+                    Q(pk=current_brand.id)
+                    | Q(pk__in=priority_1_ids)
+                    | Q(pk__in=priority_2_ids)
+                    | Q(pk__in=priority_3_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(4),
+                    formats_matches_num=Count('formats'),
+                    tags_matches_num=Count('tags'),
+                    goals_matches_num=Value(0),
+                )
+
+                # priority4 ids
+                priority_4_ids = list(initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                    tags__in=current_brand_tags,
+                ).distinct().exclude(
+                    Q(pk=current_brand.id)
+                    | Q(pk__in=priority_1_ids)
+                    | Q(pk__in=priority_2_ids)
+                    | Q(pk__in=priority_3_ids)
+                ).values_list('id', flat=True))
+
+                # priority5 only
+                priority_5 = initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                ).distinct().exclude(
+                    Q(pk=current_brand.id)
+                    | Q(pk__in=priority_1_ids)
+                    | Q(pk__in=priority_2_ids)
+                    | Q(pk__in=priority_3_ids)
+                    | Q(pk__in=priority_4_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(5),
+                    formats_matches_num=Count('formats'),
+                    tags_matches_num=Value(0),
+                    goals_matches_num=Value(0),
+                )
+
+                # priority5 ids
+                priority_5_ids = list(initial_brands.filter(
+                    formats__in=current_brand_formats,
+                    category__in=current_brand_categories_of_interest,
+                ).distinct().exclude(
+                    Q(pk=current_brand.id)
+                    | Q(pk__in=priority_1_ids)
+                    | Q(pk__in=priority_2_ids)
+                    | Q(pk__in=priority_3_ids)
+                    | Q(pk__in=priority_4_ids)
+                ).values_list('id', flat=True))
+
+                # priority6 only
+                priority_6 = initial_brands.filter(
+                    formats__in=current_brand_formats,
+                ).distinct().exclude(
+                    Q(pk=current_brand.id)
+                    | Q(pk__in=priority_1_ids)
+                    | Q(pk__in=priority_2_ids)
+                    | Q(pk__in=priority_3_ids)
+                    | Q(pk__in=priority_4_ids)
+                    | Q(pk__in=priority_5_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(6),
+                    formats_matches_num=Count('formats'),
+                    tags_matches_num=Value(0),
+                    goals_matches_num=Value(0),
+                )
+
+                # priority6 ids
+                priority_6_ids = list(initial_brands.filter(
+                    formats__in=current_brand_formats,
+                ).distinct().exclude(
+                    Q(pk=current_brand.id)
+                    | Q(pk__in=priority_1_ids)
+                    | Q(pk__in=priority_2_ids)
+                    | Q(pk__in=priority_3_ids)
+                    | Q(pk__in=priority_4_ids)
+                    | Q(pk__in=priority_5_ids)
+                ).values_list('id', flat=True))
+
+                # priority7 only
+                priority_7 = initial_brands.exclude(
+                    Q(pk=current_brand.id)
+                    | Q(pk__in=priority_1_ids)
+                    | Q(pk__in=priority_2_ids)
+                    | Q(pk__in=priority_3_ids)
+                    | Q(pk__in=priority_4_ids)
+                    | Q(pk__in=priority_5_ids)
+                    | Q(pk__in=priority_6_ids)
+                ).prefetch_related(
+                    Prefetch(
+                        'product_photos',
+                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                        to_attr='match_photos'
+                    )
+                ).annotate(
+                    priority=Value(7),
+                    formats_matches_num=Value(0),
+                    tags_matches_num=Value(0),
+                    goals_matches_num=Value(0),
+                )
+
+                # combine brands of all priorities and sort them
+                result = priority_1.union(
+                    priority_2, priority_3, priority_4, priority_5, priority_6, priority_7
+                ).order_by('priority', '-formats_matches_num', '-tags_matches_num', '-goals_matches_num')
+
+                return result
+
         return super().get_queryset()
 
     def get_serializer_class(self):
@@ -130,6 +518,8 @@ class BrandViewSet(
             return MyLikesSerializer
         elif self.action == 'my_matches':
             return MyMatchesSerializer
+        elif self.action == 'recommended_brands':
+            return RecommendedBrandsSerializer
 
         return super().get_serializer_class()
 
@@ -159,7 +549,7 @@ class BrandViewSet(
         elif self.action == 'me':
             if self.request.method in ('GET', 'PATCH', 'DELETE'):
                 permission_classes = [IsAuthenticated, IsBrand]
-        elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches'):
+        elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches', 'recommended_brands'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub]
@@ -349,6 +739,18 @@ class BrandViewSet(
     @action(detail=False, methods=['get'], url_name='my_matches')
     def my_matches(self, request):
         queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_name='recommended_brands')
+    def recommended_brands(self, request):
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
