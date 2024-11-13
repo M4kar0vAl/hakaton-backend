@@ -168,13 +168,6 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.data['results'][5]['id'], self.brand6.id)
         self.assertEqual(response.data['results'][6]['id'], self.brand7.id)
 
-    def test_recommended_brands_tags_query_param(self):
-        response = self.auth_client1.get(f'{self.url}?tags=6&tags=7')
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(len(response.data['results']), 3)
-
     def test_recommended_brands_avg_bill_query_param(self):
         response = self.auth_client1.get(f'{self.url}?avg_bill=20000')
 
@@ -189,12 +182,28 @@ class BrandRecommendedBrandsTestCase(
 
         self.assertEqual(len(response.data['results']), 6)
 
-    def test_recommended_brands_multiple_query_params(self):
-        response = self.auth_client1.get(f'{self.url}?subs_count=20000&avg_bill=20000&tags=2&tags=4')
+    def test_recommended_brands_category_query_param(self):
+        response = self.auth_client1.get(f'{self.url}?category=2')  # category is categories[1]
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertEqual(len(response.data['results']), 2)
+
+    # TODO uncomment when geo is ready
+    # def test_recommended_brands_geo_query_param(self):
+    #     response = self.auth_client1.get(f'{self.url}?geo=')
+    #
+    #     self.assertEqual(response.status_code, status.HTTP_200_OK)
+    #
+    #     self.assertEqual(len(response.data['results']), )
+
+    def test_recommended_brands_multiple_query_params(self):
+        # TODO add geo to query params
+        response = self.auth_client1.get(f'{self.url}?subs_count=20000&avg_bill=20000&category=2')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(response.data['results']), 1)
 
     def test_number_of_queries(self):
         with self.assertNumQueriesLessThan(15, verbose=True):

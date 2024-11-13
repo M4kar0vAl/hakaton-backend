@@ -16,7 +16,8 @@ from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog
+from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog, \
+    GEO
 from core.apps.brand.permissions import IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
@@ -135,8 +136,8 @@ class BrandViewSet(
         elif self.action == 'recommended_brands':
             avg_bill = self.request.query_params.get('avg_bill')
             subs_count = self.request.query_params.get('subs_count')
-            tags = self.request.query_params.getlist('tags')
-            # TODO filter TA
+            category_id = self.request.query_params.get('category')
+            geo = self.request.query_params.get('geo')
 
             filter_kwargs = {}
             if avg_bill is not None:
@@ -145,8 +146,11 @@ class BrandViewSet(
             if subs_count is not None:
                 filter_kwargs['subs_count'] = subs_count
 
-            if tags:
-                filter_kwargs['tags__in'] = tags
+            if category_id is not None:
+                filter_kwargs['category'] = category_id
+
+            if geo is not None:
+                filter_kwargs['geo'] = geo
 
             initial_brands = Brand.objects.filter(**filter_kwargs).distinct()
 
