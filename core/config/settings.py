@@ -12,7 +12,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 DEBUG = os.getenv('DEBUG')
 
-ALLOWED_HOSTS = ['.localhost', '127.0.0.1', '[::1]', 'server.w2w', 'django']
+ALLOWED_HOSTS = ['.localhost', '127.0.0.1', '[::1]', 'w2w-backend.onrender.com']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
