@@ -20,6 +20,8 @@ channels = {extras = ["daphne"], version = "^4.1.0"}
 djangochannelsrestframework = "^1.2.0"
 channels-redis = "^4.2.0"
 pyjwt = "^2.8.0"
+dj-database-url = "^2.3.0"
+whitenoise = {extras = ["brotli"], version = "^6.8.2"}
 
 
 [tool.poetry.group.prod.dependencies]
