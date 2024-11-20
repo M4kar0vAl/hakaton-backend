@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'rest_framework',
     'rest_framework_simplejwt',
+    'cities_light',
 
     # apps
     'core.apps.accounts.apps.AccountsConfig',
@@ -201,3 +202,8 @@ EMAIL_HOST = os.getenv('EMAIL_HOST')
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
+
+# cities_light
+CITIES_LIGHT_TRANSLATION_LANGUAGES = []
+CITIES_LIGHT_INCLUDE_COUNTRIES = ['RU']
+CITIES_LIGHT_INCLUDE_CITY_TYPES = ['PPL', 'PPLA', 'PPLA2', 'PPLA3', 'PPLA4', 'PPLC', 'PPLF', 'PPLL', 'PPLS',]

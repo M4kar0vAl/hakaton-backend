@@ -1,6 +1,7 @@
 import os
 import uuid
 
+from cities_light.models import City
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
@@ -76,6 +77,9 @@ class Brand(models.Model):
 
     # PART 1 (everything is required except social media and marketplaces)
     tg_nickname = models.CharField('Ник в телеграме', blank=True, max_length=64)
+    city = models.ForeignKey(
+        to=City, on_delete=models.SET_NULL, null=True, related_name='brands', verbose_name='Город'
+    )
     name = models.CharField(max_length=256, verbose_name='Название бренда')
     position = models.CharField(max_length=256, verbose_name='Должность')
     category = models.ForeignKey(
@@ -238,7 +242,7 @@ class Gender(models.Model):
 
 
 class GEO(models.Model):
-    city = models.CharField(max_length=256, verbose_name='Город')
+    city = models.CharField(max_length=256, verbose_name='Город')  # TODO change to city model
     people_percentage = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         verbose_name='Процент людей'

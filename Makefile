@@ -68,3 +68,7 @@ app-shell:
 .PHONY: test
 test:
 	${EXEC} ${APP_CONTAINER} bash -c "${MANAGE} test"
+
+.PHONY: cities
+cities:
+	${EXEC} ${APP_CONTAINER} ${MANAGE} cities_light --progress

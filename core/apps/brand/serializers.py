@@ -150,10 +150,13 @@ class BrandCreateSerializer(
         model = Brand
         # the only way to include non-model writable fields
         fields = [
-            'id', 'user', 'tg_nickname', 'blogs_list', 'blogs', 'name', 'position', 'category',
+            'id', 'user', 'tg_nickname', 'city', 'blogs_list', 'blogs', 'name', 'position', 'category',
             'inst_url', 'vk_url', 'tg_url', 'wb_url', 'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags',
             'uniqueness', 'logo', 'photo', 'product_photos_match', 'product_photos_card', 'product_photos'
         ]
+        extra_kwargs = {
+            'city': {'required': True}
+        }
 
     def validate(self, attrs):
         if Brand.objects.filter(user=self.context['request'].user).exists():
@@ -308,7 +311,7 @@ class BrandUpdateSerializer(
     class Meta:
         model = Brand
         fields = [
-            'tg_nickname', 'new_blogs', 'blogs', 'name', 'position', 'category', 'inst_url', 'vk_url', 'tg_url',
+            'tg_nickname', 'city', 'new_blogs', 'blogs', 'name', 'position', 'category', 'inst_url', 'vk_url', 'tg_url',
             'wb_url', 'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags', 'uniqueness', 'logo', 'photo',
             'description', 'mission_statement', 'formats', 'goals', 'offline_space', 'problem_solving',
             'target_audience', 'categories_of_interest', 'business_groups', 'new_business_groups',
@@ -337,6 +340,7 @@ class BrandUpdateSerializer(
     def update(self, instance, validated_data):
         new_blogs = validated_data.pop('new_blogs', None)
         category = validated_data.pop('category', None)
+        city = validated_data.pop('city', None)
 
         new_tags = validated_data.pop('tags', None)
 
@@ -405,6 +409,10 @@ class BrandUpdateSerializer(
 
                 instance.save()
                 # -----------------------------------
+
+                if city is not None:
+                    instance.city = city
+                    instance.save()
 
                 if category is not None:
                     current_category = instance.category  # remember current category
