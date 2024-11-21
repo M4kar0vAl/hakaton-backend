@@ -33,6 +33,7 @@ from core.apps.brand.models import (
     Collaboration
 )
 from core.apps.chat.models import Room
+from core.apps.cities.serializers import CitySerializer
 
 User = get_user_model()
 
@@ -92,6 +93,14 @@ class GenderSerializer(serializers.ModelSerializer):
 
 
 class GEOSerializer(serializers.ModelSerializer):
+
+    def to_representation(self, instance):
+        obj = super().to_representation(instance)
+
+        obj['city'] = CitySerializer(instance.city).data
+
+        return obj
+
     class Meta:
         model = GEO
         exclude = ['target_audience', 'id']
@@ -157,6 +166,13 @@ class BrandCreateSerializer(
         extra_kwargs = {
             'city': {'required': True}
         }
+
+    def to_representation(self, instance):
+        obj = super().to_representation(instance)
+
+        obj['city'] = CitySerializer(instance.city).data
+
+        return obj
 
     def validate(self, attrs):
         if Brand.objects.filter(user=self.context['request'].user).exists():
@@ -319,6 +335,13 @@ class BrandUpdateSerializer(
             'product_photos_card_remove', 'gallery_add', 'gallery_remove',
             'gallery_photos', 'product_photos',
         ]
+
+    def to_representation(self, instance):
+        obj = super().to_representation(instance)
+
+        obj['city'] = CitySerializer(instance.city).data
+
+        return obj
 
     def validate(self, attrs):
         match_add = attrs.get('product_photos_match_add', [])
@@ -743,7 +766,7 @@ class BrandUpdateSerializer(
             if not geos:
                 current_target_audience.geos.all().delete()
             else:
-                new_geos_cities = [geo['city'] for geo in geos]
+                new_geos_cities = [geo['city'] for geo in geos]  # cities objs
 
                 # delete geos with cities that are not in new cities list
                 current_target_audience.geos.filter(~Q(city__in=new_geos_cities)).delete()
@@ -755,10 +778,14 @@ class BrandUpdateSerializer(
                 to_update = []
                 to_create = []
                 for geo in geos:
-                    if geo['city'] in current_geos_cities:
+                    if geo['city'].id in current_geos_cities:
                         to_update.append(geo)
                     else:
-                        to_create.append(GEO(**geo, target_audience=current_target_audience))
+                        to_create.append(GEO(
+                            city=geo['city'],  # geo['city'] is City obj
+                            people_percentage=geo['people_percentage'],
+                            target_audience=current_target_audience)
+                        )
 
                 # update existing
                 if to_update:
@@ -778,6 +805,7 @@ class BrandGetSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     blogs = BlogSerializer(many=True, read_only=True)
+    city = CitySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     goals = GoalSerializer(many=True, read_only=True)
     formats = FormatSerializer(many=True, read_only=True)

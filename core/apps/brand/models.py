@@ -242,7 +242,7 @@ class Gender(models.Model):
 
 
 class GEO(models.Model):
-    city = models.CharField(max_length=256, verbose_name='Город')  # TODO change to city model
+    city = models.ForeignKey(to=City, on_delete=models.CASCADE, related_name='geos', verbose_name='Город')
     people_percentage = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         verbose_name='Процент людей'
