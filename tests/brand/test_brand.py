@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 
+from cities_light.models import City, Country
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
@@ -43,6 +44,9 @@ class BrandCreateTestCase(APITestCase):
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
 
+        cls.country = Country.objects.create(name='Country', continent='EU')
+        cls.city = City.objects.create(name='City', country=cls.country)
+
     def tearDown(self):
         # need to manually clear inMemoryStorage after every test
         default_storage.delete(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}'))
@@ -66,6 +70,7 @@ class BrandCreateTestCase(APITestCase):
         data = {
             'tg_nickname': '@asfhbnaf',
             'blogs_list': json.dumps(["https://example.com", "https://example2.com"]),
+            'city': self.city.id,
             'name': 'brand1',
             'position': 'position',
             'category': json.dumps({"name": "Fashion"}),
@@ -141,6 +146,7 @@ class BrandCreateTestCase(APITestCase):
         data = {
             'tg_nickname': '@asfhbnaf',
             'blogs_list': json.dumps(["https://example.com", "https://example2.com"]),
+            'city': self.city,
             'name': 'brand1',
             'position': 'position',
             'category': json.dumps({"name": "Fashion"}),
@@ -191,6 +197,11 @@ class BrandUpdateTestCase(APITestCase):
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
 
+        cls.country = Country.objects.create(name='Country', continent='EU')
+        cls.city1 = City.objects.create(name='City1', country=cls.country)
+        cls.city2 = City.objects.create(name='City2', country=cls.country)
+        cls.city3 = City.objects.create(name='City3', country=cls.country)
+
     def setUp(self):
         # create brand-new brand before each test
         small_gif = (
@@ -207,6 +218,7 @@ class BrandUpdateTestCase(APITestCase):
         data = {
             'tg_nickname': '@asfhbnaf',
             'blogs_list': json.dumps(["https://example.com", "https://example2.com"]),
+            'city': self.city1.id,
             'name': 'brand1',
             'position': 'position',
             'category': json.dumps({"name": "Fashion"}),
@@ -281,6 +293,7 @@ class BrandUpdateTestCase(APITestCase):
         update_data = {
             'tg_nickname': '@edited',
             'new_blogs': json.dumps(["https://edited.com", "https://edited.com"]),
+            'city': self.city2.id,
             'name': 'edited',
             'position': 'edited',
             'category': json.dumps({"name": "Services"}),
@@ -324,8 +337,8 @@ class BrandUpdateTestCase(APITestCase):
                 "age": {"men": 30, "women": 40},
                 "gender": {"men": 30, "women": 70},
                 "geos": [
-                    {"city": "city1", "people_percentage": 40},
-                    {"city": "city2", "people_percentage": 60}
+                    {"city": self.city1.id, "people_percentage": 40},
+                    {"city": self.city2.id, "people_percentage": 60}
                 ],
                 "income": 50000
             }),
@@ -369,6 +382,9 @@ class BrandUpdateTestCase(APITestCase):
         self.assertEqual(updated_brand.blogs.count(), 2)
         self.assertEqual(updated_brand.blogs.filter(blog__in=["https://edited.com", "https://edited.com"]).count(), 2)
 
+        # check city
+        self.assertEqual(updated_brand.city.id, self.city2.id)
+
         # check category
         self.assertEqual(updated_brand.category.name, 'Services')
 
@@ -410,7 +426,7 @@ class BrandUpdateTestCase(APITestCase):
         self.assertEqual(updated_brand.target_audience.income, 50000)
         self.assertEqual(updated_brand.target_audience.geos.count(), 2)
         self.assertEqual(updated_brand.target_audience.geos.filter(
-            Q(city='city1', people_percentage=40) | Q(city='city2', people_percentage=60)
+            Q(city=self.city1, people_percentage=40) | Q(city=self.city2, people_percentage=60)
         ).count(), 2)
 
         # check single photos
@@ -492,8 +508,8 @@ class BrandUpdateTestCase(APITestCase):
                 "age": {"men": 30, "women": 40},
                 "gender": {"men": 30, "women": 70},
                 "geos": [
-                    {"city": "city1", "people_percentage": 40},
-                    {"city": "city2", "people_percentage": 60}
+                    {"city": self.city1.id, "people_percentage": 40},
+                    {"city": self.city2.id, "people_percentage": 60}
                 ],
                 "income": 50000
             })
@@ -531,8 +547,8 @@ class BrandUpdateTestCase(APITestCase):
                 "age": {"men": 30, "women": 40},
                 "gender": {"men": 30, "women": 70},
                 "geos": [
-                    {"city": "city1", "people_percentage": 40},
-                    {"city": "city2", "people_percentage": 60}
+                    {"city": self.city1.id, "people_percentage": 40},
+                    {"city": self.city2.id, "people_percentage": 60}
                 ],
                 "income": 50000
             })
@@ -546,8 +562,8 @@ class BrandUpdateTestCase(APITestCase):
                 "age": {"men": 40, "women": 35},
                 "gender": {"men": 20, "women": 80},
                 "geos": [
-                    {"city": "city1", "people_percentage": 50},
-                    {"city": "other_city", "people_percentage": 50}
+                    {"city": self.city1.id, "people_percentage": 50},
+                    {"city": self.city3.id, "people_percentage": 50}
                 ],
                 "income": 60000
             })
@@ -574,7 +590,7 @@ class BrandUpdateTestCase(APITestCase):
 
         self.assertEqual(updated_brand.target_audience.geos.count(), 2)
         self.assertEqual(updated_brand.target_audience.geos.filter(
-            Q(city='city1', people_percentage=50) | Q(city='other_city', people_percentage=50)
+            Q(city=self.city1, people_percentage=50) | Q(city=self.city3, people_percentage=50)
         ).count(), 2)
 
     def test_brand_remove_all_tags(self):
@@ -733,6 +749,10 @@ class BrandDeleteTestCase(APITestCase):
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
 
+        cls.country = Country.objects.create(name='Country', continent='EU')
+        cls.city1 = City.objects.create(name='City1', country=cls.country)
+        cls.city2 = City.objects.create(name='City2', country=cls.country)
+
     def setUp(self):
         small_gif = (
             b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x05\x04\x04\x00\x00\x00\x2c\x00\x00\x00\x00\x01'
@@ -750,6 +770,7 @@ class BrandDeleteTestCase(APITestCase):
         data = {
             'tg_nickname': '@asfhbnaf',
             'blogs_list': json.dumps(["https://example.com", "https://example2.com"]),
+            'city': self.city1.id,
             'name': 'brand1',
             'position': 'position',
             'category': json.dumps({"name": "Fashion"}),
@@ -797,8 +818,8 @@ class BrandDeleteTestCase(APITestCase):
                 "age": {"men": 30, "women": 40},
                 "gender": {"men": 30, "women": 70},
                 "geos": [
-                    {"city": "city1", "people_percentage": 40},
-                    {"city": "city2", "people_percentage": 60}
+                    {"city": self.city1.id, "people_percentage": 40},
+                    {"city": self.city2.id, "people_percentage": 60}
                 ],
                 "income": 50000
             }),
@@ -846,6 +867,7 @@ class BrandDeleteTestCase(APITestCase):
         self.assertIsNone(deleted_brand.user)
         self.assertIsNone(deleted_brand.subscription)
         self.assertIsNone(deleted_brand.sub_expire)
+        self.assertIsNotNone(deleted_brand.city)
 
         # check that target audience remains
         self.assertIsNotNone(deleted_brand.target_audience)

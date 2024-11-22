@@ -10,9 +10,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 
-DEBUG = os.getenv('DEBUG')
+DEBUG = os.getenv('DEBUG') == 'True'
 
-ALLOWED_HOSTS = ['.localhost', '127.0.0.1', '[::1]', 'server.w2w', 'django']
+ALLOWED_HOSTS = ['.localhost', '127.0.0.1', '[::1]', 'w2w-backend.onrender.com']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'rest_framework',
     'rest_framework_simplejwt',
+    'cities_light',
 
     # apps
     'core.apps.accounts.apps.AccountsConfig',
@@ -33,10 +34,12 @@ INSTALLED_APPS = [
     'core.apps.payments.apps.PaymentsConfig',
     'core.apps.chat.apps.ChatConfig',
     'core.apps.analytics.apps.AnalyticsConfig',
+    'core.apps.cities.apps.CitiesConfig',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -93,6 +96,16 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
@@ -190,3 +203,8 @@ EMAIL_HOST = os.getenv('EMAIL_HOST')
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
+
+# cities_light
+CITIES_LIGHT_TRANSLATION_LANGUAGES = []
+CITIES_LIGHT_INCLUDE_COUNTRIES = ['RU']
+CITIES_LIGHT_INCLUDE_CITY_TYPES = ['PPL', 'PPLA', 'PPLA2', 'PPLA3', 'PPLA4', 'PPLC', 'PPLF', 'PPLL', 'PPLS',]

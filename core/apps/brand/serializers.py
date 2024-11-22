@@ -33,6 +33,7 @@ from core.apps.brand.models import (
     Collaboration
 )
 from core.apps.chat.models import Room
+from core.apps.cities.serializers import CitySerializer
 
 User = get_user_model()
 
@@ -92,6 +93,14 @@ class GenderSerializer(serializers.ModelSerializer):
 
 
 class GEOSerializer(serializers.ModelSerializer):
+
+    def to_representation(self, instance):
+        obj = super().to_representation(instance)
+
+        obj['city'] = CitySerializer(instance.city).data
+
+        return obj
+
     class Meta:
         model = GEO
         exclude = ['target_audience', 'id']
@@ -150,10 +159,20 @@ class BrandCreateSerializer(
         model = Brand
         # the only way to include non-model writable fields
         fields = [
-            'id', 'user', 'tg_nickname', 'blogs_list', 'blogs', 'name', 'position', 'category',
+            'id', 'user', 'tg_nickname', 'city', 'blogs_list', 'blogs', 'name', 'position', 'category',
             'inst_url', 'vk_url', 'tg_url', 'wb_url', 'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags',
             'uniqueness', 'logo', 'photo', 'product_photos_match', 'product_photos_card', 'product_photos'
         ]
+        extra_kwargs = {
+            'city': {'required': True}
+        }
+
+    def to_representation(self, instance):
+        obj = super().to_representation(instance)
+
+        obj['city'] = CitySerializer(instance.city).data
+
+        return obj
 
     def validate(self, attrs):
         if Brand.objects.filter(user=self.context['request'].user).exists():
@@ -278,6 +297,23 @@ class BrandCreateSerializer(
         return list(objs) + other_objs
 
 
+class BrandCreateResponseSerializer(serializers.ModelSerializer):
+    user = UserSerializer(required=False, read_only=True)
+    city = CitySerializer(read_only=True)
+    blogs = BlogSerializer(many=True, read_only=True)
+    category = CategorySerializer()
+    tags = TagSerializer(many=True)
+    product_photos = ProductPhotoSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Brand
+        fields = [
+            'id', 'user', 'tg_nickname', 'city', 'blogs', 'name', 'position', 'category',
+            'inst_url', 'vk_url', 'tg_url', 'wb_url', 'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags',
+            'uniqueness', 'logo', 'photo', 'product_photos'
+        ]
+
+
 class BrandUpdateSerializer(
     BrandValidateMixin,
     serializers.ModelSerializer
@@ -308,7 +344,7 @@ class BrandUpdateSerializer(
     class Meta:
         model = Brand
         fields = [
-            'tg_nickname', 'new_blogs', 'blogs', 'name', 'position', 'category', 'inst_url', 'vk_url', 'tg_url',
+            'tg_nickname', 'city', 'new_blogs', 'blogs', 'name', 'position', 'category', 'inst_url', 'vk_url', 'tg_url',
             'wb_url', 'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags', 'uniqueness', 'logo', 'photo',
             'description', 'mission_statement', 'formats', 'goals', 'offline_space', 'problem_solving',
             'target_audience', 'categories_of_interest', 'business_groups', 'new_business_groups',
@@ -316,6 +352,13 @@ class BrandUpdateSerializer(
             'product_photos_card_remove', 'gallery_add', 'gallery_remove',
             'gallery_photos', 'product_photos',
         ]
+
+    def to_representation(self, instance):
+        obj = super().to_representation(instance)
+
+        obj['city'] = CitySerializer(instance.city).data
+
+        return obj
 
     def validate(self, attrs):
         match_add = attrs.get('product_photos_match_add', [])
@@ -337,6 +380,7 @@ class BrandUpdateSerializer(
     def update(self, instance, validated_data):
         new_blogs = validated_data.pop('new_blogs', None)
         category = validated_data.pop('category', None)
+        city = validated_data.pop('city', None)
 
         new_tags = validated_data.pop('tags', None)
 
@@ -405,6 +449,10 @@ class BrandUpdateSerializer(
 
                 instance.save()
                 # -----------------------------------
+
+                if city is not None:
+                    instance.city = city
+                    instance.save()
 
                 if category is not None:
                     current_category = instance.category  # remember current category
@@ -735,7 +783,7 @@ class BrandUpdateSerializer(
             if not geos:
                 current_target_audience.geos.all().delete()
             else:
-                new_geos_cities = [geo['city'] for geo in geos]
+                new_geos_cities = [geo['city'] for geo in geos]  # cities objs
 
                 # delete geos with cities that are not in new cities list
                 current_target_audience.geos.filter(~Q(city__in=new_geos_cities)).delete()
@@ -747,10 +795,14 @@ class BrandUpdateSerializer(
                 to_update = []
                 to_create = []
                 for geo in geos:
-                    if geo['city'] in current_geos_cities:
+                    if geo['city'].id in current_geos_cities:
                         to_update.append(geo)
                     else:
-                        to_create.append(GEO(**geo, target_audience=current_target_audience))
+                        to_create.append(GEO(
+                            city=geo['city'],  # geo['city'] is City obj
+                            people_percentage=geo['people_percentage'],
+                            target_audience=current_target_audience)
+                        )
 
                 # update existing
                 if to_update:
@@ -770,6 +822,7 @@ class BrandGetSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     category = CategorySerializer(read_only=True)
     blogs = BlogSerializer(many=True, read_only=True)
+    city = CitySerializer(read_only=True)
     tags = TagSerializer(many=True, read_only=True)
     goals = GoalSerializer(many=True, read_only=True)
     formats = FormatSerializer(many=True, read_only=True)
