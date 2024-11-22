@@ -1,13 +1,16 @@
 from drf_spectacular.extensions import OpenApiViewExtension
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopRequestSerializer,
     InstantCoopSerializer,
     LikedBySerializer,
-    BrandCreateResponseSerializer
+    BrandCreateResponseSerializer,
+    RecommendedBrandsSerializer
 )
+from core.apps.brand.utils import get_paginated_response_serializer
 
 
 class Fix1(OpenApiViewExtension):
@@ -84,6 +87,65 @@ class Fix1(OpenApiViewExtension):
             )
             def my_matches(self, request, *args, **kwargs):
                 return super().my_matches(request, *args, **kwargs)
+
+            @extend_schema(
+                tags=['Brand'],
+                description="Get a list of recommended brands.\n\n"
+                            "Supports filtering.\n\n"
+                            "Filters are joined with AND statement.\n\n"
+                            "Authenticated brand only.",
+                parameters=[
+                    OpenApiParameter(
+                        'avg_bill',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        description='Filter by average bill.'
+                    ),
+                    OpenApiParameter(
+                        'subs_count',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        description='Filter by number of subscribers.'
+                    ),
+                    OpenApiParameter(
+                        'category',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        many=True,
+                        description='Filter by categories.\n\n'
+                                    'If brand has at least one of the specified categories it will be included.'
+                    ),
+                    OpenApiParameter(
+                        'city',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        many=True,
+                        description='Filter by cities (geo).\n\n'
+                                    'If brand has at least one of the specified cities it will be included.'
+                    ),
+                    OpenApiParameter(
+                        'page',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        description='Page number.\n\n'
+                                    'To get next or previous page use "next" and "previous" links from the response.'
+                                    '\n\n'
+                                    'To get last page pass "last" as a value.'
+                    ),
+                    OpenApiParameter(
+                        'page_size',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        description='Number of objects per page.\n\n'
+                                    '\tdefault: 100\n\n'
+                                    '\tmin: 1\n\n'
+                                    '\tmax: 1000'
+                    )
+                ],
+                responses={200: get_paginated_response_serializer(RecommendedBrandsSerializer)}
+            )
+            def recommended_brands(self, request, *args, **kwargs):
+                return super().recommended_brands(request, *args, **kwargs)
 
         return Fixed
 

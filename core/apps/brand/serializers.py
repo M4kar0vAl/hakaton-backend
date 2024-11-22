@@ -1118,3 +1118,18 @@ class MyMatchesSerializer(serializers.ModelSerializer):
         [common_room] = common_room_id_set
 
         return common_room
+
+
+class RecommendedBrandsSerializer(serializers.ModelSerializer):
+    city = CitySerializer()
+    category = CategorySerializer()
+    match_photos = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Brand
+        fields = [
+            'id', 'name', 'city', 'subs_count', 'logo', 'category', 'uniqueness', 'match_photos'
+        ]
+
+    def get_match_photos(self, brand):
+        return ProductPhotoSerializer(brand.match_photos, many=True).data
