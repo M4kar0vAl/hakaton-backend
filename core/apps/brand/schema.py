@@ -108,25 +108,38 @@ class Fix1(OpenApiViewExtension):
                         description='Filter by number of subscribers.'
                     ),
                     OpenApiParameter(
-                        'tags',
+                        'category',
                         OpenApiTypes.INT,
                         OpenApiParameter.QUERY,
                         many=True,
-                        description='Filter by tags. '
-                                    'If brand has at least one of the specified tags it will be included.'
+                        description='Filter by categories.\n\n'
+                                    'If brand has at least one of the specified categories it will be included.'
+                    ),
+                    OpenApiParameter(
+                        'city',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        many=True,
+                        description='Filter by cities (geo).\n\n'
+                                    'If brand has at least one of the specified cities it will be included.'
                     ),
                     OpenApiParameter(
                         'page',
                         OpenApiTypes.INT,
                         OpenApiParameter.QUERY,
-                        description='Page number. '
+                        description='Page number.\n\n'
                                     'To get next or previous page use "next" and "previous" links from the response.'
+                                    '\n\n'
+                                    'To get last page pass "last" as a value.'
                     ),
                     OpenApiParameter(
                         'page_size',
                         OpenApiTypes.INT,
                         OpenApiParameter.QUERY,
-                        description='Number of objects per page. default: 100, min: 1, max: 1000.'
+                        description='Number of objects per page.\n\n'
+                                    '\tdefault: 100\n\n'
+                                    '\tmin: 1\n\n'
+                                    '\tmax: 1000'
                     )
                 ],
                 responses={200: get_paginated_response_serializer(RecommendedBrandsSerializer)}

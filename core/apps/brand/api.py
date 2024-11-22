@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
 from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog, \
-    GEO
+    GEO, Match
 from core.apps.brand.permissions import IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
@@ -76,7 +76,7 @@ class BrandViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet
 ):
-    queryset = Brand.objects.all()
+    queryset = Brand.objects.filter(user__isnull=False)  # if user is null, then brand was deleted
     serializer_class = BrandGetSerializer
     pagination_class = StandardResultsSetPagination
 
@@ -136,8 +136,13 @@ class BrandViewSet(
         elif self.action == 'recommended_brands':
             avg_bill = self.request.query_params.get('avg_bill')
             subs_count = self.request.query_params.get('subs_count')
-            category_id = self.request.query_params.get('category')
-            geo = self.request.query_params.get('geo')
+            categories_ids = self.request.query_params.getlist('category')
+            cities_ids = self.request.query_params.getlist('city')
+
+            max_cities_allowed = 10
+
+            if len(cities_ids) > max_cities_allowed:
+                raise serializers.ValidationError(f'You cannot specify more than {max_cities_allowed} cities.')
 
             filter_kwargs = {}
             if avg_bill is not None:
@@ -146,15 +151,32 @@ class BrandViewSet(
             if subs_count is not None:
                 filter_kwargs['subs_count'] = subs_count
 
-            if category_id is not None:
-                filter_kwargs['category'] = category_id
+            if categories_ids:
+                filter_kwargs['category__in'] = categories_ids
 
-            if geo is not None:
-                filter_kwargs['geo'] = geo
-
-            initial_brands = Brand.objects.filter(**filter_kwargs).distinct()
+            if cities_ids:
+                filter_kwargs['city__in'] = cities_ids
 
             current_brand = self.request.user.brand
+
+            # get ids of brands that have match with current brand as initiator
+            current_brand_matches_ids_as_initiator = current_brand.initiator.filter(
+                is_match=True
+            ).values_list('target', flat=True)
+
+            # get ids of brands that have match with current brand as target
+            current_brand_matches_ids_as_target = current_brand.target.filter(
+                is_match=True
+            ).values_list('initiator', flat=True)
+
+            matches_ids = list(current_brand_matches_ids_as_initiator.union(current_brand_matches_ids_as_target))
+
+            initial_brands = Brand.objects.filter(
+                user__isnull=False, **filter_kwargs
+            ).exclude(
+                # filter out all brands that already have match with current one
+                pk__in=matches_ids
+            )
 
             # get ids of current brand m2m and instantly evaluate it to avoid unnecessary subqueries
             current_brand_tags = list(current_brand.tags.values_list('id', flat=True))
@@ -173,6 +195,9 @@ class BrandViewSet(
                     subs_count=current_brand.subs_count
                 ).distinct().exclude(
                     pk=current_brand.id
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -199,6 +224,9 @@ class BrandViewSet(
                     avg_bill=current_brand.avg_bill
                 ).distinct().exclude(
                     Q(pk=current_brand.id) | Q(pk__in=priority1_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -223,6 +251,9 @@ class BrandViewSet(
                     tags__in=current_brand_tags
                 ).distinct().exclude(
                     Q(pk=current_brand.id) | Q(pk__in=priority1_ids) | Q(pk__in=priority2_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -247,6 +278,9 @@ class BrandViewSet(
                     | Q(pk__in=priority1_ids)
                     | Q(pk__in=priority2_ids)
                     | Q(pk__in=priority3_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -277,6 +311,9 @@ class BrandViewSet(
                     subs_count=current_brand.subs_count
                 ).distinct().exclude(
                     pk=current_brand.id
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -313,6 +350,9 @@ class BrandViewSet(
                     avg_bill=current_brand.avg_bill
                 ).distinct().exclude(
                     Q(pk=current_brand.id) | Q(pk__in=priority_1_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -345,6 +385,9 @@ class BrandViewSet(
                     goals__in=current_brand_goals,
                 ).distinct().exclude(
                     Q(pk=current_brand.id) | Q(pk__in=priority_1_ids) | Q(pk__in=priority_2_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -378,6 +421,9 @@ class BrandViewSet(
                     | Q(pk__in=priority_1_ids)
                     | Q(pk__in=priority_2_ids)
                     | Q(pk__in=priority_3_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -413,6 +459,9 @@ class BrandViewSet(
                     | Q(pk__in=priority_2_ids)
                     | Q(pk__in=priority_3_ids)
                     | Q(pk__in=priority_4_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -448,6 +497,9 @@ class BrandViewSet(
                     | Q(pk__in=priority_3_ids)
                     | Q(pk__in=priority_4_ids)
                     | Q(pk__in=priority_5_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',
@@ -482,6 +534,9 @@ class BrandViewSet(
                     | Q(pk__in=priority_4_ids)
                     | Q(pk__in=priority_5_ids)
                     | Q(pk__in=priority_6_ids)
+                ).select_related(
+                    'city',
+                    'category'
                 ).prefetch_related(
                     Prefetch(
                         'product_photos',

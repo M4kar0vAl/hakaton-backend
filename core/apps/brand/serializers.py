@@ -1121,12 +1121,14 @@ class MyMatchesSerializer(serializers.ModelSerializer):
 
 
 class RecommendedBrandsSerializer(serializers.ModelSerializer):
+    city = CitySerializer()
+    category = CategorySerializer()
     match_photos = serializers.SerializerMethodField()
 
     class Meta:
         model = Brand
         fields = [
-            'id', 'name', 'offline_space', 'subs_count', 'logo', 'category', 'description', 'match_photos'
+            'id', 'name', 'city', 'subs_count', 'logo', 'category', 'uniqueness', 'match_photos'
         ]
 
     def get_match_photos(self, brand):
