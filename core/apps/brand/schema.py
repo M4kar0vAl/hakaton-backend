@@ -4,7 +4,9 @@ from drf_spectacular.utils import extend_schema
 from core.apps.brand.serializers import (
     MatchSerializer,
     InstantCoopRequestSerializer,
-    InstantCoopSerializer, LikedBySerializer
+    InstantCoopSerializer,
+    LikedBySerializer,
+    BrandCreateResponseSerializer
 )
 
 
@@ -28,7 +30,8 @@ class Fix1(OpenApiViewExtension):
                             '\tВ тех, что получили из /api/v1/questionnaire_choices/ '
                             'можно указать "is_other": false, либо не указывать вовсе\n\n'
                             '\tНесуществующие будут проигнорированы при создании, '
-                            'НО участвуют в валидации на количество!'
+                            'НО участвуют в валидации на количество!',
+                responses={201: BrandCreateResponseSerializer}
             )
             def create(self, request, *args, **kwargs):
                 return super().create(request, *args, **kwargs)

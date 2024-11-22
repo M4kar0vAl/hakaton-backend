@@ -297,6 +297,23 @@ class BrandCreateSerializer(
         return list(objs) + other_objs
 
 
+class BrandCreateResponseSerializer(serializers.ModelSerializer):
+    user = UserSerializer(required=False, read_only=True)
+    city = CitySerializer(read_only=True)
+    blogs = BlogSerializer(many=True, read_only=True)
+    category = CategorySerializer()
+    tags = TagSerializer(many=True)
+    product_photos = ProductPhotoSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Brand
+        fields = [
+            'id', 'user', 'tg_nickname', 'city', 'blogs', 'name', 'position', 'category',
+            'inst_url', 'vk_url', 'tg_url', 'wb_url', 'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags',
+            'uniqueness', 'logo', 'photo', 'product_photos'
+        ]
+
+
 class BrandUpdateSerializer(
     BrandValidateMixin,
     serializers.ModelSerializer
