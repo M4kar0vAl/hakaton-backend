@@ -230,6 +230,24 @@ class BrandRecommendedBrandsTestCase(
 
         self.assertEqual(len(response.data['results']), 5)
 
+    def test_recommended_brands_city_query_param_max_cities(self):
+        response = self.auth_client1.get(
+            f'{self.url}'
+            f'?city={self.city1.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+            f'&city={self.city2.id}'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_recommended_brands_multiple_query_params(self):
         response = self.auth_client1.get(
             f'{self.url}'
