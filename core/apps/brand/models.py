@@ -107,7 +107,6 @@ class Brand(models.Model):
     photo = models.ImageField('Фото представителя', upload_to=UserDirectoryPath('photo'))
 
     # PART 2 (optional fields)
-    description = models.CharField(max_length=512, blank=True, verbose_name='Описание бренда')
     mission_statement = models.CharField('Миссия бренда', blank=True, max_length=512)
     formats = models.ManyToManyField(
         to='Format', related_name='brands', blank=True, verbose_name='Форматы коллабораций'

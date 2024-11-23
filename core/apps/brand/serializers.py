@@ -346,7 +346,7 @@ class BrandUpdateSerializer(
         fields = [
             'tg_nickname', 'city', 'new_blogs', 'blogs', 'name', 'position', 'category', 'inst_url', 'vk_url', 'tg_url',
             'wb_url', 'lamoda_url', 'site_url', 'subs_count', 'avg_bill', 'tags', 'uniqueness', 'logo', 'photo',
-            'description', 'mission_statement', 'formats', 'goals', 'offline_space', 'problem_solving',
+            'mission_statement', 'formats', 'goals', 'offline_space', 'problem_solving',
             'target_audience', 'categories_of_interest', 'business_groups', 'new_business_groups',
             'product_photos_match_add', 'product_photos_match_remove', 'product_photos_card_add',
             'product_photos_card_remove', 'gallery_add', 'gallery_remove',
@@ -439,7 +439,6 @@ class BrandUpdateSerializer(
                     'subs_count',
                     'avg_bill',
                     'uniqueness',
-                    'description',
                     'mission_statement',
                     'offline_space',
                     'problem_solving'
@@ -1036,6 +1035,7 @@ class LikedBySerializer(serializers.ModelSerializer):
 
 
 class MyLikesSerializer(serializers.ModelSerializer):
+    city = CitySerializer()
     product_photos_card = serializers.SerializerMethodField()
     instant_room = serializers.SerializerMethodField()
     user_fullname = serializers.SerializerMethodField()
@@ -1044,7 +1044,7 @@ class MyLikesSerializer(serializers.ModelSerializer):
         model = Brand
         fields = [
             'id', 'instant_room', 'product_photos_card', 'user_fullname',
-            'name', 'photo', 'description', 'offline_space', 'subs_count'
+            'name', 'photo', 'uniqueness', 'city', 'subs_count'
         ]
 
     @extend_schema_field(ProductPhotoSerializer(many=True))
@@ -1088,6 +1088,7 @@ class MyLikesSerializer(serializers.ModelSerializer):
 
 
 class MyMatchesSerializer(serializers.ModelSerializer):
+    city = CitySerializer()
     product_photos_card = serializers.SerializerMethodField()
     match_room = serializers.SerializerMethodField()
     user_fullname = serializers.SerializerMethodField()
@@ -1096,7 +1097,7 @@ class MyMatchesSerializer(serializers.ModelSerializer):
         model = Brand
         fields = [
             'id', 'match_room', 'product_photos_card', 'user_fullname',
-            'name', 'photo', 'description', 'offline_space', 'subs_count'
+            'name', 'photo', 'uniqueness', 'city', 'subs_count'
         ]
 
     @extend_schema_field(ProductPhotoSerializer(many=True))
