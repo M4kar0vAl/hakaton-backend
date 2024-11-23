@@ -16,8 +16,7 @@ from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog, \
-    GEO, Match
+from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog
 from core.apps.brand.permissions import IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
@@ -139,22 +138,38 @@ class BrandViewSet(
             categories_ids = self.request.query_params.getlist('category')
             cities_ids = self.request.query_params.getlist('city')
 
-            max_cities_allowed = 10
-
-            if len(cities_ids) > max_cities_allowed:
-                raise serializers.ValidationError(f'You cannot specify more than {max_cities_allowed} cities.')
-
             filter_kwargs = {}
             if avg_bill is not None:
+                try:
+                    avg_bill = int(avg_bill)
+                except ValueError:
+                    raise serializers.ValidationError('"avg_bill" must be a number')
+
+                if avg_bill < 0:
+                    raise serializers.ValidationError('"avg_bill" cannot be negative')
+
                 filter_kwargs['avg_bill'] = avg_bill
 
             if subs_count is not None:
+                try:
+                    subs_count = int(subs_count)
+                except ValueError:
+                    raise serializers.ValidationError('"subs_count" must be a number')
+
+                if subs_count < 0:
+                    raise serializers.ValidationError('"subs_count" cannot be negative')
+
                 filter_kwargs['subs_count'] = subs_count
 
             if categories_ids:
                 filter_kwargs['category__in'] = categories_ids
 
             if cities_ids:
+                max_cities_allowed = 10
+
+                if len(cities_ids) > max_cities_allowed:
+                    raise serializers.ValidationError(f'You cannot specify more than {max_cities_allowed} cities.')
+
                 filter_kwargs['city__in'] = cities_ids
 
             current_brand = self.request.user.brand
