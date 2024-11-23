@@ -709,7 +709,6 @@ class BrandViewSet(
                 'lamoda_url',
                 'site_url',
                 'uniqueness',
-                'description',
                 'mission_statement',
                 'offline_space',
                 'problem_solving'

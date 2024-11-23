@@ -215,14 +215,16 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(len(response.data['results']), 6)
 
     def test_recommended_brands_category_query_param(self):
-        response = self.auth_client1.get(f'{self.url}?category=2&category=3')  # category is categories[1]
+        response = self.auth_client1.get(
+            f'{self.url}?category={self.categories[1].id}&category={self.categories[2].id}'
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertEqual(len(response.data['results']), 3)
 
     def test_recommended_brands_city_query_param(self):
-        response = self.auth_client1.get(f'{self.url}?city=1&city=2')
+        response = self.auth_client1.get(f'{self.url}?city={self.city1.id}&city={self.city2.id}')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -230,7 +232,13 @@ class BrandRecommendedBrandsTestCase(
 
     def test_recommended_brands_multiple_query_params(self):
         response = self.auth_client1.get(
-            f'{self.url}?subs_count=20000&avg_bill=20000&category=2&category=4&city=1&city=2'
+            f'{self.url}'
+            f'?subs_count=20000'
+            f'&avg_bill=20000'
+            f'&category={self.categories[1].id}'
+            f'&category={self.categories[3].id}'
+            f'&city={self.city1.id}'
+            f'&city={self.city2.id}'
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

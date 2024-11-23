@@ -321,7 +321,6 @@ class BrandUpdateTestCase(APITestCase):
             'product_photos_card_remove': json.dumps(
                 list(self.brand.product_photos.filter(format=ProductPhoto.CARD).values_list('id', flat=True))
             ),  # remove all photos
-            'description': 'description',
             'mission_statement': 'mission_statement',
             'formats': json.dumps([
                 {"name": "Продукт"},
@@ -373,7 +372,6 @@ class BrandUpdateTestCase(APITestCase):
         self.assertEqual(updated_brand.subs_count, 100000)
         self.assertEqual(updated_brand.avg_bill, 100000)
         self.assertEqual(updated_brand.uniqueness, 'edited')
-        self.assertEqual(updated_brand.description, 'description')
         self.assertEqual(updated_brand.mission_statement, 'mission_statement')
         self.assertEqual(updated_brand.offline_space, 'offline_space')
         self.assertEqual(updated_brand.problem_solving, 'problem_solving')
@@ -802,7 +800,6 @@ class BrandDeleteTestCase(APITestCase):
         self.url = reverse('brand-me')
 
         update_data = {
-            'description': 'description',
             'mission_statement': 'mission_statement',
             'formats': json.dumps([
                 {"name": "Продукт"},
@@ -884,7 +881,6 @@ class BrandDeleteTestCase(APITestCase):
             'lamoda_url',
             'site_url',
             'uniqueness',
-            'description',
             'mission_statement',
             'offline_space',
             'problem_solving'
