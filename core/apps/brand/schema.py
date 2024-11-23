@@ -99,13 +99,15 @@ class Fix1(OpenApiViewExtension):
                         'avg_bill',
                         OpenApiTypes.INT,
                         OpenApiParameter.QUERY,
-                        description='Filter by average bill.'
+                        description='Filter by average bill.\n\n'
+                                    'Positive integers only.'
                     ),
                     OpenApiParameter(
                         'subs_count',
                         OpenApiTypes.INT,
                         OpenApiParameter.QUERY,
-                        description='Filter by number of subscribers.'
+                        description='Filter by number of subscribers.\n\n'
+                                    'Positive integers only.'
                     ),
                     OpenApiParameter(
                         'category',
@@ -121,6 +123,7 @@ class Fix1(OpenApiViewExtension):
                         OpenApiParameter.QUERY,
                         many=True,
                         description='Filter by cities (geo).\n\n'
+                                    'Up to 10 cities.\n\n'
                                     'If brand has at least one of the specified cities it will be included.'
                     ),
                     OpenApiParameter(

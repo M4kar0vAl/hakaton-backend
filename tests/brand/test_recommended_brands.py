@@ -199,7 +199,6 @@ class BrandRecommendedBrandsTestCase(
 
         self.assertEqual(len(response.data['results']), 7)
 
-
     def test_recommended_brands_avg_bill_query_param(self):
         response = self.auth_client1.get(f'{self.url}?avg_bill=20000')
 
@@ -207,12 +206,32 @@ class BrandRecommendedBrandsTestCase(
 
         self.assertEqual(len(response.data['results']), 5)
 
+    def test_recommended_brands_avg_bill_query_param_must_be_positive(self):
+        response = self.auth_client1.get(f'{self.url}?avg_bill=-1')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_recommended_brands_avg_bill_query_param_must_be_a_number(self):
+        response = self.auth_client1.get(f'{self.url}?avg_bill=asd')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_recommended_brands_subs_count_query_param(self):
         response = self.auth_client1.get(f'{self.url}?subs_count=20000')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertEqual(len(response.data['results']), 6)
+
+    def test_recommended_brands_subs_count_query_param_must_be_positive(self):
+        response = self.auth_client1.get(f'{self.url}?subs_count=-1')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_recommended_brands_subs_count_query_param_must_be_a_number(self):
+        response = self.auth_client1.get(f'{self.url}?subs_count=asd')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_recommended_brands_category_query_param(self):
         response = self.auth_client1.get(
