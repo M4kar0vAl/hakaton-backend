@@ -1,40 +1,19 @@
-from rest_framework import serializers, exceptions
+from rest_framework import serializers
 
-from .models import Subscription, PromoCode
+from .models import Tariff
 
 
-class SubscriptionSerializer(serializers.ModelSerializer):
+class TariffSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Subscription
-        fields = [
-            'id',
-            'name',
-            'cost',
-            'duration',
-        ]
+        model = Tariff
+        exclude = []
 
 
-class PaymentsSerializer(serializers.Serializer):
-    sub = serializers.IntegerField()
-    promocode = serializers.CharField(required=False)
+class TariffSubscribeSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    tariff = serializers.PrimaryKeyRelatedField(queryset=Tariff.objects.all())
+    promocode = serializers.CharField(max_length=30, required=False)
 
-    def validate(self, attrs):
-        try:
-            self.instance = Subscription.objects.get(pk=attrs['sub'])
-        except Subscription.DoesNotExist:
-            raise exceptions.ValidationError(
-                {'sub': f'Incorrect sub id: {attrs["sub"]}'},
-                'invalid_subscription'
-            )
-
-        if attrs.get('promocode'):
-            try:
-                promocode = PromoCode.objects.get(code=attrs['promocode'])
-            except PromoCode.DoesNotExist:
-                raise exceptions.ValidationError(
-                    {'promocode': f'Incorrect promocode: {attrs["promocode"]}'},
-                    'invalid_promocode'
-                )
-            discount_multiplier = 1 - (promocode.discount) / 100
-            self.instance.cost *= discount_multiplier
-        return attrs
+    def create(self, validated_data):
+        # TODO logic for creating payment object
+        pass

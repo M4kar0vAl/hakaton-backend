@@ -32,6 +32,7 @@ from core.apps.brand.serializers import (
     RecommendedBrandsSerializer,
 )
 from core.apps.chat.models import Room
+from core.apps.payments.models import Subscription
 
 
 class QuestionnaireChoicesListView(generics.GenericAPIView):
@@ -705,14 +706,9 @@ class BrandViewSet(
             ProductPhoto.objects.filter(brand=instance).delete()
             GalleryPhoto.objects.filter(brand=instance).delete()
             BusinessGroup.objects.filter(brand=instance).delete()
+            Subscription.objects.filter(brand=instance).update(is_active=False)  # deactivate active subscriptions
 
             # ---remove fields that are no value for analytics---
-            for field in [
-                'subscription',
-                'sub_expire'
-            ]:
-                setattr(instance, field, None)
-
             for field in [
                 'logo',
                 'photo',

@@ -1,13 +1,15 @@
 from datetime import timedelta
 
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import tag
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Category, Brand
-from core.apps.payments.models import Subscription
+from core.apps.payments.models import Subscription, Tariff
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 User = get_user_model()
@@ -69,12 +71,27 @@ class BrandMyLikesTestCase(
             'photo': 'string'
         }
 
-        # TODO change business sub definition
-        cls.business_sub = Subscription.objects.create(name='Бизнес', cost=1000, duration=timedelta(days=180))
+        cls.business_tariff = Tariff.objects.get(name='Business Match')
 
-        cls.brand1 = Brand.objects.create(user=cls.user1, subscription=cls.business_sub, **brand_data)
+        now = timezone.now()
+
+        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
+        Subscription.objects.create(
+            brand=cls.brand1,
+            tariff=cls.business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            is_active=True
+        )
         cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
-        cls.brand3 = Brand.objects.create(user=cls.user3, subscription=cls.business_sub, **brand_data)
+        cls.brand3 = Brand.objects.create(user=cls.user3, **brand_data)
+        Subscription.objects.create(
+            brand=cls.brand3,
+            tariff=cls.business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            is_active=True
+        )
 
         cls.url = reverse('brand-my_likes')
         cls.like_url = reverse('brand-like')

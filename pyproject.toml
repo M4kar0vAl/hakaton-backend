@@ -23,6 +23,7 @@ pyjwt = "^2.8.0"
 dj-database-url = "^2.3.0"
 whitenoise = {extras = ["brotli"], version = "^6.8.2"}
 django-cities-light = "^3.10.1"
+python-dateutil = "^2.9.0.post0"
 
 
 [tool.poetry.group.prod.dependencies]

@@ -1,42 +1,35 @@
-from datetime import datetime
-
 from rest_framework import viewsets, mixins
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Subscription
-from .permissions import IsAuthenticated
-from .serializers import SubscriptionSerializer, PaymentsSerializer
+from core.apps.brand.permissions import IsBrand
+from core.apps.payments.models import Tariff
+from core.apps.payments.serializers import TariffSerializer, TariffSubscribeSerializer
 
 
-class PaymentViewSet(
+class TariffViewSet(
     mixins.ListModelMixin,
     viewsets.GenericViewSet,
 ):
-    queryset = Subscription.objects.all()
-    serializer_class = SubscriptionSerializer
+    queryset = Tariff.objects.all()
+    serializer_class = TariffSerializer
 
     def get_permissions(self):
         if self.action == 'subscribe':
-            return [IsAuthenticated(), ]
+            permission_classes = [IsAuthenticated, IsBrand]
+        else:
+            permission_classes = [IsAuthenticated]
 
-        return super().get_permissions()
+        return [permission() for permission in permission_classes]
 
     def get_serializer_class(self):
         if self.action == 'subscribe':
-            return PaymentsSerializer
+            return TariffSubscribeSerializer
 
         return super().get_serializer_class()
 
-    @action(methods=["POST"], detail=False, url_name='subscription')
+    @action(methods=["POST"], detail=False, url_name='tariff_subscribe')
     def subscribe(self, request, *args, **kwargs) -> Response:
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        sub = serializer.instance
-        brand = self.request.user.brand
-        brand.subscription = sub
-        brand.sub_expire = datetime.now() + sub.duration
-        brand.save()
-
-        return Response(data=SubscriptionSerializer(sub).data, status=200)
+        # TODO logic for this method
+        pass

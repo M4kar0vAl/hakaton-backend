@@ -8,7 +8,6 @@ from django.db import models
 from django.utils.deconstruct import deconstructible
 
 from core.apps.brand.utils import get_file_extension
-from core.apps.payments.models import Subscription
 
 
 @deconstructible
@@ -65,15 +64,6 @@ class Brand(models.Model):
     published = models.BooleanField(
         default=False, verbose_name='Опубликовано'
     )
-    subscription = models.ForeignKey(
-        to=Subscription,
-        on_delete=models.PROTECT,
-        related_name='brands',
-        verbose_name='Тариф',
-        blank=True,
-        null=True
-    )
-    sub_expire = models.DateField("Окончание подписки", null=True)
 
     # PART 1 (everything is required except social media and marketplaces)
     tg_nickname = models.CharField('Ник в телеграме', blank=True, max_length=64)

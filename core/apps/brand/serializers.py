@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import TemporaryUploadedFile, InMemoryUploadedFile
 from django.db import transaction, DatabaseError
 from django.db.models import Q, QuerySet
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers, exceptions
 
@@ -34,6 +35,7 @@ from core.apps.brand.models import (
 )
 from core.apps.chat.models import Room
 from core.apps.cities.serializers import CitySerializer
+from core.apps.payments.models import Subscription
 
 User = get_user_model()
 
@@ -914,10 +916,14 @@ class MatchSerializer(serializers.ModelSerializer):
                 if match is not None:
                     # if not None, then is_match is False (checked in validate)
                     match.is_match = True
-                    has_business = any([  # TODO change business sub definition
-                        initiator.subscription and initiator.subscription.name == 'Бизнес',
-                        target.subscription and target.subscription.name == 'Бизнес'
-                    ])
+
+                    has_business = Subscription.objects.filter(
+                        Q(brand=initiator) | Q(brand=target),
+                        is_active=True,
+                        end_date__gt=timezone.now(),
+                        tariff__name='Business Match'
+                    ).exists()
+
                     room = Room.objects.create(has_business=has_business)
                     room.participants.add(initiator.user, target.user)
                     match.room = room
