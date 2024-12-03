@@ -1,9 +1,19 @@
-from rest_framework import permissions
 from django.contrib.auth import get_user_model
+from django.utils import timezone
+from rest_framework import permissions
 
 User = get_user_model()
 
 
-class IsAuthenticated(permissions.BasePermission):
+class CanUpgradeTariff(permissions.BasePermission):
     def has_permission(self, request, view):
-        return type(request.user) is User
+        current_sub = request.user.brand.subscriptions.filter(
+            is_active=True, end_date__gt=timezone.now()
+        ).order_by('-id').select_related('tariff').first()
+
+        if current_sub is None:
+            return False
+
+        # can upgrade only from Lite tariff
+        # Trial doesn't have cost, so should use subscribe endpoint to upgrade Trial
+        return current_sub.tariff.name == 'Lite Match'

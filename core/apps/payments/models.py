@@ -34,6 +34,10 @@ class Subscription(models.Model):
         related_name='subscriptions',
         verbose_name='Промокод'
     )
+    upgraded_from = models.ForeignKey(
+        to='Tariff', on_delete=models.PROTECT, null=True, related_name='sub_upgraded_to', verbose_name='Апгрейд c'
+    )
+    upgraded_at = models.DateTimeField(blank=True, null=True, verbose_name='Дата-время апгрейда')
 
     class Meta:
         verbose_name = 'Подписка'

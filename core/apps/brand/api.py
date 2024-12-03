@@ -7,6 +7,7 @@ from django.core.paginator import Paginator
 from django.db import transaction, DatabaseError
 from django.db.models import Q, Subquery, Prefetch, Value, Count
 from django.http import QueryDict
+from django.utils import timezone
 from django.utils.functional import cached_property
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
@@ -29,7 +30,7 @@ from core.apps.brand.serializers import (
     LikedBySerializer,
     MyLikesSerializer,
     MyMatchesSerializer,
-    RecommendedBrandsSerializer,
+    RecommendedBrandsSerializer, BrandMeSerializer,
 )
 from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription
@@ -202,7 +203,10 @@ class BrandViewSet(
                 current_brand.categories_of_interest.values_list('id', flat=True)
             )
 
-            is_trial = False  # TODO change trial definition when trial is ready
+            is_trial = current_brand.subscriptions.filter(
+                is_active=True, tariff__name='Trial', end_date__gt=timezone.now()
+            ).exists()
+
             if is_trial:
                 # priority1 only
                 priority1 = initial_brands.filter(
@@ -580,7 +584,7 @@ class BrandViewSet(
             return BrandCreateSerializer
         elif self.action == 'me':
             if self.request.method == 'GET':
-                return BrandGetSerializer
+                return BrandMeSerializer
             elif self.request.method == 'PATCH':
                 return BrandUpdateSerializer
         elif self.action == 'like':

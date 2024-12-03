@@ -36,6 +36,7 @@ from core.apps.brand.models import (
 from core.apps.chat.models import Room
 from core.apps.cities.serializers import CitySerializer
 from core.apps.payments.models import Subscription
+from core.apps.payments.serializers import SubscriptionSerializer
 
 User = get_user_model()
 
@@ -835,7 +836,21 @@ class BrandGetSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Brand
-        exclude = []
+        exclude = ['published']
+
+
+class BrandMeSerializer(BrandGetSerializer):
+    subscription = serializers.SerializerMethodField(read_only=True)
+
+    @extend_schema_field(SubscriptionSerializer())
+    def get_subscription(self, brand):
+        # get current active subscription
+        # if brand has several active subscriptions, then get subscription that was created last (has the largest id)
+        sub = brand.subscriptions.filter(
+            is_active=True, end_date__gt=timezone.now()
+        ).order_by('-id').select_related('tariff').first()
+
+        return sub and SubscriptionSerializer(sub).data  # if sub is None return None, otherwise return sub data
 
 
 class GetShortBrandSerializer(serializers.ModelSerializer):

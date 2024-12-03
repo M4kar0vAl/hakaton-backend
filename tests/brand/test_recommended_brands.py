@@ -283,7 +283,7 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(len(response.data['results']), 2)
 
     def test_number_of_queries(self):
-        with self.assertNumQueriesLessThan(14, verbose=True):
+        with self.assertNumQueriesLessThan(15, verbose=True):
             response = self.auth_client1.get(self.url)
 
             self.assertEqual(response.status_code, status.HTTP_200_OK)
