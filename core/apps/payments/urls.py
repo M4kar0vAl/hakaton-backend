@@ -1,13 +1,13 @@
-from django.urls import path, include
+from django.urls import path
 from rest_framework import routers
 
-from .api import PaymentViewSet
-from rest_framework import routers
-
+from core.apps.payments.api import TariffViewSet, PromocodeRetrieveApiView
 
 router = routers.DefaultRouter()
-router.register('payment', PaymentViewSet, basename='payments')
+router.register('tariffs', TariffViewSet, basename='tariffs')
 
-urlpatterns = []
+urlpatterns = [
+    path('promocodes/<str:code>/', PromocodeRetrieveApiView.as_view(), name='promocode-detail')
+]
 
 urlpatterns += router.urls

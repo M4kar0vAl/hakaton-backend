@@ -4,6 +4,7 @@ import os
 import shutil
 
 from cities_light.models import City, Country
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
@@ -11,11 +12,13 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import Q
 from django.test import override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Brand, Tag, Blog, ProductPhoto, Age, Gender, Category, Format, Goal, \
     TargetAudience
+from core.apps.payments.models import Tariff, Subscription
 
 User = get_user_model()
 
@@ -831,6 +834,18 @@ class BrandDeleteTestCase(APITestCase):
 
         self.auth_client.patch(self.url, update_data, format='multipart')
 
+        # add subscription to brand
+        self.tariff = Tariff.objects.get(name='Lite Match')
+        now = timezone.now()
+
+        Subscription.objects.create(
+            brand=self.brand,
+            tariff=self.tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=self.tariff.duration.days // 30),
+            is_active=True
+        )
+
     def tearDown(self):
         shutil.rmtree(os.path.join(settings.MEDIA_ROOT))
 
@@ -862,9 +877,11 @@ class BrandDeleteTestCase(APITestCase):
         deleted_brand = Brand.objects.get(id=self.brand.id)
 
         self.assertIsNone(deleted_brand.user)
-        self.assertIsNone(deleted_brand.subscription)
-        self.assertIsNone(deleted_brand.sub_expire)
         self.assertIsNotNone(deleted_brand.city)
+
+        # check that subscriptions remained but were deactivated
+        self.assertEqual(deleted_brand.subscriptions.count(), 1)
+        self.assertFalse(deleted_brand.subscriptions.filter(is_active=True).exists())
 
         # check that target audience remains
         self.assertIsNotNone(deleted_brand.target_audience)

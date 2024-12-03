@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import permissions
 
 
@@ -31,7 +32,6 @@ class IsBusinessSub(permissions.BasePermission):
     Allow access only to brands with business subscription.
     """
     def has_permission(self, request, view):
-        if request.user.brand.subscription:
-            return request.user.brand.subscription.name == 'Бизнес'  # TODO change definition of business sub
-
-        return False
+        return request.user.brand.subscriptions.filter(
+            is_active=True, end_date__gt=timezone.now(), tariff__name='Business Match'
+        ).exists()
