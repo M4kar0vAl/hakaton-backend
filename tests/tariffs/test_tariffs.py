@@ -126,6 +126,27 @@ class TariffSubscribeTestCase(APITestCase):
         self.assertEqual(self.user.brand.subscriptions.count(), 1)
         self.assertEqual(response.data['promocode'], self.promocode.id)
 
+    def test_tariff_subscribe_with_expired_promocode(self):
+        """
+        Should be ok when creating with expired promo code, because promo code is checked before payment.
+        After payment subscribe api is called with promo code that was used in payment.
+        Promo code can expire between check for validity and calling subscribe api.
+        That's why it shouldn't be validated in subscribe action.
+
+        flow:
+            apply promo -> check for validity -> return promo code if everything is ok -> create payment link -> pay ->
+            call subscribe api (no need to check validity here, because user has already paid) -> return subscription
+        """
+        expired_promocode = PromoCode.objects.create(
+            code='expired_test', discount=5, expires_at=timezone.now() - timedelta(minutes=1)
+        )
+
+        response = self.auth_client.post(self.url, {'tariff': 2, 'promocode': expired_promocode.id})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.user.brand.subscriptions.count(), 1)
+        self.assertEqual(response.data['promocode'], expired_promocode.id)
+
     def test_tariff_subscribe_trial_ignores_promocode(self):
         response = self.auth_client.post(self.url, {'tariff': 1, 'promocode': self.promocode.id})
 

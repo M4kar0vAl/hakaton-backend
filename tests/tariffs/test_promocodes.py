@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from core.apps.brand.models import Brand, Category
-from core.apps.payments.models import PromoCode
+from core.apps.payments.models import PromoCode, GiftPromoCode
 
 User = get_user_model()
 
@@ -82,8 +82,21 @@ class PromoCodeGetTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_get_promocode_already_used(self):
+    def test_get_promocode_already_used_in_subscription(self):
         self.auth_client.post(self.subscribe_url, {'tariff': 2, 'promocode': self.promocode.id})
+
+        response = self.auth_client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_get_promocode_already_used_in_gift(self):
+        # create gift with promo code
+        GiftPromoCode.objects.create(
+            tariff_id=2,
+            expires_at=timezone.now() + timedelta(days=1),
+            giver=self.brand,
+            promocode=self.promocode
+        )
 
         response = self.auth_client.get(self.url)
 
