@@ -76,3 +76,53 @@ class Fix2(OpenApiViewExtension):
             pass
 
         return Fixed
+
+
+class Fix3(OpenApiViewExtension):
+    target_class = 'core.apps.payments.api.GiftPromoCodeViewSet'
+
+    def view_replacement(self):
+        @extend_schema(
+            tags=['Gift Promocodes']
+        )
+        class Fixed(self.target_class):
+            @extend_schema(
+                description="Get a list of gift promo codes.\n\n"
+                            "Returns only unused and unexpired promo codes created by the current brand.\n\n"
+                            "Authenticated brand only."
+            )
+            def list(self, request, *args, **kwargs):
+                return super().list(request, *args, **kwargs)
+
+            @extend_schema(
+                description="Get a gift promo code object by code.\n\n"
+                            "Use this to check if gift promo code is valid.\n\n"
+                            "Authenticated brand only."
+            )
+            def retrieve(self, request, *args, **kwargs):
+                return super().retrieve(request, *args, **kwargs)
+
+            @extend_schema(
+                description="Generate a gift promo code.\n\n"
+                            "Call this method after a successful payment.\n\n"
+                            "\ttariff: id of a tariff that will be gifted\n\n"
+                            "\tpromocode: discount promo code id that was used to purchase this gift\n\n"
+                            "Gift promo code is valid for 6 months since creation.\n\n"
+                            "Authenticated brand only."
+            )
+            def create(self, request, *args, **kwargs):
+                return super().create(request, *args, **kwargs)
+
+            @extend_schema(
+                tags=['Gift Promocodes'],
+                description="Activate gift promo code.\n\n"
+                            "\tgift_promocode: id of a gift promo code\n\n"
+                            "To get id of a gift promo code you must first check code entered by the user "
+                            "by making request to /api/v1/gift_promocodes/{code}/\n\n"
+                            "Authenticated brand only."
+            )
+            def activate(self, request, *args, **kwargs):
+                return super().activate(request, *args, **kwargs)
+
+        return Fixed
+
