@@ -97,6 +97,7 @@ class BrandMyLikesTestCase(
         cls.like_url = reverse('brand-like')
         cls.instant_coop_url = reverse('brand-instant-coop')
 
+    # TODO optimize this method
     def create_n_likes(self, n: int) -> APIClient:
         users = User.objects.bulk_create([User(
             email=f'trash_user{i}@example.com',
@@ -163,7 +164,7 @@ class BrandMyLikesTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # check that returned list is empty
-        self.assertFalse(response.data)
+        self.assertFalse(response.data['results'])
 
     def test_my_likes_no_instant_coops(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -172,10 +173,10 @@ class BrandMyLikesTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # check that there is only one brand that was liked by brand1
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data['results']), 1)
 
         # check that there is no instant room for these brands
-        self.assertIsNone(response.data[0]['instant_room'])
+        self.assertIsNone(response.data['results'][0]['instant_room'])
 
     def test_my_likes_with_instant_coop(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -188,9 +189,9 @@ class BrandMyLikesTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # check that instant room is not None
-        self.assertIsNotNone(response.data[0]['instant_room'])
+        self.assertIsNotNone(response.data['results'][0]['instant_room'])
 
-        self.assertEqual(response.data[0]['instant_room'], instant_coop_resp.data['id'])
+        self.assertEqual(response.data['results'][0]['instant_room'], instant_coop_resp.data['id'])
 
     def test_my_likes_includes_only_likes_of_current_brand(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -201,7 +202,7 @@ class BrandMyLikesTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # check that there is only 1 liked brand
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data['results']), 1)
 
     def test_my_likes_exclude_matches(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -212,7 +213,7 @@ class BrandMyLikesTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # check that response is empty
-        self.assertFalse(response.data)
+        self.assertFalse(response.data['results'])
 
     def test_my_likes_can_return_more_than_one_brand(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -223,7 +224,7 @@ class BrandMyLikesTestCase(
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     @tag('slow')
     def test_number_of_queries_less_than_7(self):
