@@ -92,7 +92,7 @@ class LikedByTestCase(APITestCase):
         response = self.auth_client1.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data)
+        self.assertFalse(response.data['results'])
 
     def test_liked_by_returns_correct_list_of_brands(self):
         self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1
@@ -103,8 +103,8 @@ class LikedByTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['id'], self.brand2.id)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['id'], self.brand2.id)
 
     def test_liked_by_excludes_matches(self):
         self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1
@@ -115,4 +115,4 @@ class LikedByTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data['results']), 1)

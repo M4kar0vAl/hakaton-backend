@@ -73,6 +73,7 @@ class BrandMyMatchesTestCase(
         cls.url = reverse('brand-my_matches')
         cls.like_url = reverse('brand-like')
 
+    # TODO optimize this method
     def create_n_matches(self, n: int) -> APIClient:
         """
         Create n matches in db.
@@ -157,7 +158,7 @@ class BrandMyMatchesTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # check that returned list is empty
-        self.assertFalse(response.data)
+        self.assertFalse(response.data['results'])
 
     def test_my_matches(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -169,16 +170,16 @@ class BrandMyMatchesTestCase(
         self.assertEqual(client1_response.status_code, status.HTTP_200_OK)
         self.assertEqual(client2_response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(len(client1_response.data), 1)
-        self.assertEqual(len(client2_response.data), 1)
+        self.assertEqual(len(client1_response.data['results']), 1)
+        self.assertEqual(len(client2_response.data['results']), 1)
 
         # check that both brands will receive each other
-        self.assertEqual(client1_response.data[0]['id'], self.brand2.id)
-        self.assertEqual(client2_response.data[0]['id'], self.brand1.id)
+        self.assertEqual(client1_response.data['results'][0]['id'], self.brand2.id)
+        self.assertEqual(client2_response.data['results'][0]['id'], self.brand1.id)
 
         # check that both brands will receive same room
-        self.assertEqual(client1_response.data[0]['match_room'], match_response.data['room'])
-        self.assertEqual(client2_response.data[0]['match_room'], match_response.data['room'])
+        self.assertEqual(client1_response.data['results'][0]['match_room'], match_response.data['room'])
+        self.assertEqual(client2_response.data['results'][0]['match_room'], match_response.data['room'])
 
     def test_my_matches_can_return_more_than_one_brand(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -190,7 +191,7 @@ class BrandMyMatchesTestCase(
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_my_matches_returns_matches_of_current_brand(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -203,7 +204,7 @@ class BrandMyMatchesTestCase(
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data['results']), 1)
 
     def test_my_matches_excludes_likes(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
@@ -214,7 +215,7 @@ class BrandMyMatchesTestCase(
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data['results']), 1)
 
     @tag('slow')
     def test_number_of_queries_less_than_7(self):

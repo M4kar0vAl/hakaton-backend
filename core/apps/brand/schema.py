@@ -8,9 +8,11 @@ from core.apps.brand.serializers import (
     InstantCoopSerializer,
     LikedBySerializer,
     BrandCreateResponseSerializer,
-    RecommendedBrandsSerializer
+    RecommendedBrandsSerializer,
+    MyLikesSerializer,
+    MyMatchesSerializer
 )
-from core.apps.brand.utils import get_paginated_response_serializer
+from core.apps.brand.utils import get_schema_standard_pagination_parameters
 
 
 class Fix1(OpenApiViewExtension):
@@ -65,7 +67,8 @@ class Fix1(OpenApiViewExtension):
                 description="Get a list of brands that liked the current one.\n\n"
                             "Excludes matches and likes of current brand.\n\n"
                             "Authenticated brand only.",
-                responses={200: LikedBySerializer(many=True)}
+                responses={200: LikedBySerializer(many=True)},
+                parameters=[] + get_schema_standard_pagination_parameters()
             )
             def liked_by(self, request, *args, **kwargs):
                 return super().liked_by(request, *args, **kwargs)
@@ -74,7 +77,9 @@ class Fix1(OpenApiViewExtension):
                 tags=['Brand'],
                 description="Get a list of liked brands.\n\n"
                             "instant_room: id of a room of type 'I' if it already exists OR null if it doesn't.\n\n"
-                            "Authenticated brand only."
+                            "Authenticated brand only.",
+                responses={200: MyLikesSerializer(many=True)},
+                parameters=[] + get_schema_standard_pagination_parameters()
             )
             def my_likes(self, request, *args, **kwargs):
                 return super().my_likes(request, *args, **kwargs)
@@ -83,7 +88,9 @@ class Fix1(OpenApiViewExtension):
                 tags=['Brand'],
                 description="Get a list of matches of the current brand.\n\n"
                             "match_room: id of a room of type 'M'\n\n"
-                            "Authenticated brand only."
+                            "Authenticated brand only.",
+                responses={200: MyMatchesSerializer(many=True)},
+                parameters=[] + get_schema_standard_pagination_parameters()
             )
             def my_matches(self, request, *args, **kwargs):
                 return super().my_matches(request, *args, **kwargs)
@@ -126,26 +133,8 @@ class Fix1(OpenApiViewExtension):
                                     'Up to 10 cities.\n\n'
                                     'If brand has at least one of the specified cities it will be included.'
                     ),
-                    OpenApiParameter(
-                        'page',
-                        OpenApiTypes.INT,
-                        OpenApiParameter.QUERY,
-                        description='Page number.\n\n'
-                                    'To get next or previous page use "next" and "previous" links from the response.'
-                                    '\n\n'
-                                    'To get last page pass "last" as a value.'
-                    ),
-                    OpenApiParameter(
-                        'page_size',
-                        OpenApiTypes.INT,
-                        OpenApiParameter.QUERY,
-                        description='Number of objects per page.\n\n'
-                                    '\tdefault: 100\n\n'
-                                    '\tmin: 1\n\n'
-                                    '\tmax: 1000'
-                    )
-                ],
-                responses={200: get_paginated_response_serializer(RecommendedBrandsSerializer)}
+                ] + get_schema_standard_pagination_parameters(),
+                responses={200: RecommendedBrandsSerializer(many=True)}
             )
             def recommended_brands(self, request, *args, **kwargs):
                 return super().recommended_brands(request, *args, **kwargs)

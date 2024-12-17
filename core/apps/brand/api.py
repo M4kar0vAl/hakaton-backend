@@ -3,21 +3,19 @@ import os
 import shutil
 
 from django.conf import settings
-from django.core.paginator import Paginator
 from django.db import transaction, DatabaseError
 from django.db.models import Q, Subquery, Prefetch, Value, Count
 from django.http import QueryDict
 from django.utils import timezone
-from django.utils.functional import cached_property
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
 from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog
+from core.apps.brand.pagination import StandardResultsSetPagination
 from core.apps.brand.permissions import IsBusinessSub, IsBrand
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
@@ -58,20 +56,6 @@ class QuestionnaireChoicesListView(generics.GenericAPIView):
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
-class FasterDjangoPaginator(Paginator):
-    # doesn't execute counting query
-    @cached_property
-    def count(self):
-        return len(self.object_list)
-
-
-class StandardResultsSetPagination(PageNumberPagination):
-    django_paginator_class = FasterDjangoPaginator
-    page_size = 100
-    page_size_query_param = 'page_size'
-    max_page_size = 1000
-
-
 class BrandViewSet(
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
@@ -85,7 +69,7 @@ class BrandViewSet(
         if self.action == 'liked_by':
             # get all brands which liked current one and haven't been liked in response yet
             liked_by_ids = self.request.user.brand.target.filter(is_match=False).values_list('initiator', flat=True)
-            return Brand.objects.filter(pk__in=Subquery(liked_by_ids))
+            return Brand.objects.filter(pk__in=Subquery(liked_by_ids))  # TODO add ordering
 
         elif self.action == 'my_likes':
             my_likes_ids = self.request.user.brand.initiator.filter(is_match=False).values_list('target', flat=True)
@@ -104,7 +88,7 @@ class BrandViewSet(
                     queryset=Room.objects.filter(type=Room.INSTANT),
                     to_attr='instant_rooms'
                 )
-            )
+            )  # TODO add ordering
 
         elif self.action == 'my_matches':
             # get ids of brands that have match with current brand as initiator
@@ -132,7 +116,7 @@ class BrandViewSet(
                     queryset=Room.objects.filter(type=Room.MATCH),
                     to_attr='match_rooms'
                 )
-            )
+            )  # TODO add ordering
 
         elif self.action == 'recommended_brands':
             avg_bill = self.request.query_params.get('avg_bill')
@@ -800,18 +784,36 @@ class BrandViewSet(
     @action(detail=False, methods=['get'], url_name='liked_by')
     def liked_by(self, request):
         queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], url_name='my_likes')
     def my_likes(self, request):
         queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'], url_name='my_matches')
     def my_matches(self, request):
         queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
