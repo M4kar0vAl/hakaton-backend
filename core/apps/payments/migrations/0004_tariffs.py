@@ -12,7 +12,7 @@ def add_tariffs(apps, schema_editor):
         Tariff(
             name='Trial',
             cost=0,
-            duration=timedelta(hours=72)
+            duration=timedelta(days=14)
         ),
         Tariff(
             name='Lite Match',
