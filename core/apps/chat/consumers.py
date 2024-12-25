@@ -14,7 +14,7 @@ from rest_framework.serializers import Serializer
 from core.apps.brand.models import Brand
 from core.apps.chat.exceptions import BadRequest, ServerError
 from core.apps.chat.models import Room, Message
-from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser
+from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser, IsBrand
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer
 from core.apps.chat.utils import reply_to_groups
 
@@ -25,7 +25,7 @@ class RoomConsumer(ListModelMixin,
                    GenericAsyncAPIConsumer):
     serializer_class = RoomSerializer
     lookup_field = "pk"
-    permission_classes = [IsAuthenticatedConnect]
+    permission_classes = [IsAuthenticatedConnect, IsBrand]
 
     def get_queryset(self, **kwargs) -> QuerySet:
         if 'action' in kwargs:
@@ -46,10 +46,14 @@ class RoomConsumer(ListModelMixin,
 
         await self.add_group(self.user_group_name)
 
-        await self.accept()
+        if 'chat' in self.scope['subprotocols']:
+            await self.accept('chat')
+        else:
+            await self.close()
 
     async def disconnect(self, code):
-        await self.remove_group(self.user_group_name)
+        if hasattr(self, 'user_group_name'):
+            await self.remove_group(self.user_group_name)
 
     @action()
     async def join_room(self, room_pk, **kwargs):
@@ -338,7 +342,10 @@ class AdminRoomConsumer(ListModelMixin,
     async def connect(self):
         self.brand = await self.get_brand()
 
-        await self.accept()
+        if 'admin-chat' in self.scope['subprotocols']:
+            await self.accept('admin-chat')
+        else:
+            await self.close()
 
     @action()
     async def join_room(self, room_pk, **kwargs):
