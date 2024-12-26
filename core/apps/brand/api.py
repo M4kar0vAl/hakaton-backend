@@ -6,7 +6,6 @@ from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.db.models import Q, Subquery, Prefetch, Value, Count
 from django.http import QueryDict
-from django.utils import timezone
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -187,379 +186,261 @@ class BrandViewSet(
                 current_brand.categories_of_interest.values_list('id', flat=True)
             )
 
-            is_trial = current_brand.subscriptions.filter(
-                is_active=True, tariff__name='Trial', end_date__gt=timezone.now()
-            ).exists()
-
-            if is_trial:
-                # priority1 only
-                priority1 = initial_brands.filter(
-                    tags__in=current_brand_tags,
-                    avg_bill=current_brand.avg_bill,
-                    subs_count=current_brand.subs_count
-                ).distinct().exclude(
-                    pk=current_brand.id
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(1),
-                    tags_matches_num=Count('tags')
+            # priority1 only
+            priority_1 = initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+                tags__in=current_brand_tags,
+                goals__in=current_brand_goals,
+                avg_bill=current_brand.avg_bill,
+                subs_count=current_brand.subs_count
+            ).distinct().exclude(
+                pk=current_brand.id
+            ).select_related(
+                'city',
+                'category'
+            ).prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                    to_attr='match_photos'
                 )
+            ).annotate(
+                priority=Value(1),
+                formats_matches_num=Count('formats'),
+                tags_matches_num=Count('tags'),
+                goals_matches_num=Count('goals'),
+            )
 
-                # priority1 ids
-                priority1_ids = list(initial_brands.filter(
-                    tags__in=current_brand_tags,
-                    avg_bill=current_brand.avg_bill,
-                    subs_count=current_brand.subs_count
-                ).distinct().exclude(
-                    pk=current_brand.id
-                ).values_list('pk', flat=True))
+            # priority1 ids
+            # only ids, no annotation, no aggregation
+            # used for excluding this priority objects from next-tier priority
+            priority_1_ids = list(initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+                tags__in=current_brand_tags,
+                goals__in=current_brand_goals,
+                avg_bill=current_brand.avg_bill,
+                subs_count=current_brand.subs_count
+            ).distinct().exclude(
+                pk=current_brand.id
+            ).values_list('id', flat=True))
 
-                # priority2 only
-                priority2 = initial_brands.filter(
-                    tags__in=current_brand_tags,
-                    avg_bill=current_brand.avg_bill
-                ).distinct().exclude(
-                    Q(pk=current_brand.id) | Q(pk__in=priority1_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(2),
-                    tags_matches_num=Count('tags')
+            # priority2 only
+            priority_2 = initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+                tags__in=current_brand_tags,
+                goals__in=current_brand_goals,
+                avg_bill=current_brand.avg_bill
+            ).distinct().exclude(
+                Q(pk=current_brand.id) | Q(pk__in=priority_1_ids)
+            ).select_related(
+                'city',
+                'category'
+            ).prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                    to_attr='match_photos'
                 )
+            ).annotate(
+                priority=Value(2),
+                formats_matches_num=Count('formats'),
+                tags_matches_num=Count('tags'),
+                goals_matches_num=Count('goals'),
+            )
 
-                # priority2 ids
-                priority2_ids = list(initial_brands.filter(
-                    tags__in=current_brand_tags,
-                    avg_bill=current_brand.avg_bill
-                ).distinct().exclude(
-                    Q(pk=current_brand.id) | Q(pk__in=priority1_ids)
-                ).values_list('pk', flat=True))
+            # priority2 ids
+            priority_2_ids = list(initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+                tags__in=current_brand_tags,
+                goals__in=current_brand_goals,
+                avg_bill=current_brand.avg_bill
+            ).distinct().exclude(
+                Q(pk=current_brand.id) | Q(pk__in=priority_1_ids)
+            ).values_list('id', flat=True))
 
-                # priority3 only
-                priority3 = initial_brands.filter(
-                    tags__in=current_brand_tags
-                ).distinct().exclude(
-                    Q(pk=current_brand.id) | Q(pk__in=priority1_ids) | Q(pk__in=priority2_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(3),
-                    tags_matches_num=Count('tags')
+            # priority3 only
+            priority_3 = initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+                tags__in=current_brand_tags,
+                goals__in=current_brand_goals,
+            ).distinct().exclude(
+                Q(pk=current_brand.id) | Q(pk__in=priority_1_ids) | Q(pk__in=priority_2_ids)
+            ).select_related(
+                'city',
+                'category'
+            ).prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                    to_attr='match_photos'
                 )
+            ).annotate(
+                priority=Value(3),
+                formats_matches_num=Count('formats'),
+                tags_matches_num=Count('tags'),
+                goals_matches_num=Count('goals'),
+            )
 
-                # priority3 ids
-                priority3_ids = list(initial_brands.filter(
-                    tags__in=current_brand_tags
-                ).distinct().exclude(
-                    Q(pk=current_brand.id) | Q(pk__in=priority1_ids) | Q(pk__in=priority2_ids)
-                ).values_list('pk', flat=True))
+            # priority3 ids
+            priority_3_ids = list(initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+                tags__in=current_brand_tags,
+                goals__in=current_brand_goals,
+            ).distinct().exclude(
+                Q(pk=current_brand.id) | Q(pk__in=priority_1_ids) | Q(pk__in=priority_2_ids)
+            ).values_list('id', flat=True))
 
-                # priority4 only
-                priority4 = initial_brands.exclude(
-                    Q(pk=current_brand.id)
-                    | Q(pk__in=priority1_ids)
-                    | Q(pk__in=priority2_ids)
-                    | Q(pk__in=priority3_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(4),
-                    tags_matches_num=Value(0)
+            # priority4 only
+            priority_4 = initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+                tags__in=current_brand_tags,
+            ).distinct().exclude(
+                Q(pk=current_brand.id)
+                | Q(pk__in=priority_1_ids)
+                | Q(pk__in=priority_2_ids)
+                | Q(pk__in=priority_3_ids)
+            ).select_related(
+                'city',
+                'category'
+            ).prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                    to_attr='match_photos'
                 )
+            ).annotate(
+                priority=Value(4),
+                formats_matches_num=Count('formats'),
+                tags_matches_num=Count('tags'),
+                goals_matches_num=Value(0),
+            )
 
-                result = priority1.union(
-                    priority2, priority3, priority4
-                ).order_by(
-                    'priority', '-tags_matches_num'
+            # priority4 ids
+            priority_4_ids = list(initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+                tags__in=current_brand_tags,
+            ).distinct().exclude(
+                Q(pk=current_brand.id)
+                | Q(pk__in=priority_1_ids)
+                | Q(pk__in=priority_2_ids)
+                | Q(pk__in=priority_3_ids)
+            ).values_list('id', flat=True))
+
+            # priority5 only
+            priority_5 = initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+            ).distinct().exclude(
+                Q(pk=current_brand.id)
+                | Q(pk__in=priority_1_ids)
+                | Q(pk__in=priority_2_ids)
+                | Q(pk__in=priority_3_ids)
+                | Q(pk__in=priority_4_ids)
+            ).select_related(
+                'city',
+                'category'
+            ).prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                    to_attr='match_photos'
                 )
+            ).annotate(
+                priority=Value(5),
+                formats_matches_num=Count('formats'),
+                tags_matches_num=Value(0),
+                goals_matches_num=Value(0),
+            )
 
-                return result
+            # priority5 ids
+            priority_5_ids = list(initial_brands.filter(
+                formats__in=current_brand_formats,
+                category__in=current_brand_categories_of_interest,
+            ).distinct().exclude(
+                Q(pk=current_brand.id)
+                | Q(pk__in=priority_1_ids)
+                | Q(pk__in=priority_2_ids)
+                | Q(pk__in=priority_3_ids)
+                | Q(pk__in=priority_4_ids)
+            ).values_list('id', flat=True))
 
-            else:
-                # priority1 only
-                priority_1 = initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                    tags__in=current_brand_tags,
-                    goals__in=current_brand_goals,
-                    avg_bill=current_brand.avg_bill,
-                    subs_count=current_brand.subs_count
-                ).distinct().exclude(
-                    pk=current_brand.id
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(1),
-                    formats_matches_num=Count('formats'),
-                    tags_matches_num=Count('tags'),
-                    goals_matches_num=Count('goals'),
+            # priority6 only
+            priority_6 = initial_brands.filter(
+                formats__in=current_brand_formats,
+            ).distinct().exclude(
+                Q(pk=current_brand.id)
+                | Q(pk__in=priority_1_ids)
+                | Q(pk__in=priority_2_ids)
+                | Q(pk__in=priority_3_ids)
+                | Q(pk__in=priority_4_ids)
+                | Q(pk__in=priority_5_ids)
+            ).select_related(
+                'city',
+                'category'
+            ).prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                    to_attr='match_photos'
                 )
+            ).annotate(
+                priority=Value(6),
+                formats_matches_num=Count('formats'),
+                tags_matches_num=Value(0),
+                goals_matches_num=Value(0),
+            )
 
-                # priority1 ids
-                # only ids, no annotation, no aggregation
-                # used for excluding this priority objects from next-tier priority
-                priority_1_ids = list(initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                    tags__in=current_brand_tags,
-                    goals__in=current_brand_goals,
-                    avg_bill=current_brand.avg_bill,
-                    subs_count=current_brand.subs_count
-                ).distinct().exclude(
-                    pk=current_brand.id
-                ).values_list('id', flat=True))
+            # priority6 ids
+            priority_6_ids = list(initial_brands.filter(
+                formats__in=current_brand_formats,
+            ).distinct().exclude(
+                Q(pk=current_brand.id)
+                | Q(pk__in=priority_1_ids)
+                | Q(pk__in=priority_2_ids)
+                | Q(pk__in=priority_3_ids)
+                | Q(pk__in=priority_4_ids)
+                | Q(pk__in=priority_5_ids)
+            ).values_list('id', flat=True))
 
-                # priority2 only
-                priority_2 = initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                    tags__in=current_brand_tags,
-                    goals__in=current_brand_goals,
-                    avg_bill=current_brand.avg_bill
-                ).distinct().exclude(
-                    Q(pk=current_brand.id) | Q(pk__in=priority_1_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(2),
-                    formats_matches_num=Count('formats'),
-                    tags_matches_num=Count('tags'),
-                    goals_matches_num=Count('goals'),
+            # priority7 only
+            priority_7 = initial_brands.exclude(
+                Q(pk=current_brand.id)
+                | Q(pk__in=priority_1_ids)
+                | Q(pk__in=priority_2_ids)
+                | Q(pk__in=priority_3_ids)
+                | Q(pk__in=priority_4_ids)
+                | Q(pk__in=priority_5_ids)
+                | Q(pk__in=priority_6_ids)
+            ).select_related(
+                'city',
+                'category'
+            ).prefetch_related(
+                Prefetch(
+                    'product_photos',
+                    queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
+                    to_attr='match_photos'
                 )
+            ).annotate(
+                priority=Value(7),
+                formats_matches_num=Value(0),
+                tags_matches_num=Value(0),
+                goals_matches_num=Value(0),
+            )
 
-                # priority2 ids
-                priority_2_ids = list(initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                    tags__in=current_brand_tags,
-                    goals__in=current_brand_goals,
-                    avg_bill=current_brand.avg_bill
-                ).distinct().exclude(
-                    Q(pk=current_brand.id) | Q(pk__in=priority_1_ids)
-                ).values_list('id', flat=True))
+            # combine brands of all priorities and sort them
+            result = priority_1.union(
+                priority_2, priority_3, priority_4, priority_5, priority_6, priority_7
+            ).order_by('priority', '-formats_matches_num', '-tags_matches_num', '-goals_matches_num')
 
-                # priority3 only
-                priority_3 = initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                    tags__in=current_brand_tags,
-                    goals__in=current_brand_goals,
-                ).distinct().exclude(
-                    Q(pk=current_brand.id) | Q(pk__in=priority_1_ids) | Q(pk__in=priority_2_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(3),
-                    formats_matches_num=Count('formats'),
-                    tags_matches_num=Count('tags'),
-                    goals_matches_num=Count('goals'),
-                )
-
-                # priority3 ids
-                priority_3_ids = list(initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                    tags__in=current_brand_tags,
-                    goals__in=current_brand_goals,
-                ).distinct().exclude(
-                    Q(pk=current_brand.id) | Q(pk__in=priority_1_ids) | Q(pk__in=priority_2_ids)
-                ).values_list('id', flat=True))
-
-                # priority4 only
-                priority_4 = initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                    tags__in=current_brand_tags,
-                ).distinct().exclude(
-                    Q(pk=current_brand.id)
-                    | Q(pk__in=priority_1_ids)
-                    | Q(pk__in=priority_2_ids)
-                    | Q(pk__in=priority_3_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(4),
-                    formats_matches_num=Count('formats'),
-                    tags_matches_num=Count('tags'),
-                    goals_matches_num=Value(0),
-                )
-
-                # priority4 ids
-                priority_4_ids = list(initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                    tags__in=current_brand_tags,
-                ).distinct().exclude(
-                    Q(pk=current_brand.id)
-                    | Q(pk__in=priority_1_ids)
-                    | Q(pk__in=priority_2_ids)
-                    | Q(pk__in=priority_3_ids)
-                ).values_list('id', flat=True))
-
-                # priority5 only
-                priority_5 = initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                ).distinct().exclude(
-                    Q(pk=current_brand.id)
-                    | Q(pk__in=priority_1_ids)
-                    | Q(pk__in=priority_2_ids)
-                    | Q(pk__in=priority_3_ids)
-                    | Q(pk__in=priority_4_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(5),
-                    formats_matches_num=Count('formats'),
-                    tags_matches_num=Value(0),
-                    goals_matches_num=Value(0),
-                )
-
-                # priority5 ids
-                priority_5_ids = list(initial_brands.filter(
-                    formats__in=current_brand_formats,
-                    category__in=current_brand_categories_of_interest,
-                ).distinct().exclude(
-                    Q(pk=current_brand.id)
-                    | Q(pk__in=priority_1_ids)
-                    | Q(pk__in=priority_2_ids)
-                    | Q(pk__in=priority_3_ids)
-                    | Q(pk__in=priority_4_ids)
-                ).values_list('id', flat=True))
-
-                # priority6 only
-                priority_6 = initial_brands.filter(
-                    formats__in=current_brand_formats,
-                ).distinct().exclude(
-                    Q(pk=current_brand.id)
-                    | Q(pk__in=priority_1_ids)
-                    | Q(pk__in=priority_2_ids)
-                    | Q(pk__in=priority_3_ids)
-                    | Q(pk__in=priority_4_ids)
-                    | Q(pk__in=priority_5_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(6),
-                    formats_matches_num=Count('formats'),
-                    tags_matches_num=Value(0),
-                    goals_matches_num=Value(0),
-                )
-
-                # priority6 ids
-                priority_6_ids = list(initial_brands.filter(
-                    formats__in=current_brand_formats,
-                ).distinct().exclude(
-                    Q(pk=current_brand.id)
-                    | Q(pk__in=priority_1_ids)
-                    | Q(pk__in=priority_2_ids)
-                    | Q(pk__in=priority_3_ids)
-                    | Q(pk__in=priority_4_ids)
-                    | Q(pk__in=priority_5_ids)
-                ).values_list('id', flat=True))
-
-                # priority7 only
-                priority_7 = initial_brands.exclude(
-                    Q(pk=current_brand.id)
-                    | Q(pk__in=priority_1_ids)
-                    | Q(pk__in=priority_2_ids)
-                    | Q(pk__in=priority_3_ids)
-                    | Q(pk__in=priority_4_ids)
-                    | Q(pk__in=priority_5_ids)
-                    | Q(pk__in=priority_6_ids)
-                ).select_related(
-                    'city',
-                    'category'
-                ).prefetch_related(
-                    Prefetch(
-                        'product_photos',
-                        queryset=ProductPhoto.objects.filter(format=ProductPhoto.MATCH),
-                        to_attr='match_photos'
-                    )
-                ).annotate(
-                    priority=Value(7),
-                    formats_matches_num=Value(0),
-                    tags_matches_num=Value(0),
-                    goals_matches_num=Value(0),
-                )
-
-                # combine brands of all priorities and sort them
-                result = priority_1.union(
-                    priority_2, priority_3, priority_4, priority_5, priority_6, priority_7
-                ).order_by('priority', '-formats_matches_num', '-tags_matches_num', '-goals_matches_num')
-
-                return result
+            return result
 
         return super().get_queryset()
 
