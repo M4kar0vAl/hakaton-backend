@@ -287,3 +287,10 @@ class BrandRecommendedBrandsTestCase(
             response = self.auth_client1.get(self.url)
 
             self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_recommended_brands_exclude_current_brand(self):
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertFalse(any(brand['id'] == self.initial_brand.id for brand in response.data['results']))

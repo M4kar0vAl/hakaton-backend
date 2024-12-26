@@ -99,7 +99,7 @@ class Fix1(OpenApiViewExtension):
                 tags=['Brand'],
                 description="Get a list of recommended brands.\n\n"
                             "Supports filtering.\n\n"
-                            "Filters are joined with AND statement.\n\n"
+                            "Filters are joined using AND statement.\n\n"
                             "Authenticated brand only.",
                 parameters=[
                     OpenApiParameter(
