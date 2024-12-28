@@ -15,7 +15,7 @@ from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
 from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog
 from core.apps.brand.pagination import StandardResultsSetPagination
-from core.apps.brand.permissions import IsBusinessSub, IsBrand
+from core.apps.brand.permissions import IsBusinessSub, IsBrand, CanInstantCoop
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
     BrandCreateSerializer,
@@ -27,7 +27,8 @@ from core.apps.brand.serializers import (
     LikedBySerializer,
     MyLikesSerializer,
     MyMatchesSerializer,
-    RecommendedBrandsSerializer, BrandMeSerializer,
+    RecommendedBrandsSerializer,
+    BrandMeSerializer,
 )
 from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription
@@ -496,7 +497,7 @@ class BrandViewSet(
         elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches', 'recommended_brands'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
-            permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub]
+            permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub, CanInstantCoop]
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
@@ -652,8 +653,12 @@ class BrandViewSet(
         Instant cooperation.
         Returns room instance.
 
-        Only one cooperation room per a pair of brands. No matter who were the initiator.
         If room already exists, will raise BadRequest exception (400) and return error text with existing room id.
+
+        After calling this method you should use room id to connect to the room and send a message.
+        Only 1 message can be created by the user.
+
+        Requires target to be liked by the user. Otherwise, permission will be denied (403).
 
         Business subscription only.
         """

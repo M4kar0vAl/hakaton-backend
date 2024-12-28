@@ -46,8 +46,18 @@ class Fix1(OpenApiViewExtension):
                 return super().retrieve(request, *args, **kwargs)
 
             @extend_schema(
-                description='Лайкнуть бренд\n\n'
-                            'target: id бренда',
+                description='Like a brand\n\n'
+                            '\ttarget: brand id\n\n'
+                            'Situations and outcomes:\n\n'
+                            '\t1) brand1 "like" brand2 -> like (is_match: false, room: null)\n\n'
+                            '\t2) brand1 "like" brand2 & brand2 "like" brand1 '
+                            '-> match (is_match: true, room: 1 (room type is MATCH))\n\n'
+                            '\t3) brand1 "like" brand2 & brand1 "instant coop" brand2 '
+                            '-> like + 1 message (is_match: false, room: 1 (room type is INSTANT))\n\n'
+                            '\t4) brand1 "like" brand2 & brand1 "instant coop" brand2 & brand2 "like" brand1 '
+                            '-> like + 1 message (is_match: false, room: 1 (room type is INSTANT)) '
+                            '-> match (is_match: true, room: 1 (room type is MATCH, id did not change))\n\n'
+                            'Authenticated brand only',
                 tags=['Brand'],
                 responses={201: MatchSerializer}
             )

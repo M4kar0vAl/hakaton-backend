@@ -883,8 +883,8 @@ class MatchSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Match
-        exclude = ['id', 'initiator']
-        read_only_fields = ['is_match', 'room']
+        exclude = ['initiator']
+        read_only_fields = ['id', 'is_match', 'room']
 
     def validate(self, attrs):
         initiator = self.context['request'].user.brand
@@ -932,16 +932,21 @@ class MatchSerializer(serializers.ModelSerializer):
                     # if not None, then is_match is False (checked in validate)
                     match.is_match = True
 
-                    has_business = Subscription.objects.filter(
-                        Q(brand=initiator) | Q(brand=target),
-                        is_active=True,
-                        end_date__gt=timezone.now(),
-                        tariff__name='Business Match'
-                    ).exists()
+                    if match.room is not None:
+                        # if match already have room (instant), then change its type to match
+                        match.room.type = Room.MATCH
+                        match.room.save()
+                    else:
+                        has_business = Subscription.objects.filter(
+                            Q(brand=initiator) | Q(brand=target),
+                            is_active=True,
+                            end_date__gt=timezone.now(),
+                            tariff__name='Business Match'
+                        ).exists()
 
-                    room = Room.objects.create(has_business=has_business)
-                    room.participants.add(initiator.user, target.user)
-                    match.room = room
+                        room = Room.objects.create(has_business=has_business)
+                        room.participants.add(initiator.user, target.user)
+                        match.room = room
                     match.save()
                 else:
                     match = Match.objects.create(initiator=initiator, target=target)
@@ -997,6 +1002,14 @@ class InstantCoopSerializer(serializers.ModelSerializer):
             with transaction.atomic():
                 room = Room.objects.create(has_business=True, type=Room.INSTANT)
                 room.participants.add(initiator.user, target.user)
+
+                # assign instant room to this like.
+                # Like MUST exist because otherwise permission will be denied (see brand.permissions.CanInstantCoop)
+                Match.objects.filter(
+                    initiator=initiator,
+                    target=target,
+                    is_match=False
+                ).update(room=room)
         except DatabaseError:
             raise serializers.ValidationError('Failed to perform action. Please, try again!')
 
