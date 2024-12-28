@@ -100,7 +100,7 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
-        await self.check_user_in_room()
+        await self.check_user_can_create_message()
 
         message = await database_sync_to_async(Message.objects.create)(
             room=self.room,
@@ -220,6 +220,20 @@ class RoomConsumer(ListModelMixin,
         """
         if not hasattr(self, 'room'):
             raise BadRequest("Action not allowed. You are not in the room!")
+
+    async def check_user_can_create_message(self):
+        """
+        Check whether the current user allowed to create a message in room.
+
+        At first check if the user in the room
+        After that, if room type is instant and this user has already sent message, then raises BadRequest
+        """
+        await self.check_user_in_room()
+
+        if self.room.type == Room.INSTANT:
+            if self.scope['user'].messages.filter(room=self.room).exists():
+                # if user has already sent message to this instant room
+                raise BadRequest("Action not allowed. You have already sent message to this user.")
 
     @database_sync_to_async
     def get_brand(self) -> Brand:

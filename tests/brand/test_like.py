@@ -1,10 +1,13 @@
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Category, Brand, Match
 from core.apps.chat.models import Room
+from core.apps.payments.models import Subscription, Tariff
 
 User = get_user_model()
 
@@ -39,12 +42,6 @@ class BrandLikeTestCase(APITestCase):
             'name': 'brand1',
             'position': 'position',
             'category': Category.objects.get(pk=1),
-            'inst_url': 'https://example.com',
-            'vk_url': 'https://example.com',
-            'tg_url': 'https://example.com',
-            'wb_url': 'https://example.com',
-            'lamoda_url': 'https://example.com',
-            'site_url': 'https://example.com',
             'subs_count': 10000,
             'avg_bill': 10000,
             'uniqueness': 'uniqueness',
@@ -133,3 +130,34 @@ class BrandLikeTestCase(APITestCase):
         response = self.auth_client1.post(self.url, {'target': 0})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_like_in_response_if_instant_cooped(self):
+        # business subscription for brand1
+        now = timezone.now()
+        business_tariff = Tariff.objects.get(name='Business Match')
+        Subscription.objects.create(
+            brand=self.brand1,
+            tariff=business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=business_tariff.duration.days // 30),
+            is_active=True
+        )
+
+        self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2
+
+        # brand1 instant coop brand2
+        instant_coop_response = self.auth_client1.post(reverse('brand-instant-coop'), {'target': self.brand2.id})
+
+        response = self.auth_client2.post(self.url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        instant_room_id = instant_coop_response.data['id']
+        room_id = response.data['room']
+
+        # check that id of the room did not change
+        self.assertEqual(room_id, instant_room_id)
+
+        # check that room type was changed to MATCH
+        room = Room.objects.get(id=room_id)
+        self.assertEqual(room.type, Room.MATCH)
