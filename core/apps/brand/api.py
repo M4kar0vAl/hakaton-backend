@@ -653,8 +653,12 @@ class BrandViewSet(
         Instant cooperation.
         Returns room instance.
 
-        Only one cooperation room per a pair of brands. No matter who were the initiator.
         If room already exists, will raise BadRequest exception (400) and return error text with existing room id.
+
+        After calling this method you should use room id to connect to the room and send a message.
+        Only 1 message can be created by the user.
+
+        Requires target to be liked by the user. Otherwise, permission will be denied (403).
 
         Business subscription only.
         """
