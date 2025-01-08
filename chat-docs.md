@@ -40,11 +40,12 @@
 
 ## Actions
 
-### `ws://localhost:80/ws/chat/`
+### `ws/chat/`
 
 #### Необходимые разрешения
 
 - Пользователь должен быть **авторизованным**
+- У пользователя должен быть бренд
 
 #### `list`
 
@@ -86,21 +87,15 @@ _**Получить список всех комнат, в которых сос
       },
       "interlocutors_brand": {
         "id": 1,
-        "brand_name_pos": "text",
-        "fullname": "text",
+        "name": "text",
         "logo": "path",
         "photo": "path",
-        "product_photo": "path",
         "category": {
-          "text": "text"
+          "id": 1,
+          "name": "text"
         }
       },
-      "has_business": true,
-      "type": "M",
-      "participants": [
-        1,
-        2
-      ]
+      "type": "M"
     }
   ],
   "action": "list",
@@ -154,21 +149,15 @@ _**Присоединиться к комнате**_
     },
     "interlocutors_brand": {
       "id": 1,
-      "brand_name_pos": "text",
-      "fullname": "text",
+      "name": "text",
       "logo": "path",
       "photo": "path",
-      "product_photo": "path",
       "category": {
-        "text": "text"
+        "id": 1,
+        "name": "text"
       }
     },
-    "has_business": true,
-    "type": "M",
-    "participants": [
-      1,
-      2
-    ]
+    "type": "M"
   },
   "action": "join_room",
   "response_status": 200,
@@ -182,8 +171,14 @@ _**Присоединиться к комнате**_
   - ```
     "errors": []
     ```
+- **400**
+  - ```
+    "data": null,
+    "errors": ["You have already joined this room!"]
+    ```
 - **403**
   - ```
+    "data": null,
     "errors": ["You cannot enter a room you are not a member of"]
     ```
 
@@ -213,7 +208,7 @@ _**Выйти из комнаты**_
 {
   "errors": [],
   "data": {
-    "response": "leaved room 1 successfully!"
+    "response": "Leaved room 1 successfully!"
   },
   "action": "leave_room",
   "response_status": 200,
@@ -229,6 +224,7 @@ _**Выйти из комнаты**_
     ```
 - **400**
   - ```
+    "data": null,
     "errors": ["Action 'leave_room' not allowed. You are not in the room"]
     ```
 
@@ -253,9 +249,6 @@ _**Получить все сообщения комнаты**_
 ```
 
 ##### Пример ответа
-
-> [!NOTE]
-> Теперь вместо информации о пользователе возвращается его id
 
 ```json
 {
@@ -283,6 +276,7 @@ _**Получить все сообщения комнаты**_
     ```
 - **400**
   - ```
+    "data": null,
     "errors": ["Action not allowed. You are not in the room!"]
     ```
 
@@ -316,7 +310,7 @@ _**Написать сообщение**_
   "data": {
     "id": 1,
     "room": 1,
-    "text": "test",
+    "text": "hello",
     "created_at": "2024-09-05T13:02:46.859077Z",
     "user": 1
   },
@@ -334,7 +328,13 @@ _**Написать сообщение**_
     ```
 - **400**
   - ```
+    "data": null,
     "errors": ["Action not allowed. You are not in the room!"]
+    ```
+  - Если попытаться отправить больше одного сопроводительного сообщения (тип чата `INSTANT`)
+    ```
+    "data": null,
+    "errors": ["Action not allowed. You have already sent message to this user."]
     ```
 
 #### `edit_message`
@@ -385,12 +385,15 @@ _**Редактировать сообщение**_
     ```
 - **400**
   - ```
+    "data": null,
     "errors": ["Action not allowed. You are not in the room!"]
     ```
 - **404**
   - ```
+    "data": null,
     "errors": ["Message with id: {msg_id} and user: {current_user.email} not found! Check whether the user is the author of the message and the id is correct!"]
     ```
+
 #### `delete_messages`
 
 _**Удалить одно или больше сообщений**_
@@ -436,21 +439,21 @@ _**Удалить одно или больше сообщений**_
   - ```
     "errors": []
     ```
-  - ```
-    "errors": ["Not all of the requested messages were deleted! Check whether the user is the author of the message and the ids are correct! Check if messages belong to the current user's room!"]
-    ```
 - **400**
   - ```
+    "data": null,
     "errors": ["Action not allowed. You are not in the room!"]
     ```
-- **404**
+- **404**  
+  Этот статус будет вне зависимости от того все id были не найдены или только некоторые
   - ```
-    "errors": ["Messages with ids: {msg_id_list} were not found! Nothing was deleted!"]
+    "data": null,
+    "errors": ["Messages with ids [msg_id_list] do not exist! Nothing was deleted!"]
     ```
 
-#### `current_room_info`
+#### `get_support_room`
 
-_**Получить информацию о текущей комнате**_
+**_Получить комнату поддержки._**
 
 ##### Параметры
 
@@ -461,7 +464,7 @@ _**Получить информацию о текущей комнате**_
 
 ```json
 {
-  "action": "current_room_info",
+  "action": "get_support_room",
   "request_id": 1500000
 }
 ```
@@ -473,99 +476,9 @@ _**Получить информацию о текущей комнате**_
   "errors": [],
   "data": {
     "id": 1,
-    "last_message": {
-      "room": null,
-      "text": "",
-      "user": null
-    },
-    "interlocutors_brand": {
-      "id": 1,
-      "brand_name_pos": "text",
-      "fullname": "text",
-      "logo": "path",
-      "photo": "path",
-      "product_photo": "path",
-      "category": {
-        "text": "text"
-      }
-    },
-    "has_business": true,
-    "type": "M",
-    "participants": [
-      1,
-      2
-    ]
-    },
-  "action": "current_room_info",
-  "response_status": 200,
-  "request_id": 1500000
-}
-```
-
-##### Возможные статусы
-
-- **200**
-  - ```
-    "errors": []
-    ```
-- **400**
-  - ```
-    "errors": ["Action not allowed. You are not in the room!"]
-    ```
-
-#### `get_room_of_type`
-
-**_Получить комнату определенного типа._**
-
-**_Должен быть использован для получения комнат, которых может быть максимум по одной на пользователя._**
-
-**_Типы таких комнат:_**
-- **_`'S'` (Support): комната поддержки_**
-- **_`'H'` (Help): комната индивидуальной помощи с коллаборациями_**
-
-**_Для других типов вернет 400._**
-
-**_Если тип верный, но по каким-то причинам комнат все равно больше, чем одна, то вернет 500._**
-**_В этом случае админам придется чинить через админку. Но само по себе такое произойти не может._**
-
-##### Параметры
-
-- `action`: str - _название action_
-- `type_`: str - _тип комнаты_ (`_` - не опечатка! Нужно, чтобы избежать конфликта со встроенной в язык функцией)
-- `request_id`: int - _уникальный id запроса (можно указать текущую дату-время в миллисекундах)_
-
-##### Пример запроса
-
-```json
-{
-  "action": "get_room_of_type",
-  "type_": "S",
-  "request_id": 1500000
-}
-```
-
-##### Пример ответа
-
-```json
-{
-  "errors": [],
-  "data": {
-    "id": 1,
-    "last_message": {
-      "id": 1,
-      "room": 1,
-      "text": "test",
-      "created_at": "2024-09-04T11:22:02.474470Z",
-      "user": 1
-    },
-    "interlocutors_brand": null,
-    "has_business": true,
-    "type": "S",
-    "participants": [
-        1
-    ]
+    "type": "S"
   },
-  "action": "get_room_of_type",
+  "action": "get_support_room",
   "response_status": 200,
   "request_id": 1500000
 }
@@ -577,23 +490,17 @@ _**Получить информацию о текущей комнате**_
   - ```
     "errors": []
     ```
-- **201** - если комнаты не существовало она будет создана
+- **201** - если комнаты не существовало, она будет создана
   - ```
     "errors": []
     ```
-- **400** - если указали тип, который было сказано не указывать
+- **500** - если ошибка на стороне сервера
   - ```
-    "errors": ["There can be multiple rooms of type [{type_}]. Use 'list' action instead and filter result by type."]
-    ```
-- **500** - если ошибка на стороне сервера. Кто-то из админов доигрался с количеством комнат или при обращении к базе данных какая-то ошибка произошла.
-  - ```
-    "errors": ["Multiple rooms returned! Must be exactly one."]
-    ```
-  - ```
+    "data": null,
     "errors": ["Room creation failed! Please try again."]
     ```
 
-### `ws://localhost:80/ws/admin-chat/`
+### `ws/admin-chat/`
 
 **_Все те же actions, что и в обычном чате, но без `current_room_info`._**
 

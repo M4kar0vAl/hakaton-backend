@@ -1,7 +1,6 @@
 from typing import Dict, Any
 
 from channels.consumer import AsyncConsumer
-from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from djangochannelsrestframework.permissions import IsAuthenticated, BasePermission
 
@@ -28,7 +27,7 @@ class IsBrand(BasePermission):
         if not type(user) is User:
             return False
 
-        return await database_sync_to_async(Brand.objects.filter(user=user).exists)()
+        return await Brand.objects.filter(user=user).aexists()
 
     async def can_connect(
             self, scope: Dict[str, Any], consumer: AsyncConsumer, message=None
@@ -37,7 +36,7 @@ class IsBrand(BasePermission):
         if not type(user) is User:
             return False
 
-        return await database_sync_to_async(Brand.objects.filter(user=user).exists)()
+        return await Brand.objects.filter(user=user).aexists()
 
 
 class IsAdminUser(BasePermission):

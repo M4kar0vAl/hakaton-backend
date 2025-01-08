@@ -561,7 +561,7 @@ class BrandViewSet(
 
             # delete user's support and help chats
             # messages in that chats will be deleted
-            user.rooms.filter(Q(type=Room.SUPPORT) | Q(type=Room.HELP)).delete()
+            user.rooms.filter(type=Room.SUPPORT).delete()
 
             # delete user, brand will remain with user=NULL
             # all user's messages 'user' field in match and instant chats will be set to NULL

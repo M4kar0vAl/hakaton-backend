@@ -1,7 +1,7 @@
 from channels.db import database_sync_to_async
 from cities_light.models import Country, City
 from django.contrib.auth import get_user_model
-from django.test import override_settings, TransactionTestCase, tag
+from django.test import TransactionTestCase, override_settings, tag
 from rest_framework_simplejwt.tokens import AccessToken
 
 from core.apps.brand.models import Category, Brand

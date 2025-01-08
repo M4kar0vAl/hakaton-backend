@@ -3,7 +3,7 @@ from typing import Type, Optional
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.db import transaction, DatabaseError
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Prefetch, Q, OuterRef, Subquery
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
@@ -15,7 +15,7 @@ from core.apps.brand.models import Brand
 from core.apps.chat.exceptions import BadRequest, ServerError
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser, IsBrand
-from core.apps.chat.serializers import RoomSerializer, MessageSerializer
+from core.apps.chat.serializers import RoomSerializer, MessageSerializer, RoomListSerializer
 from core.apps.chat.utils import reply_to_groups
 
 User = get_user_model()
@@ -29,14 +29,34 @@ class RoomConsumer(ListModelMixin,
 
     def get_queryset(self, **kwargs) -> QuerySet:
         if 'action' in kwargs:
-            if kwargs['action'] == 'get_room_messages':
+            action_ = kwargs['action']
+            if action_ == 'get_room_messages':
                 return self.room.messages
+            elif action_ == 'list':
+                last_message_in_room = Message.objects.filter(
+                    pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+                )
+
+                return self.scope['user'].rooms.prefetch_related(
+                    Prefetch(
+                        'participants',
+                        queryset=User.objects.filter(~Q(pk=self.scope['user'].id)).select_related('brand__category'),
+                        to_attr='interlocutor_users'
+                    ),
+                    Prefetch(
+                        'messages',
+                        queryset=last_message_in_room,
+                        to_attr='last_message'
+                    )
+                )
 
         return self.scope['user'].rooms.all()
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
         if kwargs['action'] in ('create_message', 'get_room_messages'):
             return MessageSerializer
+        elif kwargs['action'] == 'list':
+            return RoomListSerializer
         return super().get_serializer_class()
 
     async def connect(self):
@@ -57,6 +77,9 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def join_room(self, room_pk, **kwargs):
+        if hasattr(self, 'room') and self.room.pk == room_pk:
+            raise BadRequest('You have already joined this room!')
+
         if room_pk not in self.brand_rooms:
             # update related room_pks
             self.brand_rooms = await self.get_brand_rooms_pk_set()
@@ -91,6 +114,7 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def get_room_messages(self, **kwargs):
+        # TODO add some kind of pagination or return only messages that created no longer than <time> ago
         await self.check_user_in_room()
 
         messages = await database_sync_to_async(self.get_queryset)(**kwargs)
@@ -149,10 +173,21 @@ class RoomConsumer(ListModelMixin,
     async def delete_messages(self, msg_id_list: list[int], **kwargs):
         await self.check_user_in_room()
 
-        deleted_count = await self.delete_messages_in_db(msg_id_list)
+        # get existing messages ids
+        existing = Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).values_list(
+            'pk',
+            flat=True
+        )
 
-        if deleted_count == 0:
-            raise NotFound(f"Messages with ids: {msg_id_list} were not found! Nothing was deleted!")
+        # calculate not existing ids
+        not_existing = await database_sync_to_async(set)(msg_id_list) - await database_sync_to_async(set)(existing)
+
+        # delete nothing and raise exception if there are not existing messages
+        if not_existing:
+            raise NotFound(f'Messages with ids {list(not_existing)} do not exist! Nothing was deleted.')
+
+        # if all messages were found then delete them
+        await self.delete_messages_in_db(msg_id_list)
 
         data = {
             'room_id': self.room.pk,
@@ -160,13 +195,6 @@ class RoomConsumer(ListModelMixin,
         }
 
         errors = []
-
-        if deleted_count != len(msg_id_list):
-            errors.append(
-                "Not all of the requested messages were deleted! "
-                "Check whether the user is the author of the message and the ids are correct! "
-                "Check if messages belong to the current user's room!"
-            )
 
         await reply_to_groups(
             groups=(self.room_group_name,),
@@ -179,29 +207,8 @@ class RoomConsumer(ListModelMixin,
         )
 
     @action()
-    async def current_room_info(self, **kwargs):
-        await self.check_user_in_room()
-
-        room_data = await self.get_serialized_room(**kwargs)
-
-        await reply_to_groups(
-            groups=(self.user_group_name,),
-            handler_name='data_to_groups',
-            action=kwargs['action'],
-            data=room_data,
-            status=status.HTTP_200_OK,
-            request_id=kwargs['request_id']
-        )
-
-    @action()
-    async def get_room_of_type(self, type_, **kwargs):
-        if type_ in (Room.MATCH, Room.INSTANT):
-            raise BadRequest(
-                f"There can be multiple rooms of type [{type_}]. "
-                "Use 'list' action instead and filter result by type."
-            )
-
-        room, created = await self.get_or_create_room(type_=type_)
+    async def get_support_room(self, **kwargs):
+        room, created = await self.get_or_create_support_room()
 
         room_data = await self.get_serialized_room(room=room, **kwargs)
 
@@ -231,7 +238,7 @@ class RoomConsumer(ListModelMixin,
         await self.check_user_in_room()
 
         if self.room.type == Room.INSTANT:
-            if self.scope['user'].messages.filter(room=self.room).exists():
+            if await self.scope['user'].messages.filter(room=self.room).aexists():
                 # if user has already sent message to this instant room
                 raise BadRequest("Action not allowed. You have already sent message to this user.")
 
@@ -273,29 +280,19 @@ class RoomConsumer(ListModelMixin,
         return Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).delete()[0]
 
     @database_sync_to_async
-    def get_or_create_room(self, type_: str) -> tuple[Room, bool]:
+    def get_or_create_support_room(self) -> tuple[Room, bool]:
         """
-        Get room of specific type for current brand. If room does not exist, then create it.
-        The room type being passed must be such that there can only be one room of that type.
-        Otherwise, ServerError (500) will be raised.
+        Get support room for current brand. If room does not exist, then create it.
 
         Returns room instance and status whether it was created or not.
-
-        Args:
-            type_: room type, must be one of the Room.TYPE_CHOICES
         """
         created = False  # whether a new room was created
         try:
-            room = self.scope['user'].rooms.get(type=type_)
-        except Room.MultipleObjectsReturned:
-            raise ServerError("Multiple rooms returned! Must be exactly one.")
+            room = self.scope['user'].rooms.get(type=Room.SUPPORT)
         except Room.DoesNotExist:
             try:
                 with transaction.atomic():
-                    room = Room.objects.create(
-                        has_business=self.brand.subscription.name == 'Бизнес',  # TODO change business sub definition
-                        type=type_
-                    )
+                    room = Room.objects.create(type=Room.SUPPORT)
                     room.participants.add(self.scope['user'])
                     created = True
             except DatabaseError:
@@ -574,10 +571,7 @@ class AdminRoomConsumer(ListModelMixin,
         except Room.DoesNotExist:
             try:
                 with transaction.atomic():
-                    room = Room.objects.create(
-                        has_business=self.brand.subscription.name == 'Бизнес' if self.brand is not None else False,  # TODO change business sub definition
-                        type=Room.SUPPORT
-                    )
+                    room = Room.objects.create(type=Room.SUPPORT)
                     room.participants.add(self.scope['user'])
                     created = True
             except DatabaseError:
