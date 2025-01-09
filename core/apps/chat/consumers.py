@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.serializers import Serializer
 
-from core.apps.brand.models import Brand
+from core.apps.brand.models import Brand, Match
 from core.apps.chat.exceptions import BadRequest, ServerError
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser, IsBrand
@@ -238,7 +238,14 @@ class RoomConsumer(ListModelMixin,
         await self.check_user_in_room()
 
         if self.room.type == Room.INSTANT:
-            if await self.scope['user'].messages.filter(room=self.room).aexists():
+            match = await Match.objects.aget(room=self.room)
+            if match.initiator_id != self.brand.id:
+                # if the user is not the initiator of the instant coop
+                raise BadRequest(
+                    "You cannot send a message to this room. "
+                    "Like this brand in response to be able to send a message."
+                )
+            elif await self.scope['user'].messages.filter(room=self.room).aexists():
                 # if user has already sent message to this instant room
                 raise BadRequest("Action not allowed. You have already sent message to this user.")
 

@@ -336,6 +336,11 @@ _**Написать сообщение**_
     "data": null,
     "errors": ["Action not allowed. You have already sent message to this user."]
     ```
+  - Если попытаться отправить сообщение в чат типа `INSTANT`, не являясь инициатором кооперации
+    ```
+    "data": null,
+    "errors": ["You cannot send a message to this room. Like this brand in response to be able to send a message."]
+    ```
 
 #### `edit_message`
 
