@@ -2,6 +2,7 @@ from typing import Type, Optional
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
+from django.core.paginator import Paginator, InvalidPage
 from django.db import transaction, DatabaseError
 from django.db.models import QuerySet, Prefetch, Q, OuterRef, Subquery
 from djangochannelsrestframework.decorators import action
@@ -31,7 +32,7 @@ class RoomConsumer(ListModelMixin,
         if 'action' in kwargs:
             action_ = kwargs['action']
             if action_ == 'get_room_messages':
-                return self.room.messages
+                return self.room.messages.order_by('-created_at', 'id')
             elif action_ == 'list':
                 last_message_in_room = Message.objects.filter(
                     pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
@@ -75,6 +76,9 @@ class RoomConsumer(ListModelMixin,
         if hasattr(self, 'user_group_name'):
             await self.remove_group(self.user_group_name)
 
+        if hasattr(self, 'paginator'):
+            delattr(self, 'paginator')
+
     @action()
     async def join_room(self, room_pk, **kwargs):
         if hasattr(self, 'room') and self.room.pk == room_pk:
@@ -105,6 +109,9 @@ class RoomConsumer(ListModelMixin,
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
+        if hasattr(self, 'paginator'):
+            delattr(self, 'paginator')
+
         if hasattr(self, 'room'):
             pk = self.room.pk
             delattr(self, 'room')
@@ -113,14 +120,33 @@ class RoomConsumer(ListModelMixin,
         raise BadRequest("Action 'leave_room' not allowed. You are not in the room")
 
     @action()
-    async def get_room_messages(self, **kwargs):
-        # TODO add some kind of pagination or return only messages that created no longer than <time> ago
+    async def get_room_messages(self, page: int, **kwargs):
         await self.check_user_in_room()
 
         messages = await database_sync_to_async(self.get_queryset)(**kwargs)
-        messages_data = await self.get_serialized_message(messages, many=True, **kwargs)
 
-        return messages_data, status.HTTP_200_OK
+        if not hasattr(self, 'paginator'):
+            self.paginator = Paginator(messages, 100)
+
+        await self.check_page_number(page)
+
+        page = await database_sync_to_async(self.paginator.get_page)(page)
+
+        try:
+            next_ = page.next_page_number()
+        except InvalidPage:
+            next_ = None
+
+        page_objs = page.object_list
+
+        messages_data = await self.get_serialized_message(page_objs, many=True, **kwargs)
+
+        data = {
+            'messages': messages_data,
+            'next': next_
+        }
+
+        return data, status.HTTP_200_OK
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
@@ -248,6 +274,14 @@ class RoomConsumer(ListModelMixin,
             elif await self.scope['user'].messages.filter(room=self.room).aexists():
                 # if user has already sent message to this instant room
                 raise BadRequest("Action not allowed. You have already sent message to this user.")
+
+    @database_sync_to_async
+    def check_page_number(self, page) -> None:
+        if type(page) is not int:
+            raise BadRequest('Page number must be an integer!')
+
+        if page not in self.paginator.page_range:
+            raise BadRequest(f'Page {page} does not exist!')
 
     @database_sync_to_async
     def get_brand(self) -> Brand:

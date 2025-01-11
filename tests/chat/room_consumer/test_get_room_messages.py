@@ -79,6 +79,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase):
 
         await communicator.send_json_to({
             'action': 'get_room_messages',
+            'page': 1,
             'request_id': 1500000
         })
 
@@ -155,6 +156,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase):
 
         await communicator1.send_json_to({
             'action': 'get_room_messages',
+            'page': 1,
             'request_id': 1500000
         })
 
@@ -166,7 +168,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase):
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        self.assertEqual(len(response['data']), len(messages))
+        self.assertEqual(len(response['data']['messages']), len(messages))
 
     async def test_get_room_messages_returns_only_current_room_messages(self):
         room1 = await Room.objects.acreate(type=Room.MATCH)
@@ -230,6 +232,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase):
 
         await communicator.send_json_to({
             'action': 'get_room_messages',
+            'page': 1,
             'request_id': 1500000
         })
 
@@ -239,4 +242,113 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase):
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        self.assertEqual(len(response['data']), len(room1_messages))
+        self.assertEqual(len(response['data']['messages']), len(room1_messages))
+
+    async def test_get_room_messages_pagination(self):
+        room = await Room.objects.acreate(type=Room.MATCH)
+
+        await room.participants.aset([self.user1, self.user2])
+
+        await Message.objects.abulk_create([
+            Message(
+                text=f'msg_{i}',
+                user=self.user1,
+                room=room
+            )
+            for i in range(109)
+        ] + [
+            Message(
+                text=f'msg_{i}',
+                user=self.user2,
+                room=room
+            )
+            for i in range(109, 220)
+        ])
+
+        access = AccessToken.for_user(self.user1)
+
+        communicator = get_websocket_communicator(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            token=access
+        )
+
+        connected, subprotocol = await communicator.connect()
+
+        self.assertTrue(connected)
+
+        await communicator.send_json_to({
+            'action': 'join_room',
+            'room_pk': room.pk,
+            'request_id': 1500000
+        })
+
+        await communicator.receive_json_from()
+
+        # first page
+        await communicator.send_json_to({
+            'action': 'get_room_messages',
+            'page': 1,
+            'request_id': 1500000
+        })
+
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+        self.assertEqual(len(response['data']['messages']), 100)
+        self.assertEqual(response['data']['next'], 2)
+
+        # second page
+        await communicator.send_json_to({
+            'action': 'get_room_messages',
+            'page': 2,
+            'request_id': 1500000
+        })
+
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+        self.assertEqual(len(response['data']['messages']), 100)
+        self.assertEqual(response['data']['next'], 3)
+
+        # third page
+        await communicator.send_json_to({
+            'action': 'get_room_messages',
+            'page': 3,
+            'request_id': 1500000
+        })
+
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+        self.assertEqual(len(response['data']['messages']), 20)
+        self.assertIsNone(response['data']['next'])
+
+        # negative page number
+        await communicator.send_json_to({
+            'action': 'get_room_messages',
+            'page': -1,
+            'request_id': 1500000
+        })
+
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(response['errors'])
+        self.assertIsNone(response['data'])
+
+        # page number is not a number
+        await communicator.send_json_to({
+            'action': 'get_room_messages',
+            'page': 'fgbhnj',
+            'request_id': 1500000
+        })
+
+        response = await communicator.receive_json_from()
+
+        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(response['errors'])
+        self.assertIsNone(response['data'])
