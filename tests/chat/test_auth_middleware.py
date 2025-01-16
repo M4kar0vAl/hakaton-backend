@@ -86,7 +86,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         )
 
         # middleware transforms request after communicator.connect()
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 
@@ -117,7 +117,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
             token=access
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 
@@ -143,7 +143,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
             subprotocols=[str(access)]
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         # connection will be rejected, because accepted protocol not in the subprotocols list
         self.assertFalse(connected)
@@ -174,7 +174,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
             subprotocols=protocols.split(', ')
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 

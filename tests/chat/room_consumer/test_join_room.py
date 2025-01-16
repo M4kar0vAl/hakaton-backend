@@ -2,12 +2,12 @@ from cities_light.models import City, Country
 from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
-from rest_framework_simplejwt.tokens import AccessToken
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.models import Room
-from tests.utils import get_websocket_communicator
+from tests.mixins import RoomConsumerActionsMixin
+from tests.utils import join_room, get_websocket_communicator_for_user
 
 User = get_user_model()
 
@@ -20,7 +20,7 @@ User = get_user_model()
     }
 )
 @tag('slow', 'chats')
-class RoomConsumerJoinRoomTestCase(TransactionTestCase):
+class RoomConsumerJoinRoomTestCase(TransactionTestCase, RoomConsumerActionsMixin):
     serialized_rollback = True
 
     def setUp(self):
@@ -75,75 +75,31 @@ class RoomConsumerJoinRoomTestCase(TransactionTestCase):
             else:
                 await room.participants.aset([self.user1, self.user2])
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
         match_room, instant_room, support_room = rooms
 
         # check join match room
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': match_room.id,
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
-
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-        await communicator.send_json_to({
-            'action': 'leave_room',
-            'request_id': 1500000
-        })
-
-        await communicator.receive_json_from()
+        async with join_room(communicator, match_room.pk) as response:
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
         # check join instant room
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': instant_room.id,
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
-
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-        await communicator.send_json_to({
-            'action': 'leave_room',
-            'request_id': 1500000
-        })
-
-        await communicator.receive_json_from()
+        async with join_room(communicator, instant_room.pk) as response:
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
         # check join support room
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': support_room.id,
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
-
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-        await communicator.send_json_to({
-            'action': 'leave_room',
-            'request_id': 1500000
-        })
-
-        await communicator.receive_json_from()
+        async with join_room(communicator, support_room.pk) as response:
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
         await communicator.disconnect()
 
@@ -156,43 +112,27 @@ class RoomConsumerJoinRoomTestCase(TransactionTestCase):
         for room in rooms:
             await room.participants.aset([self.user1, self.user2])
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
         room1, room2 = rooms
 
-        # join room1
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room1.pk,
-            'request_id': 1500000
-        })
+        async with join_room(communicator, room1.pk):
+            # join room2
+            response = await self.join_room(communicator, room2.pk)
 
-        response = await communicator.receive_json_from()
-
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-        # join room2
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room2.pk,
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
-
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
 
         await communicator.disconnect()
 
@@ -201,92 +141,47 @@ class RoomConsumerJoinRoomTestCase(TransactionTestCase):
 
         await room.participants.aset([self.user1, self.user2])
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        # join room
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room.pk,
-            'request_id': 1500000
-        })
+        async with join_room(communicator, room.pk):
+            # try to rejoin room
+            response = await self.join_room(communicator, room.pk)
 
-        await communicator.receive_json_from()
-
-        # try to rejoin room
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room.pk,
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
-
-        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
-
-        self.assertIsNone(response['data'])
-        self.assertTrue(response['errors'])
-
-        # leave room
-        await communicator.send_json_to({
-            'action': 'leave_room',
-            'request_id': 1500000
-        })
-
-        await communicator.receive_json_from()
-
-        # join room
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room.pk,
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
 
         await communicator.disconnect()
-
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
     async def test_join_room_not_a_member_of(self):
         room = await Room.objects.acreate(type=Room.MATCH)
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room.pk,
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+        response = await self.join_room(communicator, room.pk)
 
         await communicator.disconnect()
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-
         self.assertIsNone(response['data'])
         self.assertTrue(response['errors'])

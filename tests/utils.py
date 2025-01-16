@@ -1,12 +1,16 @@
+from contextlib import asynccontextmanager
 from typing import Type
 
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
+from django.contrib.auth import get_user_model
 from django.urls import re_path
-from rest_framework_simplejwt.tokens import Token
+from rest_framework_simplejwt.tokens import Token, AccessToken
 
 from core.apps.chat.middleware import JwtAuthMiddlewareStack
+
+User = get_user_model()
 
 
 def get_websocket_application(
@@ -62,3 +66,92 @@ def get_websocket_communicator(
     )
 
     return communicator
+
+
+def get_websocket_communicator_for_user(
+    url_pattern: str,
+    path: str,
+    consumer_class: Type[AsyncJsonWebsocketConsumer],
+    protocols: list[str],
+    user: User
+):
+    access = AccessToken.for_user(user)
+
+    communicator = get_websocket_communicator(
+        url_pattern=url_pattern,
+        path=path,
+        consumer_class=consumer_class,
+        protocols=protocols,
+        token=access
+    )
+
+    return communicator
+
+
+@asynccontextmanager
+async def join_room(communicator: WebsocketCommunicator, room_pk: int):
+    """
+    Join room and return response
+
+    Leave room on exit
+
+    Args:
+        communicator: connected communicator for interactions with websocket application
+        room_pk: id of a room to join
+    """
+    await communicator.send_json_to({
+        'action': 'join_room',
+        'room_pk': room_pk,
+        'request_id': 1500000
+    })
+
+    response = await communicator.receive_json_from()
+
+    try:
+        yield response
+    finally:
+        await communicator.send_json_to({
+            'action': 'leave_room',
+            'request_id': 1500000
+        })
+
+        await communicator.receive_json_from()
+
+
+@asynccontextmanager
+async def join_room_communal(communicators: list[WebsocketCommunicator], room_pk: int):
+    """
+    Context manager for connecting several communicators to one room.
+
+    On exit leaves the room for each communicator
+
+    Args:
+        communicators: list of communicators for joining the room
+        room_pk: id of the room to be connected to
+
+    Returns:
+        list of responses of calling join room for each communicator, preserving the order
+    """
+    responses = []
+
+    for communicator in communicators:
+        await communicator.send_json_to({
+            'action': 'join_room',
+            'room_pk': room_pk,
+            'request_id': 1500000
+        })
+
+        response = await communicator.receive_json_from()
+
+        responses.append(response)
+
+    try:
+        yield responses
+    finally:
+        for communicator in communicators:
+            await communicator.send_json_to({
+                'action': 'leave_room',
+                'request_id': 1500000
+            })
+
+            await communicator.receive_json_from()

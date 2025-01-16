@@ -81,8 +81,8 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def join_room(self, room_pk, **kwargs):
-        if hasattr(self, 'room') and self.room.pk == room_pk:
-            raise BadRequest('You have already joined this room!')
+        if hasattr(self, 'room'):
+            raise BadRequest('You have already joined a room!')
 
         if room_pk not in self.brand_rooms:
             # update related room_pks
@@ -142,6 +142,7 @@ class RoomConsumer(ListModelMixin,
         messages_data = await self.get_serialized_message(page_objs, many=True, **kwargs)
 
         data = {
+            'count': self.paginator.count,
             'messages': messages_data,
             'next': next_
         }
@@ -240,8 +241,8 @@ class RoomConsumer(ListModelMixin,
 
         if created:
             return room_data, status.HTTP_201_CREATED
-        else:
-            return room_data, status.HTTP_200_OK
+
+        return room_data, status.HTTP_200_OK
 
     async def data_to_groups(self, event):
         await self.send_json(event['payload'])
@@ -381,35 +382,60 @@ class AdminRoomConsumer(ListModelMixin,
 
     def get_queryset(self, **kwargs) -> QuerySet:
         if 'action' in kwargs:
-            if kwargs['action'] == 'get_room_messages':
-                return self.room.messages
+            action_ = kwargs['action']
+            if action_ == 'get_room_messages':
+                return self.room.messages.order_by('-created_at', 'id')
+            elif action_ == 'list':
+                last_message_in_room = Message.objects.filter(
+                    pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+                )
+
+                return Room.objects.prefetch_related(
+                    Prefetch(
+                        'participants',
+                        queryset=User.objects.filter(~Q(pk=self.scope['user'].id)).select_related('brand__category'),
+                        to_attr='interlocutor_users'
+                    ),
+                    Prefetch(
+                        'messages',
+                        queryset=last_message_in_room,
+                        to_attr='last_message'
+                    )
+                )
         return super().get_queryset(**kwargs)
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
         if kwargs['action'] in ('create_message', 'get_room_messages'):
             return MessageSerializer
+        elif kwargs['action'] == 'list':
+            return RoomListSerializer
 
         return super().get_serializer_class()
 
     async def connect(self):
-        self.brand = await self.get_brand()
-
         if 'admin-chat' in self.scope['subprotocols']:
             await self.accept('admin-chat')
         else:
             await self.close()
 
+    async def disconnect(self, code):
+        if hasattr(self, 'paginator'):
+            delattr(self, 'paginator')
+
     @action()
     async def join_room(self, room_pk, **kwargs):
+        if hasattr(self, 'room'):
+            raise BadRequest('You have already joined a room!')
+
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
         self.room = await database_sync_to_async(self.get_object)(pk=room_pk)
         self.room_group_name = f'room_{room_pk}'
 
-        # can create/edit/delete messages only in support chat or in default after-match chat (if admin has brand)
+        # can create/edit/delete messages only in support chat
         # can view messages in all chats
-        self.can_message = self.room.type in [Room.SUPPORT, Room.HELP] or await self.is_user_in_participants()
+        self.can_message = self.room.type == Room.SUPPORT
 
         await self.add_group(self.room_group_name)
 
@@ -422,6 +448,9 @@ class AdminRoomConsumer(ListModelMixin,
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
+        if hasattr(self, 'paginator'):
+            delattr(self, 'paginator')
+
         if hasattr(self, 'room'):
             pk = self.room.pk
             delattr(self, 'room')
@@ -430,20 +459,40 @@ class AdminRoomConsumer(ListModelMixin,
         raise BadRequest("Action 'leave_room' not allowed. You are not in the room")
 
     @action()
-    async def get_room_messages(self, **kwargs):
-        if not hasattr(self, 'room'):
-            raise BadRequest("Action not allowed. You are not in the room!")
+    async def get_room_messages(self, page: int, **kwargs):
+        await self.check_user_in_room()
 
         messages = await database_sync_to_async(self.get_queryset)(**kwargs)
-        messages_data = await self.get_serialized_message(messages, many=True, **kwargs)
 
-        return messages_data, status.HTTP_200_OK
+        if not hasattr(self, 'paginator'):
+            self.paginator = Paginator(messages, 100)
+
+        await self.check_page_number(page)
+
+        page = await database_sync_to_async(self.paginator.get_page)(page)
+
+        try:
+            next_ = page.next_page_number()
+        except InvalidPage:
+            next_ = None
+
+        page_objs = page.object_list
+
+        messages_data = await self.get_serialized_message(page_objs, many=True, **kwargs)
+
+        data = {
+            'count': self.paginator.count,
+            'messages': messages_data,
+            'next': next_
+        }
+
+        return data, status.HTTP_200_OK
 
     @action()
     async def create_message(self, msg_text, **kwargs):
         await self.check_admin_can_act()
 
-        message = await database_sync_to_async(Message.objects.create)(
+        message = await Message.objects.acreate(
             room=self.room,
             user=self.scope['user'],
             text=msg_text
@@ -491,14 +540,20 @@ class AdminRoomConsumer(ListModelMixin,
     async def delete_messages(self, msg_id_list: list[int], **kwargs):
         await self.check_admin_can_act()
 
-        deleted_count = await self.delete_messages_in_db(msg_id_list)
+        # get existing messages ids
+        existing = Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).values_list(
+            'pk',
+            flat=True
+        )
 
-        if deleted_count == 0:
-            raise NotFound(
-                f"Messages with ids: {msg_id_list} were not found! Nothing was deleted! "
-                "Check whether the user is the author of the message and the ids are correct! "
-                "Check if messages belong to the current user's room!"
-            )
+        # calculate not existing ids
+        not_existing = await database_sync_to_async(set)(msg_id_list) - await database_sync_to_async(set)(existing)
+
+        # delete nothing and raise exception if there are not existing messages
+        if not_existing:
+            raise NotFound(f'Messages with ids {list(not_existing)} do not exist! Nothing was deleted.')
+
+        await self.delete_messages_in_db(msg_id_list)
 
         data = {
             'room_id': self.room.pk,
@@ -506,13 +561,6 @@ class AdminRoomConsumer(ListModelMixin,
         }
 
         errors = []
-
-        if deleted_count != len(msg_id_list):
-            errors.append(
-                "Not all of the requested messages were deleted! "
-                "Check whether the user is the author of the message and the ids are correct! "
-                "Check if messages belong to the current user's room!"
-            )
 
         await reply_to_groups(
             groups=(self.room_group_name,),
@@ -532,40 +580,44 @@ class AdminRoomConsumer(ListModelMixin,
 
         if created:
             return room_data, status.HTTP_201_CREATED
-        else:
-            return room_data, status.HTTP_200_OK
+
+        return room_data, status.HTTP_200_OK
 
     async def data_to_groups(self, event):
         await self.send_json(event['payload'])
+
+    async def check_user_in_room(self):
+        """
+        Check whether the user connected to any room or not.
+        If not raises exception BadRequest, otherwise does nothing.
+        """
+        if not hasattr(self, 'room'):
+            raise BadRequest("Action not allowed. You are not in the room!")
 
     async def check_admin_can_act(self):
         """
         Check whether admin can create, edit and delete messages in room.
 
         If admin not connected to a room, then raises BadRequest exception.
-        If room is not support or help room, then raises PermissionDenied exception.
+        If room type is not SUPPORT, then raises PermissionDenied exception.
         Otherwise, does nothing.
         """
         try:
             if not self.can_message:
                 raise PermissionDenied(
                     "Action not allowed. "
-                    f"You cannot write to room of type [{self.room.get_type_display()}] "
-                    "if you are not a participant of it!"
+                    f"You cannot write to a room of type [{self.room.get_type_display()}]."
                 )
         except AttributeError:
             raise BadRequest("Action not allowed. You are not in the room!")
 
     @database_sync_to_async
-    def get_brand(self) -> Brand | None:
-        try:
-            return self.scope['user'].brand
-        except User.brand.RelatedObjectDoesNotExist:
-            return None
+    def check_page_number(self, page) -> None:
+        if type(page) is not int:
+            raise BadRequest('Page number must be an integer!')
 
-    @database_sync_to_async
-    def is_user_in_participants(self):
-        return self.scope['user'] in self.room.participants.all()
+        if page not in self.paginator.page_range:
+            raise BadRequest(f'Page {page} does not exist!')
 
     @database_sync_to_async
     def edit_message_in_db(self, msg_id: int, text: str) -> int:
@@ -607,8 +659,6 @@ class AdminRoomConsumer(ListModelMixin,
         created = False  # whether a new room was created
         try:
             room = self.scope['user'].rooms.get(type=Room.SUPPORT)
-        except Room.MultipleObjectsReturned:
-            raise ServerError('Multiple rooms returned! Must be exactly one.')
         except Room.DoesNotExist:
             try:
                 with transaction.atomic():

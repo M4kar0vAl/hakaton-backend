@@ -1,7 +1,12 @@
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from core.apps.accounts.serializers import UserSerializer
 from core.apps.brand.serializers import GetShortBrandSerializer
 from core.apps.chat.models import Room, Message
+
+
+User = get_user_model()
 
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -26,16 +31,30 @@ class RoomListSerializer(serializers.ModelSerializer):
         return None
 
     def get_interlocutors_brand(self, room):
-        # if self.context['scope']['user'].is_staff:
-        #     return GetShortBrandSerializer((user.brand for user in obj.interlocutor_users), many=True).data
-        # else:
-        #     if obj.type == Room.SUPPORT:
-        #         return W2W agency
-        #     else:
-        #         return GetShortBrandSerializer((user.brand for user in obj.interlocutor_users), many=True).data
+        # if room.type == Room.SUPPORT and not room.interlocutor_users:
+        #     return W2W agency
 
-        # obj.interlocutor_users is a list of users in the room which are not the current user
-        return GetShortBrandSerializer((user.brand for user in room.interlocutor_users), many=True).data
+        users = []
+        brands = []
+
+        # interlocutor_users is a list of users in the room who are not the current user
+        for user in room.interlocutor_users:
+            try:
+                brand = user.brand
+                brands.append(brand)
+            except User.brand.RelatedObjectDoesNotExist:
+                # users without brands are admins
+                users.append(user)
+
+        data = []
+
+        if users:
+            data += UserSerializer(users, many=True).data
+
+        if brands:
+            data += GetShortBrandSerializer(brands, many=True).data
+
+        return data
 
 
 class MessageSerializer(serializers.ModelSerializer):

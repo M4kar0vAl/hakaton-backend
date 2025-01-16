@@ -70,8 +70,6 @@ _**Получить список всех комнат, в которых сос
 `participants` - id пользователей (не брендов)
 `interlocutors_brand` - короткая информация о бренде собеседника, используйте ее для отрисовки списка чатов. Когда пользователь захочет подробно про бренд посмотреть делайте запрос на `/api/v1/brand/{id}/` для получения всей информации.
 
-Для комнат поддержки/помощи `interlocutors_brand` вернет `null`. Возможно, потом заменю на бренд агентство W2W.
-
 ```json
 {
   "errors": [],
@@ -174,7 +172,7 @@ _**Присоединиться к комнате**_
 - **400**
   - ```
     "data": null,
-    "errors": ["You have already joined this room!"]
+    "errors": ["You have already joined a room!"]
     ```
 - **403**
   - ```
@@ -235,7 +233,10 @@ _**Получить все сообщения комнаты**_
 `room_pk` не передается, отправляет сообщения текущей комнаты
 
 Пагинация по 100 сообщений на странице. Номер первой страницы - 1.  
-`next` в ответе - номер следующей страницы. `null`, если эта страница последняя.
+
+В ответе:
+- `count` - кол-во всех сообщений в комнате
+- `next` - номер следующей страницы. `null`, если эта страница последняя.
 
 ##### Параметры
 
@@ -259,6 +260,7 @@ _**Получить все сообщения комнаты**_
 {
   "errors": [],
   "data": {
+    "count": 1,
     "messages": [
       {
         "id": 1,
@@ -525,13 +527,11 @@ _**Удалить одно или больше сообщений**_
 
 ### `ws/admin-chat/`
 
-**_Все те же actions, что и в обычном чате, но без `current_room_info`._**
-
-**_`get_room_of_type` заменено на `get_support_room`, потому что админы могут писать в поддержку (коллективный разум, все дела), но комнаты помощи им недоступны_**
+**_Все те же actions, что и в обычном чате._**
 
 **_У некоторых actions изменено поведение (см. ниже)_**
 
-**_Во всех ответах, где есть `interlocutors_brand` возвращает список брендов всех участников комнаты, если они есть. Структура такая же, только вместо одного объекта - список объектов. (P.S. мне лень было определять, где админ, как админ, а где как пользователь, поэтому пока будет так)_**
+**_В actions, в ответах которых есть `interlocutors_brand` возвращаются все пользователи состоящие в комнате._**
 
 #### Необходимые разрешения
 
@@ -540,7 +540,7 @@ _**Удалить одно или больше сообщений**_
 #### Права
 
 - Просматривать сообщения можно в **любой** комнате
-- `create_message`, `edit_message`, `delete_messages` доступны только в комнатах поддержки и помощи или метча, если это метч администратора (см. описание эндпоинта в начале документации)
+- `create_message`, `edit_message`, `delete_messages` доступны только в комнатах поддержки
 
 #### `list`
 
@@ -553,6 +553,11 @@ _**Удалить одно или больше сообщений**_
 - **200**
   - ```
     "errors": []
+    ```
+- **400**
+  - ```
+    "data": null,
+    "errors": ["You have already joined a room!"]
     ```
 
 #### `create_message`
@@ -569,10 +574,12 @@ _**Удалить одно или больше сообщений**_
     ```
 - **403**
   - ```
-    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}] if you are not a participant of it!"]
+    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}]."]
     ```
 
 #### `edit_message`
+
+**_Только для своих сообщений_**
 
 ##### Возможные статусы
 
@@ -586,7 +593,7 @@ _**Удалить одно или больше сообщений**_
     ```
 - **403**
   - ```
-    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}] if you are not a participant of it!"]
+    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}]."]
     ```
 - **404**
   - ```
@@ -595,7 +602,7 @@ _**Удалить одно или больше сообщений**_
 
 #### `delete_messages`
 
-**_Только дл своих сообщений_**
+**_Только для своих сообщений_**
 
 ##### Возможные статусы
 
@@ -603,81 +610,15 @@ _**Удалить одно или больше сообщений**_
   - ```
     "errors": []
     ```
-  - ```
-    "errors": ["Not all of the requested messages were deleted! Check whether the user is the author of the message and the ids are correct! Check if messages belong to the current user's room!"]
-    ```
 - **400**
   - ```
     "errors": ["Action not allowed. You are not in the room!"]
     ```
 - **403**
   - ```
-    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}] if you are not a participant of it!"]
+    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}]."]
     ```
 - **404**
   - ```
-    "errors": ["Messages with ids: {msg_id_list} were not found! Nothing was deleted! Check whether the user is the author of the message and the ids are correct! Check if messages belong to the current user's room!"]
-    ```
-
-#### `get_support_room`
-
-**_Получить комнату поддержки._**
-
-##### Параметры
-
-Здесь, в отличие от `get_room_of_type`, не нужно передавать тип. Всегда вернется тип `'S'` (Support)
-
-- `action`: str - _название action_
-- `request_id`: int - _уникальный id запроса (можно указать текущую дату-время в миллисекундах)_
-
-##### Пример запроса
-
-```json
-{
-  "action": "get_support_room",
-  "request_id": 1500000
-}
-```
-
-##### Пример ответа
-
-```json
-{
-  "errors": [],
-  "data": {
-    "id": 1,
-    "last_message": {
-      "room": null,
-      "text": "",
-      "user": null
-    },
-    "interlocutors_brand": [],
-    "has_business": false,
-    "type": "S",
-    "participants": [
-        1
-    ]
-  },
-  "action": "get_support_room",
-  "response_status": 200,
-  "request_id": 1500000
-}
-```
-
-##### Возможные статусы
-
-- **200** - если комната существовала, то вернется она
-  - ```
-    "errors": []
-    ```
-- **201** - если комнаты не существовало она будет создана
-  - ```
-    "errors": []
-    ```
-- **500** - если ошибка на стороне сервера. Кто-то из админов доигрался с количеством комнат или при обращении к базе данных какая-то ошибка произошла.
-  - ```
-    "errors": ["Multiple rooms returned! Must be exactly one."]
-    ```
-  - ```
-    "errors": ["Room creation failed! Please try again."]
+    "errors": ["Messages with ids {not_existing} do not exist! Nothing was deleted."]
     ```

@@ -2,12 +2,12 @@ from cities_light.models import Country, City
 from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
-from rest_framework_simplejwt.tokens import AccessToken
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.models import Room
-from tests.utils import get_websocket_communicator
+from tests.mixins import RoomConsumerActionsMixin
+from tests.utils import get_websocket_communicator_for_user, join_room
 
 User = get_user_model()
 
@@ -20,7 +20,7 @@ User = get_user_model()
     }
 )
 @tag('slow', 'chats')
-class RoomConsumerGetSupportRoomTestCase(TransactionTestCase):
+class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerActionsMixin):
     serialized_rollback = True
 
     def setUp(self):
@@ -67,26 +67,19 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase):
 
         await room.participants.aset([self.user1])
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'get_support_room',
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+        response = await self.get_support_room(communicator)
 
         await communicator.disconnect()
 
@@ -96,26 +89,19 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase):
         self.assertEqual(room_id, room.id)
 
     async def test_get_support_room_if_does_not_exist(self):
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'get_support_room',
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+        response = await self.get_support_room(communicator)
 
         await communicator.disconnect()
 
@@ -146,39 +132,24 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase):
         await room1.participants.aset([self.user1, self.user2])
         await support_room.participants.aset([self.user1])
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room1.pk,
-            'request_id': 1500000
-        })
+        async with join_room(communicator, room1.pk):
+            response = await self.get_support_room(communicator)
 
-        await communicator.receive_json_from()
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        await communicator.send_json_to({
-            'action': 'get_support_room',
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+            room_id = response['data']['id']
+            self.assertEqual(room_id, support_room.id)
 
         await communicator.disconnect()
-
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-        room_id = response['data']['id']
-
-        self.assertEqual(room_id, support_room.id)

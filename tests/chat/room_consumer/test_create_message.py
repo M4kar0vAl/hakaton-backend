@@ -2,12 +2,12 @@ from cities_light.models import Country, City
 from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
-from rest_framework_simplejwt.tokens import AccessToken
 
 from core.apps.brand.models import Category, Brand, Match
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.models import Room, Message
-from tests.utils import get_websocket_communicator
+from tests.mixins import RoomConsumerActionsMixin
+from tests.utils import get_websocket_communicator_for_user, join_room_communal, join_room
 
 User = get_user_model()
 
@@ -20,7 +20,7 @@ User = get_user_model()
     }
 )
 @tag('slow', 'chats')
-class RoomConsumerCreateMessageTestCase(TransactionTestCase):
+class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActionsMixin):
     serialized_rollback = True
 
     def setUp(self):
@@ -63,100 +63,69 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase):
         self.accepted_protocol = 'chat'
 
     async def test_create_message_not_in_room_not_allowed(self):
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'create_message',
-            'msg_text': 'afae',
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+        response = await self.create_message(communicator, 'asf')
 
         await communicator.disconnect()
 
         self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
-
-        self.assertTrue(response['errors'])
         self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
     async def test_create_message(self):
         room = await Room.objects.acreate(type=Room.MATCH)
 
         await room.participants.aset([self.user1, self.user2])
 
-        access1 = AccessToken.for_user(self.user1)
-        access2 = AccessToken.for_user(self.user2)
-
-        communicator1 = get_websocket_communicator(
+        communicator1 = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access1
+            user=self.user1
         )
 
-        communicator2 = get_websocket_communicator(
+        communicator2 = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access2
+            user=self.user2
         )
 
-        connected1, subprotocol1 = await communicator1.connect()
-        connected2, subprotocol2 = await communicator2.connect()
+        connected1, _ = await communicator1.connect()
+        connected2, __ = await communicator2.connect()
 
         self.assertTrue(connected1)
         self.assertTrue(connected2)
 
-        await communicator1.send_json_to({
-            'action': 'join_room',
-            'room_pk': room.pk,
-            'request_id': 1500000
-        })
+        async with join_room_communal([communicator1, communicator2], room.pk):
+            msg_text = 'test'
+            response1 = await self.create_message(communicator1, msg_text)
+            response2 = await communicator2.receive_json_from()
 
-        await communicator2.send_json_to({
-            'action': 'join_room',
-            'room_pk': room.pk,
-            'request_id': 1500000
-        })
+            self.assertEqual(response1['response_status'], status.HTTP_201_CREATED)
+            self.assertEqual(response2['response_status'], status.HTTP_201_CREATED)
 
-        await communicator1.receive_json_from()
-        await communicator2.receive_json_from()
+            self.assertEqual(response1['data']['text'], msg_text)
+            self.assertEqual(response2['data']['text'], msg_text)
 
-        await communicator1.send_json_to({
-            'action': 'create_message',
-            'msg_text': 'asf',
-            'request_id': 1500000
-        })
-
-        response1 = await communicator1.receive_json_from()
-        response2 = await communicator2.receive_json_from()
+            self.assertEqual(response1['data']['room'], room.pk)
+            self.assertEqual(response2['data']['room'], room.pk)
 
         await communicator1.disconnect()
         await communicator2.disconnect()
-
-        self.assertEqual(response1['response_status'], status.HTTP_201_CREATED)
-        self.assertEqual(response2['response_status'], status.HTTP_201_CREATED)
-
-        self.assertEqual(response1['data']['text'], 'asf')
-        self.assertEqual(response2['data']['text'], 'asf')
-
-        self.assertEqual(response1['data']['room'], room.pk)
-        self.assertEqual(response2['data']['room'], room.pk)
 
     async def test_create_message_instant_room_not_allowed_if_message_by_user_already_created(self):
         room = await Room.objects.acreate(type=Room.INSTANT)
@@ -176,42 +145,26 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase):
             room=room
         )
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room.pk,
-            'request_id': 1500000
-        })
+        async with join_room(communicator, room.pk):
+            response = await self.create_message(communicator, 'asf')
 
-        await communicator.receive_json_from()
-
-        await communicator.send_json_to({
-            'action': 'create_message',
-            'msg_text': 'asd',
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
 
         await communicator.disconnect()
-
-        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
-
-        self.assertIsNone(response['data'])
-        self.assertTrue(response['errors'])
 
     async def test_create_message_in_instant_room_user_is_not_the_initiator_of_coop(self):
         room = await Room.objects.acreate(type=Room.INSTANT)
@@ -225,39 +178,23 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase):
             room=room
         )
 
-        access = AccessToken.for_user(self.user2)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user2
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'join_room',
-            'room_pk': room.pk,
-            'request_id': 1500000
-        })
+        async with join_room(communicator, room.pk):
+            response = await self.create_message(communicator, 'asf')
 
-        await communicator.receive_json_from()
-
-        await communicator.send_json_to({
-            'action': 'create_message',
-            'msg_text': 'asd',
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
 
         await communicator.disconnect()
-
-        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
-
-        self.assertIsNone(response['data'])
-        self.assertTrue(response['errors'])

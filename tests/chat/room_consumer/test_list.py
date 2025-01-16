@@ -1,14 +1,13 @@
-from channels.db import database_sync_to_async
 from cities_light.models import Country, City
 from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
-from rest_framework_simplejwt.tokens import AccessToken
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.models import Room, Message
-from tests.utils import get_websocket_communicator
+from tests.mixins import RoomConsumerActionsMixin
+from tests.utils import get_websocket_communicator_for_user
 
 User = get_user_model()
 
@@ -21,7 +20,7 @@ User = get_user_model()
     }
 )
 @tag('slow', 'chats')
-class RoomConsumerListTestCase(TransactionTestCase):
+class RoomConsumerListTestCase(TransactionTestCase, RoomConsumerActionsMixin):
     serialized_rollback = True
 
     def setUp(self):
@@ -67,14 +66,18 @@ class RoomConsumerListTestCase(TransactionTestCase):
         rooms = await Room.objects.abulk_create([
             Room(type=Room.MATCH),
             Room(type=Room.INSTANT),
-            Room(type=Room.SUPPORT)
+            Room(type=Room.SUPPORT),
+            Room(type=Room.MATCH),
+            Room(type=Room.INSTANT)
         ])
 
-        for room in rooms:
-            if room.type == Room.SUPPORT:
-                await room.participants.aset([self.user1])
-            else:
-                await room.participants.aset([self.user1, self.user2])
+        match_room, instant_room, support_room, match_room_1_deleted, instant_room_1_deleted = rooms
+
+        await match_room.participants.aset([self.user1, self.user2])
+        await instant_room.participants.aset([self.user1, self.user2])
+        await support_room.participants.aset([self.user1])
+        await match_room_1_deleted.participants.aset([self.user1])
+        await instant_room_1_deleted.participants.aset([self.user1])
 
         await Message.objects.abulk_create([
             Message(
@@ -95,26 +98,19 @@ class RoomConsumerListTestCase(TransactionTestCase):
             room=rooms[0]
         )
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'list',
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+        response = await self.list_(communicator)
 
         await communicator.disconnect()
 
@@ -122,27 +118,42 @@ class RoomConsumerListTestCase(TransactionTestCase):
 
         self.assertEqual(len(response['data']), len(rooms))
 
-        match_room = response['data'][0]
-        instant_room = response['data'][1]
-        support_room = response['data'][2]
+        match_room_resp = response['data'][0]
+        instant_room_resp = response['data'][1]
+        support_room_resp = response['data'][2]
+        match_room_1_deleted_resp = response['data'][3]
+        instant_room_1_deleted_resp = response['data'][4]
 
         # check last messages
-        self.assertIsNotNone(match_room['last_message'])
-        self.assertIsNotNone(instant_room['last_message'])
-        self.assertIsNone(support_room['last_message'])
+        self.assertIsNotNone(match_room_resp['last_message'])
+        self.assertIsNotNone(instant_room_resp['last_message'])
+        self.assertIsNone(support_room_resp['last_message'])
+        self.assertIsNone(match_room_1_deleted_resp['last_message'])
+        self.assertIsNone(instant_room_1_deleted_resp['last_message'])
 
-        self.assertEqual(match_room['last_message']['user'], self.user2.id)  # check that returned last created message
+        # check that returned last created message
+        self.assertEqual(match_room_resp['last_message']['user'], self.user2.id)
 
         # check interlocutors brands
-        self.assertTrue(match_room['interlocutors_brand'])
-        self.assertTrue(instant_room['interlocutors_brand'])
-        self.assertFalse(support_room['interlocutors_brand'])
+        # check match room
+        self.assertEqual(len(match_room_resp['interlocutors_brand']), 1)
+        self.assertEqual(match_room_resp['interlocutors_brand'][0]['id'], self.brand2.id)
 
-        self.assertEqual(match_room['interlocutors_brand'][0]['id'], self.brand2.id)
-        self.assertEqual(instant_room['interlocutors_brand'][0]['id'], self.brand2.id)
+        # check instant room
+        self.assertEqual(len(instant_room_resp['interlocutors_brand']), 1)
+        self.assertEqual(instant_room_resp['interlocutors_brand'][0]['id'], self.brand2.id)
+
+        # check support room
+        self.assertEqual(len(support_room_resp['interlocutors_brand']), 0)  # change to W2W agency
+
+        # check match room with deleted interlocutor
+        self.assertEqual(len(match_room_1_deleted_resp['interlocutors_brand']), 0)
+
+        # check instant room with deleted interlocutor
+        self.assertEqual(len(instant_room_1_deleted_resp['interlocutors_brand']), 0)
 
     async def test_list_does_not_return_rooms_of_other_brands(self):
-        another_user = await database_sync_to_async(User.objects.create_user)(
+        another_user = await User.objects.acreate(
             email=f'another_user@example.com',
             phone='+79993332211',
             fullname='Юзеров Юзер Юзерович',
@@ -162,26 +173,19 @@ class RoomConsumerListTestCase(TransactionTestCase):
             else:
                 await room.participants.aset([another_user, self.user2])
 
-        access = AccessToken.for_user(self.user1)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user1
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertTrue(connected)
 
-        await communicator.send_json_to({
-            'action': 'list',
-            'request_id': 1500000
-        })
-
-        response = await communicator.receive_json_from()
+        response = await self.list_(communicator)
 
         await communicator.disconnect()
 
