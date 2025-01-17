@@ -53,7 +53,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
 
         response = await self.get_room_messages(communicator, 1)
 
-        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertIsNone(response['data'])
         self.assertTrue(response['errors'])
 

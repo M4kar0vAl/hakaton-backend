@@ -67,7 +67,6 @@ _**Получить список всех комнат, в которых сос
 
 ##### Пример ответа
 
-`participants` - id пользователей (не брендов)
 `interlocutors_brand` - короткая информация о бренде собеседника, используйте ее для отрисовки списка чатов. Когда пользователь захочет подробно про бренд посмотреть делайте запрос на `/api/v1/brand/{id}/` для получения всей информации.
 
 ```json
@@ -112,6 +111,11 @@ _**Получить список всех комнат, в которых сос
 #### `join_room`
 
 _**Присоединиться к комнате**_
+
+##### Необходимые разрешения
+
+- Пользователь не подключен к какой-либо комнате
+- Пользователь является участником комнаты
 
 ##### Параметры
 
@@ -169,15 +173,10 @@ _**Присоединиться к комнате**_
   - ```
     "errors": []
     ```
-- **400**
-  - ```
-    "data": null,
-    "errors": ["You have already joined a room!"]
-    ```
 - **403**
   - ```
     "data": null,
-    "errors": ["You cannot enter a room you are not a member of"]
+    "errors": ["You do not have permission to perform this action."]
     ```
 
 #### `leave_room`
@@ -185,6 +184,10 @@ _**Присоединиться к комнате**_
 _**Выйти из комнаты**_
 
 `room_pk` не передается, выходит из текущей комнаты
+
+##### Необходимые разрешения
+
+- Пользователь должен быть подключен к какой-либо комнате (action [`join_room`](#join_room))
 
 ##### Параметры
 
@@ -220,10 +223,10 @@ _**Выйти из комнаты**_
   - ```
     "errors": []
     ```
-- **400**
+- **403**
   - ```
     "data": null,
-    "errors": ["Action 'leave_room' not allowed. You are not in the room"]
+    "errors": ["You do not have permission to perform this action."]
     ```
 
 #### `get_room_messages`
@@ -237,6 +240,10 @@ _**Получить все сообщения комнаты**_
 В ответе:
 - `count` - кол-во всех сообщений в комнате
 - `next` - номер следующей страницы. `null`, если эта страница последняя.
+
+##### Необходимые разрешения
+
+- Пользователь должен быть подключен к какой-либо комнате (action [`join_room`](#join_room))
 
 ##### Параметры
 
@@ -285,10 +292,6 @@ _**Получить все сообщения комнаты**_
     "errors": []
     ```
 - **400**
-  - ```
-    "data": null,
-    "errors": ["Action not allowed. You are not in the room!"]
-    ```
   - Если в качестве номера страницы передано не целое число
     ```
     "data": null,
@@ -299,12 +302,22 @@ _**Получить все сообщения комнаты**_
     "data": null,
     "errors": ["Page {page} does not exist!"]
     ```
+- **403**
+  - ```
+    "data": null,
+    "errors": ["You do not have permission to perform this action."]
+    ```
 
 #### `create_message`
 
 _**Написать сообщение**_
 
 `room_pk` не передается, отправляет в текущую комнату
+
+##### Необходимые разрешения
+
+- Пользователь должен быть подключен к какой-либо комнате (action [`join_room`](#join_room))
+- Если тип комнаты - `instant`, то можно написать, только если текущий пользователь - инициатор сопроводительного сообщения к лайку и еще не напсиал ни одного сообщения в этой комнате.
 
 ##### Параметры
 
@@ -346,20 +359,10 @@ _**Написать сообщение**_
   - ```
     "errors": []
     ```
-- **400**
+- **403**
   - ```
     "data": null,
-    "errors": ["Action not allowed. You are not in the room!"]
-    ```
-  - Если попытаться отправить больше одного сопроводительного сообщения (тип чата `INSTANT`)
-    ```
-    "data": null,
-    "errors": ["Action not allowed. You have already sent message to this user."]
-    ```
-  - Если попытаться отправить сообщение в чат типа `INSTANT`, не являясь инициатором кооперации
-    ```
-    "data": null,
-    "errors": ["You cannot send a message to this room. Like this brand in response to be able to send a message."]
+    "errors": ["You do not have permission to perform this action."]
     ```
 
 #### `edit_message`
@@ -367,6 +370,10 @@ _**Написать сообщение**_
 _**Редактировать сообщение**_
 
 `room_pk` не передается, ищет сообщение в текущей комнате
+
+##### Необходимые разрешения
+
+- Пользователь должен быть подключен к какой-либо комнате (action [`join_room`](#join_room))
 
 ##### Параметры
 
@@ -408,10 +415,10 @@ _**Редактировать сообщение**_
   - ```
     "errors": []
     ```
-- **400**
+- **403**
   - ```
     "data": null,
-    "errors": ["Action not allowed. You are not in the room!"]
+    "errors": ["You do not have permission to perform this action."]
     ```
 - **404**
   - ```
@@ -424,6 +431,10 @@ _**Редактировать сообщение**_
 _**Удалить одно или больше сообщений**_
 
 `room_pk` не передается, ищет сообщения в текущей комнате
+
+##### Необходимые разрешения
+
+- Пользователь должен быть подключен к какой-либо комнате (action [`join_room`](#join_room))
 
 ##### Параметры
 
@@ -464,16 +475,16 @@ _**Удалить одно или больше сообщений**_
   - ```
     "errors": []
     ```
-- **400**
+- **403**
   - ```
     "data": null,
-    "errors": ["Action not allowed. You are not in the room!"]
+    "errors": ["You do not have permission to perform this action.!"]
     ```
 - **404**  
   Этот статус будет вне зависимости от того все id были не найдены или только некоторые
   - ```
     "data": null,
-    "errors": ["Messages with ids [msg_id_list] do not exist! Nothing was deleted!"]
+    "errors": ["Messages with ids [not_existing_ids] do not exist! Nothing was deleted!"]
     ```
 
 #### `get_support_room`
@@ -531,7 +542,7 @@ _**Удалить одно или больше сообщений**_
 
 **_У некоторых actions изменено поведение (см. ниже)_**
 
-**_В actions, в ответах которых есть `interlocutors_brand` возвращаются все пользователи состоящие в комнате._**
+**_В actions, в ответах которых есть `interlocutors_brand` возвращаются все пользователи, состоящие в комнате._**
 
 #### Необходимые разрешения
 
@@ -544,81 +555,8 @@ _**Удалить одно или больше сообщений**_
 
 #### `list`
 
-**_Возвращает список **всех** комнат_**
+**_Возвращает список всех комнат_**
 
 #### `join_room`
 
-##### Возможные статусы
-
-- **200**
-  - ```
-    "errors": []
-    ```
-- **400**
-  - ```
-    "data": null,
-    "errors": ["You have already joined a room!"]
-    ```
-
-#### `create_message`
-
-##### Возможные статусы
-
-- **201**
-  - ```
-    "errors": []
-    ```
-- **400**
-  - ```
-    "errors": ["Action not allowed. You are not in the room!"]
-    ```
-- **403**
-  - ```
-    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}]."]
-    ```
-
-#### `edit_message`
-
-**_Только для своих сообщений_**
-
-##### Возможные статусы
-
-- **200**
-  - ```
-    "errors": []
-    ```
-- **400**
-  - ```
-    "errors": ["Action not allowed. You are not in the room!"]
-    ```
-- **403**
-  - ```
-    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}]."]
-    ```
-- **404**
-  - ```
-    "errors": ["Message with id: {msg_id} and user: {current_user.email} not found! Check whether the user is the author of the message and the id is correct! Check if messages belong to the current user's room!"]
-    ```
-
-#### `delete_messages`
-
-**_Только для своих сообщений_**
-
-##### Возможные статусы
-
-- **200**
-  - ```
-    "errors": []
-    ```
-- **400**
-  - ```
-    "errors": ["Action not allowed. You are not in the room!"]
-    ```
-- **403**
-  - ```
-    "errors": ["Action not allowed. You cannot write to room of type [{current_room.type}]."]
-    ```
-- **404**
-  - ```
-    "errors": ["Messages with ids {not_existing} do not exist! Nothing was deleted."]
-    ```
+**_Может присоединиться к любой комнате_**

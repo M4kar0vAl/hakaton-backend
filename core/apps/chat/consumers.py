@@ -9,13 +9,21 @@ from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from djangochannelsrestframework.mixins import ListModelMixin
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied, NotFound
+from rest_framework.exceptions import NotFound
 from rest_framework.serializers import Serializer
 
-from core.apps.brand.models import Brand, Match
+from core.apps.brand.models import Brand
 from core.apps.chat.exceptions import BadRequest, ServerError
 from core.apps.chat.models import Room, Message
-from core.apps.chat.permissions import IsAuthenticatedConnect, IsAdminUser, IsBrand
+from core.apps.chat.permissions import (
+    IsAuthenticatedConnect,
+    IsAdminUser,
+    IsBrand,
+    CanUserJoinRoom,
+    UserInRoom,
+    CanCreateMessage,
+    CanAdminAct, CanAdminJoinRoom
+)
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer, RoomListSerializer
 from core.apps.chat.utils import reply_to_groups
 
@@ -27,6 +35,23 @@ class RoomConsumer(ListModelMixin,
     serializer_class = RoomSerializer
     lookup_field = "pk"
     permission_classes = [IsAuthenticatedConnect, IsBrand]
+
+    async def get_permissions(self, action: str, **kwargs):
+        permission_instances = await super().get_permissions(action, **kwargs)
+
+        if action == 'join_room':
+            permission_instances += [CanUserJoinRoom()]
+        elif action in (
+                'leave_room',
+                'get_room_messages',
+                'edit_message',
+                'delete_messages',
+        ):
+            permission_instances += [UserInRoom()]
+        elif action == 'create_message':
+            permission_instances += [CanCreateMessage()]
+
+        return permission_instances
 
     def get_queryset(self, **kwargs) -> QuerySet:
         if 'action' in kwargs:
@@ -81,17 +106,6 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def join_room(self, room_pk, **kwargs):
-        if hasattr(self, 'room'):
-            raise BadRequest('You have already joined a room!')
-
-        if room_pk not in self.brand_rooms:
-            # update related room_pks
-            self.brand_rooms = await self.get_brand_rooms_pk_set()
-
-            # check again
-            if room_pk not in self.brand_rooms:
-                raise PermissionDenied('You cannot enter a room you are not a member of')
-
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
@@ -108,21 +122,18 @@ class RoomConsumer(ListModelMixin,
     async def leave_room(self, **kwargs):
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
+            delattr(self, 'room_group_name')
 
         if hasattr(self, 'paginator'):
             delattr(self, 'paginator')
 
-        if hasattr(self, 'room'):
-            pk = self.room.pk
-            delattr(self, 'room')
-            return {'response': f'Leaved room {pk} successfully!'}, status.HTTP_200_OK
+        pk = self.room.pk
+        delattr(self, 'room')
 
-        raise BadRequest("Action 'leave_room' not allowed. You are not in the room")
+        return {'response': f'Leaved room {pk} successfully!'}, status.HTTP_200_OK
 
     @action()
     async def get_room_messages(self, page: int, **kwargs):
-        await self.check_user_in_room()
-
         messages = await database_sync_to_async(self.get_queryset)(**kwargs)
 
         if not hasattr(self, 'paginator'):
@@ -151,8 +162,6 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
-        await self.check_user_can_create_message()
-
         message = await database_sync_to_async(Message.objects.create)(
             room=self.room,
             user=self.scope['user'],
@@ -172,8 +181,6 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def edit_message(self, msg_id, edited_msg_text, **kwargs):
-        await self.check_user_in_room()
-
         updated = bool(await self.edit_message_in_db(msg_id, edited_msg_text))
 
         if updated:
@@ -198,8 +205,6 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def delete_messages(self, msg_id_list: list[int], **kwargs):
-        await self.check_user_in_room()
-
         # get existing messages ids
         existing = Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).values_list(
             'pk',
@@ -246,35 +251,6 @@ class RoomConsumer(ListModelMixin,
 
     async def data_to_groups(self, event):
         await self.send_json(event['payload'])
-
-    async def check_user_in_room(self):
-        """
-        Check whether the user connected to any room or not.
-        If not raises exception BadRequest, otherwise does nothing.
-        """
-        if not hasattr(self, 'room'):
-            raise BadRequest("Action not allowed. You are not in the room!")
-
-    async def check_user_can_create_message(self):
-        """
-        Check whether the current user allowed to create a message in room.
-
-        At first check if the user in the room
-        After that, if room type is instant and this user has already sent message, then raises BadRequest
-        """
-        await self.check_user_in_room()
-
-        if self.room.type == Room.INSTANT:
-            match = await Match.objects.aget(room=self.room)
-            if match.initiator_id != self.brand.id:
-                # if the user is not the initiator of the instant coop
-                raise BadRequest(
-                    "You cannot send a message to this room. "
-                    "Like this brand in response to be able to send a message."
-                )
-            elif await self.scope['user'].messages.filter(room=self.room).aexists():
-                # if user has already sent message to this instant room
-                raise BadRequest("Action not allowed. You have already sent message to this user.")
 
     @database_sync_to_async
     def check_page_number(self, page) -> None:
@@ -380,6 +356,25 @@ class AdminRoomConsumer(ListModelMixin,
     lookup_field = 'pk'
     permission_classes = [IsAdminUser]
 
+    async def get_permissions(self, action: str, **kwargs):
+        permission_instances = await super().get_permissions(action, **kwargs)
+
+        if action == 'join_room':
+            permission_instances += [CanAdminJoinRoom()]
+        elif action in (
+            'leave_room',
+            'get_room_messages',
+        ):
+            permission_instances += [UserInRoom()]
+        elif action in (
+            'create_message',
+            'edit_message',
+            'delete_messages',
+        ):
+            permission_instances += [CanAdminAct()]
+
+        return permission_instances
+
     def get_queryset(self, **kwargs) -> QuerySet:
         if 'action' in kwargs:
             action_ = kwargs['action']
@@ -424,9 +419,6 @@ class AdminRoomConsumer(ListModelMixin,
 
     @action()
     async def join_room(self, room_pk, **kwargs):
-        if hasattr(self, 'room'):
-            raise BadRequest('You have already joined a room!')
-
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
@@ -451,17 +443,14 @@ class AdminRoomConsumer(ListModelMixin,
         if hasattr(self, 'paginator'):
             delattr(self, 'paginator')
 
-        if hasattr(self, 'room'):
-            pk = self.room.pk
-            delattr(self, 'room')
-            delattr(self, 'can_message')
-            return {'response': f'Leaved room {pk} successfully!'}, status.HTTP_200_OK
-        raise BadRequest("Action 'leave_room' not allowed. You are not in the room")
+        pk = self.room.pk
+        delattr(self, 'room')
+        delattr(self, 'can_message')
+
+        return {'response': f'Leaved room {pk} successfully!'}, status.HTTP_200_OK
 
     @action()
     async def get_room_messages(self, page: int, **kwargs):
-        await self.check_user_in_room()
-
         messages = await database_sync_to_async(self.get_queryset)(**kwargs)
 
         if not hasattr(self, 'paginator'):
@@ -490,8 +479,6 @@ class AdminRoomConsumer(ListModelMixin,
 
     @action()
     async def create_message(self, msg_text, **kwargs):
-        await self.check_admin_can_act()
-
         message = await Message.objects.acreate(
             room=self.room,
             user=self.scope['user'],
@@ -511,8 +498,6 @@ class AdminRoomConsumer(ListModelMixin,
 
     @action()
     async def edit_message(self, msg_id, edited_msg_text, **kwargs):
-        await self.check_admin_can_act()
-
         updated = bool(await self.edit_message_in_db(msg_id, edited_msg_text))
 
         if updated:
@@ -533,13 +518,10 @@ class AdminRoomConsumer(ListModelMixin,
             raise NotFound(
                 f"Message with id: {msg_id} and user: {self.scope['user'].email} not found! "
                 "Check whether the user is the author of the message and the id is correct! "
-                "Check if messages belong to the current user's room!"
             )
 
     @action()
     async def delete_messages(self, msg_id_list: list[int], **kwargs):
-        await self.check_admin_can_act()
-
         # get existing messages ids
         existing = Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).values_list(
             'pk',
@@ -585,31 +567,6 @@ class AdminRoomConsumer(ListModelMixin,
 
     async def data_to_groups(self, event):
         await self.send_json(event['payload'])
-
-    async def check_user_in_room(self):
-        """
-        Check whether the user connected to any room or not.
-        If not raises exception BadRequest, otherwise does nothing.
-        """
-        if not hasattr(self, 'room'):
-            raise BadRequest("Action not allowed. You are not in the room!")
-
-    async def check_admin_can_act(self):
-        """
-        Check whether admin can create, edit and delete messages in room.
-
-        If admin not connected to a room, then raises BadRequest exception.
-        If room type is not SUPPORT, then raises PermissionDenied exception.
-        Otherwise, does nothing.
-        """
-        try:
-            if not self.can_message:
-                raise PermissionDenied(
-                    "Action not allowed. "
-                    f"You cannot write to a room of type [{self.room.get_type_display()}]."
-                )
-        except AttributeError:
-            raise BadRequest("Action not allowed. You are not in the room!")
 
     @database_sync_to_async
     def check_page_number(self, page) -> None:

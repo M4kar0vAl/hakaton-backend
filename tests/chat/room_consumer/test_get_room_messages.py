@@ -79,7 +79,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
         await communicator.disconnect()
 
-        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertTrue(response['errors'])
         self.assertIsNone(response['data'])
 

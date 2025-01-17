@@ -121,4 +121,4 @@ class RoomConsumerLeaveRoomTestCase(TransactionTestCase, RoomConsumerActionsMixi
 
         await communicator.disconnect()
 
-        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)

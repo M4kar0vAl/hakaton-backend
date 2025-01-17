@@ -130,7 +130,7 @@ class RoomConsumerJoinRoomTestCase(TransactionTestCase, RoomConsumerActionsMixin
             # join room2
             response = await self.join_room(communicator, room2.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 
@@ -157,7 +157,7 @@ class RoomConsumerJoinRoomTestCase(TransactionTestCase, RoomConsumerActionsMixin
             # try to rejoin room
             response = await self.join_room(communicator, room.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 

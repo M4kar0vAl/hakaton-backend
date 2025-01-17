@@ -63,7 +63,7 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
 
         response = await self.edit_message(communicator, msg.id, 'edited')
 
-        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertIsNone(response['data'])
         self.assertTrue(response['errors'])
 

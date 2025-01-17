@@ -132,7 +132,7 @@ class AdminRoomConsumerJoinRoomTestCase(TransactionTestCase, AdminRoomConsumerAc
         async with join_room(communicator, self.match_room.pk):
             response = await self.join_room(communicator, self.match_room.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 
@@ -140,7 +140,7 @@ class AdminRoomConsumerJoinRoomTestCase(TransactionTestCase, AdminRoomConsumerAc
         async with join_room(communicator, self.instant_room.pk):
             response = await self.join_room(communicator, self.instant_room.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 
@@ -148,7 +148,7 @@ class AdminRoomConsumerJoinRoomTestCase(TransactionTestCase, AdminRoomConsumerAc
         async with join_room(communicator, self.support_room.pk):
             response = await self.join_room(communicator, self.support_room.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 
@@ -156,7 +156,7 @@ class AdminRoomConsumerJoinRoomTestCase(TransactionTestCase, AdminRoomConsumerAc
         async with join_room(communicator, self.own_support_room.pk):
             response = await self.join_room(communicator, self.own_support_room.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 
@@ -179,16 +179,16 @@ class AdminRoomConsumerJoinRoomTestCase(TransactionTestCase, AdminRoomConsumerAc
             # try to join MATCH room
             response = await self.join_room(communicator, self.match_room.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
             # try to join INSTANT room
             response = await self.join_room(communicator, self.instant_room.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
             # try to join OWN SUPPORT room
             response = await self.join_room(communicator, self.own_support_room.pk)
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
         await communicator.disconnect()

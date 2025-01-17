@@ -79,7 +79,7 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
 
         await communicator.disconnect()
 
-        self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertIsNone(response['data'])
         self.assertTrue(response['errors'])
 
@@ -160,7 +160,7 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         async with join_room(communicator, room.pk):
             response = await self.create_message(communicator, 'asf')
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 
@@ -193,7 +193,7 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         async with join_room(communicator, room.pk):
             response = await self.create_message(communicator, 'asf')
 
-            self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 
