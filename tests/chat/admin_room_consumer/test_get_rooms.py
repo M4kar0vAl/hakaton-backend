@@ -6,7 +6,7 @@ from rest_framework import status
 
 from core.apps.brand.models import Brand, Category
 from core.apps.chat.consumers import AdminRoomConsumer
-from core.apps.chat.models import Room
+from core.apps.chat.models import Room, Message
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user
 
@@ -21,7 +21,7 @@ User = get_user_model()
     }
 )
 @tag('slow', 'chats')
-class AdminRoomConsumerListTestCase(TransactionTestCase, AdminRoomConsumerActionsMixin):
+class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerActionsMixin):
     serialized_rollback = True
 
     def setUp(self):
@@ -36,7 +36,7 @@ class AdminRoomConsumerListTestCase(TransactionTestCase, AdminRoomConsumerAction
         self.path = 'ws/admin-chat/'
         self.accepted_protocol = 'admin-chat'
 
-    async def test_list(self):
+    async def test_get_rooms(self):
         users = await User.objects.abulk_create([
             User(
                 email=f'user{i}@example.com',
@@ -117,25 +117,27 @@ class AdminRoomConsumerListTestCase(TransactionTestCase, AdminRoomConsumerAction
 
         self.assertTrue(connected)
 
-        response = await self.list_(communicator)
+        response = await self.get_rooms(communicator, 1)
 
         await communicator.disconnect()
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        self.assertEqual(len(response['data']), len(rooms))  # admins get all rooms
+        results = response['data']['results']
 
-        support_room1_response = list(filter(lambda obj: obj['id'] == support_room1.id, response['data']))
-        support_room2_response = list(filter(lambda obj: obj['id'] == support_room2.id, response['data']))
-        own_support_room_response = list(filter(lambda obj: obj['id'] == own_support_room.id, response['data']))
+        self.assertEqual(len(results), len(rooms))  # admins get all rooms
+
+        support_room1_response = list(filter(lambda obj: obj['id'] == support_room1.id, results))
+        support_room2_response = list(filter(lambda obj: obj['id'] == support_room2.id, results))
+        own_support_room_response = list(filter(lambda obj: obj['id'] == own_support_room.id, results))
         support_another_admin_response = list(
-            filter(lambda obj: obj['id'] == support_another_admin.id, response['data'])
+            filter(lambda obj: obj['id'] == support_another_admin.id, results)
         )
-        match_room_response = list(filter(lambda obj: obj['id'] == match_room.id, response['data']))
-        match_room_1_deleted_response = list(filter(lambda obj: obj['id'] == match_room_1_deleted.id, response['data']))
-        instant_room_response = list(filter(lambda obj: obj['id'] == instant_room.id, response['data']))
+        match_room_response = list(filter(lambda obj: obj['id'] == match_room.id, results))
+        match_room_1_deleted_response = list(filter(lambda obj: obj['id'] == match_room_1_deleted.id, results))
+        instant_room_response = list(filter(lambda obj: obj['id'] == instant_room.id, results))
         instant_room_1_deleted_response = list(
-            filter(lambda obj: obj['id'] == instant_room_1_deleted.id, response['data'])
+            filter(lambda obj: obj['id'] == instant_room_1_deleted.id, results)
         )
 
         # check number of interlocutors in rooms
@@ -161,3 +163,64 @@ class AdminRoomConsumerListTestCase(TransactionTestCase, AdminRoomConsumerAction
 
         # check instant room with 1 deleted user
         self.assertEqual(len(instant_room_1_deleted_response[0]['interlocutors_brand']), 1)
+
+    async def test_get_rooms_pagination(self):
+        rooms = await Room.objects.abulk_create([
+            Room(type=Room.SUPPORT)
+            for _ in range(120)
+        ])
+
+        message1 = await Message.objects.acreate(
+            text='afasf',
+            user=self.admin_user,
+            room=rooms[10]
+        )
+
+        message2 = await Message.objects.acreate(
+            text='afasf',
+            user=self.admin_user,
+            room=rooms[11]
+        )
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.admin_user
+        )
+
+        connected, _ = await communicator.connect()
+
+        self.assertTrue(connected)
+
+        # page 1
+        response = await self.get_rooms(communicator, 1)
+
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+        count = response['data']['count']
+        results = response['data']['results']
+        next_ = response['data']['next']
+
+        self.assertEqual(count, len(rooms))
+        self.assertEqual(len(results), 100)
+        self.assertEqual(next_, 2)
+
+        # check ordering
+        # rooms are ordered by the room last message's 'created_at' field descending
+        self.assertEqual(results[0]['last_message']['id'], message2.id)
+        self.assertEqual(results[1]['last_message']['id'], message1.id)
+
+        # page 2
+        response = await self.get_rooms(communicator, 2)
+
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+        results = response['data']['results']
+        next_ = response['data']['next']
+
+        self.assertEqual(len(results), 20)
+        self.assertIsNone(next_)
+
+        await communicator.disconnect()

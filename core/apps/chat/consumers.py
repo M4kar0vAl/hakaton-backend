@@ -1,14 +1,14 @@
-from typing import Type
+from typing import Type, Tuple
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from django.db.models import QuerySet, Prefetch, Q, OuterRef, Subquery
+from django.db.models import QuerySet, Prefetch, Q, OuterRef, Subquery, Max, F
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
-from djangochannelsrestframework.mixins import ListModelMixin
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.serializers import Serializer
+from rest_framework.utils.serializer_helpers import ReturnList
 
 from core.apps.brand.models import Brand
 from core.apps.chat.mixins import ConsumerSerializationMixin, ConsumerUtilitiesMixin, ConsumerPaginationMixin
@@ -29,7 +29,6 @@ User = get_user_model()
 
 
 class RoomConsumer(
-    ListModelMixin,
     GenericAsyncAPIConsumer,
     ConsumerSerializationMixin,
     ConsumerUtilitiesMixin,
@@ -61,7 +60,7 @@ class RoomConsumer(
             action_ = kwargs['action']
             if action_ == 'get_room_messages':
                 return self.room.messages.order_by('-created_at', 'id')
-            elif action_ == 'list':
+            elif action_ == 'get_rooms':
                 last_message_in_room = Message.objects.filter(
                     pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
                 )
@@ -77,6 +76,10 @@ class RoomConsumer(
                         queryset=last_message_in_room,
                         to_attr='last_message'
                     )
+                ).annotate(
+                    last_message_created_at=Max('messages__created_at')
+                ).order_by(
+                    F('last_message_created_at').desc(nulls_last=True)
                 )
 
         return self.scope['user'].rooms.all()
@@ -84,7 +87,7 @@ class RoomConsumer(
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
         if kwargs['action'] in ('create_message', 'get_room_messages'):
             return MessageSerializer
-        elif kwargs['action'] == 'list':
+        elif kwargs['action'] == 'get_rooms':
             return RoomListSerializer
         return super().get_serializer_class()
 
@@ -106,6 +109,21 @@ class RoomConsumer(
             await self.remove_group(self.user_group_name)
 
         self.delete_all_paginators()
+
+    @action()
+    async def get_rooms(self, page: int, **kwargs) -> Tuple[ReturnList, int]:
+        action_ = kwargs.get('action')
+        queryset = await database_sync_to_async(self.get_queryset)(**kwargs)
+
+        paginator = await self.paginate_queryset(queryset, 100, action_)
+
+        page_objs = await self.get_page_objects(paginator, page)
+
+        rooms_data = await self.get_serialized_data(page_objs, many=True, **kwargs)
+
+        data = await self.get_paginated_data(rooms_data, paginator, page)
+
+        return data, status.HTTP_200_OK
 
     @action()
     async def join_room(self, room_pk, **kwargs):
@@ -251,7 +269,6 @@ class RoomConsumer(
 
 
 class AdminRoomConsumer(
-    ListModelMixin,
     GenericAsyncAPIConsumer,
     ConsumerSerializationMixin,
     ConsumerUtilitiesMixin,
@@ -286,7 +303,7 @@ class AdminRoomConsumer(
             action_ = kwargs['action']
             if action_ == 'get_room_messages':
                 return self.room.messages.order_by('-created_at', 'id')
-            elif action_ == 'list':
+            elif action_ == 'get_rooms':
                 last_message_in_room = Message.objects.filter(
                     pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
                 )
@@ -302,18 +319,25 @@ class AdminRoomConsumer(
                         queryset=last_message_in_room,
                         to_attr='last_message'
                     )
+                ).annotate(
+                    last_message_created_at=Max('messages__created_at')
+                ).order_by(
+                    F('last_message_created_at').desc(nulls_last=True)
                 )
+
         return super().get_queryset(**kwargs)
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
         if kwargs['action'] in ('create_message', 'get_room_messages'):
             return MessageSerializer
-        elif kwargs['action'] == 'list':
+        elif kwargs['action'] == 'get_rooms':
             return RoomListSerializer
 
         return super().get_serializer_class()
 
     async def connect(self):
+        self.action_paginators = {}
+
         if 'admin-chat' in self.scope['subprotocols']:
             await self.accept('admin-chat')
         else:
@@ -323,13 +347,27 @@ class AdminRoomConsumer(
         self.delete_all_paginators()
 
     @action()
+    async def get_rooms(self, page: int, **kwargs) -> Tuple[ReturnList, int]:
+        action_ = kwargs.get('action')
+        queryset = await database_sync_to_async(self.get_queryset)(**kwargs)
+
+        paginator = await self.paginate_queryset(queryset, 100, action_)
+
+        page_objs = await self.get_page_objects(paginator, page)
+
+        rooms_data = await self.get_serialized_data(page_objs, many=True, **kwargs)
+
+        data = await self.get_paginated_data(rooms_data, paginator, page)
+
+        return data, status.HTTP_200_OK
+
+    @action()
     async def join_room(self, room_pk, **kwargs):
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
         self.room = await database_sync_to_async(self.get_object)(pk=room_pk)
         self.room_group_name = f'room_{room_pk}'
-        self.action_paginators = {}
 
         # can create/edit/delete messages only in support chat
         # can view messages in all chats

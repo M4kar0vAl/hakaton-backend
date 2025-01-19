@@ -23,11 +23,12 @@ class AssertNumQueriesLessThanMixin(unittest.TestCase):
 
 
 class BaseConsumerActionsMixin:
-    async def list_(self, communicator: WebsocketCommunicator):
+    async def get_rooms(self, communicator: WebsocketCommunicator, page: int):
         response = await self._send_json_to_consumer(
             communicator=communicator,
             json_={
-                'action': 'list',
+                'action': 'get_rooms',
+                'page': page,
                 'request_id': 1500000
             }
         )

@@ -20,7 +20,7 @@ User = get_user_model()
     }
 )
 @tag('slow', 'chats')
-class RoomConsumerListTestCase(TransactionTestCase, RoomConsumerActionsMixin):
+class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin):
     serialized_rollback = True
 
     def setUp(self):
@@ -62,7 +62,7 @@ class RoomConsumerListTestCase(TransactionTestCase, RoomConsumerActionsMixin):
         self.path = 'ws/chat/'
         self.accepted_protocol = 'chat'
 
-    async def test_list(self):
+    async def test_get_rooms(self):
         rooms = await Room.objects.abulk_create([
             Room(type=Room.MATCH),
             Room(type=Room.INSTANT),
@@ -110,19 +110,21 @@ class RoomConsumerListTestCase(TransactionTestCase, RoomConsumerActionsMixin):
 
         self.assertTrue(connected)
 
-        response = await self.list_(communicator)
+        response = await self.get_rooms(communicator, 1)
 
         await communicator.disconnect()
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        self.assertEqual(len(response['data']), len(rooms))
+        results = response['data']['results']
 
-        match_room_resp = response['data'][0]
-        instant_room_resp = response['data'][1]
-        support_room_resp = response['data'][2]
-        match_room_1_deleted_resp = response['data'][3]
-        instant_room_1_deleted_resp = response['data'][4]
+        self.assertEqual(len(results), len(rooms))
+
+        match_room_resp = results[0]
+        instant_room_resp = results[1]
+        support_room_resp = results[2]
+        match_room_1_deleted_resp = results[3]
+        instant_room_1_deleted_resp = results[4]
 
         # check last messages
         self.assertIsNotNone(match_room_resp['last_message'])
@@ -152,7 +154,7 @@ class RoomConsumerListTestCase(TransactionTestCase, RoomConsumerActionsMixin):
         # check instant room with deleted interlocutor
         self.assertEqual(len(instant_room_1_deleted_resp['interlocutors_brand']), 0)
 
-    async def test_list_does_not_return_rooms_of_other_brands(self):
+    async def test_get_rooms_does_not_return_rooms_of_other_brands(self):
         another_user = await User.objects.acreate(
             email=f'another_user@example.com',
             phone='+79993332211',
@@ -185,10 +187,74 @@ class RoomConsumerListTestCase(TransactionTestCase, RoomConsumerActionsMixin):
 
         self.assertTrue(connected)
 
-        response = await self.list_(communicator)
+        response = await self.get_rooms(communicator, 1)
 
         await communicator.disconnect()
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        self.assertFalse(response['data'])
+        self.assertFalse(response['data']['results'])
+
+    async def test_get_rooms_pagination(self):
+        rooms = await Room.objects.abulk_create([
+            Room(type=Room.MATCH)
+            for _ in range(120)
+        ])
+
+        for room in rooms:
+            await room.participants.aset([self.user1, self.user2])
+
+        message1 = await Message.objects.acreate(
+            text='afasf',
+            user=self.user1,
+            room=rooms[10]
+        )
+
+        message2 = await Message.objects.acreate(
+            text='afasf',
+            user=self.user1,
+            room=rooms[11]
+        )
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user1
+        )
+
+        connected, _ = await communicator.connect()
+
+        self.assertTrue(connected)
+
+        # page 1
+        response = await self.get_rooms(communicator, 1)
+
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+        count = response['data']['count']
+        results = response['data']['results']
+        next_ = response['data']['next']
+
+        self.assertEqual(count, len(rooms))
+        self.assertEqual(len(results), 100)
+        self.assertEqual(next_, 2)
+
+        # check ordering
+        # rooms are ordered by the room last message's 'created_at' field descending
+        self.assertEqual(results[0]['last_message']['id'], message2.id)
+        self.assertEqual(results[1]['last_message']['id'], message1.id)
+
+        # page 2
+        response = await self.get_rooms(communicator, 2)
+
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+        results = response['data']['results']
+        next_ = response['data']['next']
+
+        self.assertEqual(len(results), 20)
+        self.assertIsNone(next_)
+
+        await communicator.disconnect()
