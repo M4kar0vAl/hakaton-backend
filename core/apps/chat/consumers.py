@@ -1,9 +1,7 @@
-from typing import Type, Optional
+from typing import Type
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from django.core.paginator import Paginator, InvalidPage
-from django.db import transaction, DatabaseError
 from django.db.models import QuerySet, Prefetch, Q, OuterRef, Subquery
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
@@ -13,7 +11,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.serializers import Serializer
 
 from core.apps.brand.models import Brand
-from core.apps.chat.exceptions import BadRequest, ServerError
+from core.apps.chat.mixins import ConsumerSerializationMixin, ConsumerUtilitiesMixin, ConsumerPaginationMixin
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import (
     IsAuthenticatedConnect,
@@ -30,8 +28,13 @@ from core.apps.chat.utils import reply_to_groups
 User = get_user_model()
 
 
-class RoomConsumer(ListModelMixin,
-                   GenericAsyncAPIConsumer):
+class RoomConsumer(
+    ListModelMixin,
+    GenericAsyncAPIConsumer,
+    ConsumerSerializationMixin,
+    ConsumerUtilitiesMixin,
+    ConsumerPaginationMixin
+):
     serializer_class = RoomSerializer
     lookup_field = "pk"
     permission_classes = [IsAuthenticatedConnect, IsBrand]
@@ -89,6 +92,7 @@ class RoomConsumer(ListModelMixin,
         self.user_group_name = f'user_{self.scope["user"].pk}'
         self.brand = await self.get_brand()
         self.brand_rooms = await self.get_brand_rooms_pk_set()
+        self.action_paginators = {}
 
         await self.add_group(self.user_group_name)
 
@@ -101,8 +105,7 @@ class RoomConsumer(ListModelMixin,
         if hasattr(self, 'user_group_name'):
             await self.remove_group(self.user_group_name)
 
-        if hasattr(self, 'paginator'):
-            delattr(self, 'paginator')
+        self.delete_all_paginators()
 
     @action()
     async def join_room(self, room_pk, **kwargs):
@@ -114,7 +117,7 @@ class RoomConsumer(ListModelMixin,
 
         await self.add_group(self.room_group_name)
 
-        room_data = await self.get_serialized_room(**kwargs)
+        room_data = await self.get_serialized_data(self.room, **kwargs)
 
         return room_data, status.HTTP_200_OK
 
@@ -124,8 +127,7 @@ class RoomConsumer(ListModelMixin,
             await self.remove_group(self.room_group_name)
             delattr(self, 'room_group_name')
 
-        if hasattr(self, 'paginator'):
-            delattr(self, 'paginator')
+        self.delete_paginator_for_action('get_room_messages')
 
         pk = self.room.pk
         delattr(self, 'room')
@@ -134,41 +136,28 @@ class RoomConsumer(ListModelMixin,
 
     @action()
     async def get_room_messages(self, page: int, **kwargs):
+        action_ = kwargs.get('action')
         messages = await database_sync_to_async(self.get_queryset)(**kwargs)
 
-        if not hasattr(self, 'paginator'):
-            self.paginator = Paginator(messages, 100)
+        paginator = await self.paginate_queryset(messages, 100, action_)
 
-        await self.check_page_number(page)
+        page_objs = await self.get_page_objects(paginator, page)
 
-        page = await database_sync_to_async(self.paginator.get_page)(page)
+        messages_data = await self.get_serialized_data(page_objs, many=True, **kwargs)
 
-        try:
-            next_ = page.next_page_number()
-        except InvalidPage:
-            next_ = None
-
-        page_objs = page.object_list
-
-        messages_data = await self.get_serialized_message(page_objs, many=True, **kwargs)
-
-        data = {
-            'count': self.paginator.count,
-            'messages': messages_data,
-            'next': next_
-        }
+        data = await self.get_paginated_data(messages_data, paginator, page)
 
         return data, status.HTTP_200_OK
 
     @action()
     async def create_message(self, msg_text: str, **kwargs):
-        message = await database_sync_to_async(Message.objects.create)(
+        message = await Message.objects.acreate(
             room=self.room,
             user=self.scope['user'],
             text=msg_text
         )
 
-        message_data = await self.get_serialized_message(message, **kwargs)
+        message_data = await self.get_serialized_data(message, **kwargs)
 
         await reply_to_groups(
             groups=(self.room_group_name,),
@@ -242,7 +231,7 @@ class RoomConsumer(ListModelMixin,
     async def get_support_room(self, **kwargs):
         room, created = await self.get_or_create_support_room()
 
-        room_data = await self.get_serialized_room(room=room, **kwargs)
+        room_data = await self.get_serialized_data(room, **kwargs)
 
         if created:
             return room_data, status.HTTP_201_CREATED
@@ -253,14 +242,6 @@ class RoomConsumer(ListModelMixin,
         await self.send_json(event['payload'])
 
     @database_sync_to_async
-    def check_page_number(self, page) -> None:
-        if type(page) is not int:
-            raise BadRequest('Page number must be an integer!')
-
-        if page not in self.paginator.page_range:
-            raise BadRequest(f'Page {page} does not exist!')
-
-    @database_sync_to_async
     def get_brand(self) -> Brand:
         return self.scope['user'].brand
 
@@ -268,89 +249,14 @@ class RoomConsumer(ListModelMixin,
     def get_brand_rooms_pk_set(self):
         return set(self.scope['user'].rooms.values_list('pk', flat=True))
 
-    @database_sync_to_async
-    def edit_message_in_db(self, msg_id: int, text: str) -> int:
-        """
-        Edit message text in db. Allows editing only messages authored by the current user.
 
-        Args:
-            msg_id: primary key of message being edited
-            text: new text to be set
-
-        Returns number of rows matched in db.
-        Either 0 if message with msg_id was not found in db
-        or 1 if message was found and updated
-        """
-        # filter uses user = self.scope['user'] to allow editing current user's messages only
-        # if message with id msg_id don't belong to user, then nothing happens
-        return Message.objects.filter(pk=msg_id, user=self.scope['user'], room=self.room).update(text=text)
-
-    @database_sync_to_async
-    def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
-        """
-        Delete messages from db. Allows deleting only messages authored by the current user.
-
-        Args:
-            msg_id_list: list of ids of message to delete
-
-        Returns number of messages deleted
-        """
-        return Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).delete()[0]
-
-    @database_sync_to_async
-    def get_or_create_support_room(self) -> tuple[Room, bool]:
-        """
-        Get support room for current brand. If room does not exist, then create it.
-
-        Returns room instance and status whether it was created or not.
-        """
-        created = False  # whether a new room was created
-        try:
-            room = self.scope['user'].rooms.get(type=Room.SUPPORT)
-        except Room.DoesNotExist:
-            try:
-                with transaction.atomic():
-                    room = Room.objects.create(type=Room.SUPPORT)
-                    room.participants.add(self.scope['user'])
-                    created = True
-            except DatabaseError:
-                raise ServerError("Room creation failed! Please try again.")
-
-        return room, created
-
-    @database_sync_to_async
-    def get_serialized_room(self, room: Optional[Room] = None, **kwargs):
-        """
-        Get serialized room data.
-        If room argument is passed, then serializes that room, otherwise serializes current room.
-
-        Returns serializer data.
-
-        Args:
-            room: room instance to be serialized [optional]
-            kwargs: keyword arguments from action
-        """
-        if room is None:
-            serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
-        else:
-            serializer = self.get_serializer(action_kwargs=kwargs, instance=room)
-        return serializer.data
-
-    @database_sync_to_async
-    def get_serialized_message(self, message: Message | QuerySet[Message], many: bool = False, **kwargs):
-        """
-        Serializes messages and returns serializer data.
-
-        Args:
-            message: Message model instance or queryset of model instances to be serialized
-            many: flag that indicates whether to serialize one message or queryset
-        """
-        serializer = self.get_serializer(action_kwargs=kwargs, instance=message, many=many)
-        return serializer.data
-
-
-class AdminRoomConsumer(ListModelMixin,
-                        GenericAsyncAPIConsumer):
+class AdminRoomConsumer(
+    ListModelMixin,
+    GenericAsyncAPIConsumer,
+    ConsumerSerializationMixin,
+    ConsumerUtilitiesMixin,
+    ConsumerPaginationMixin
+):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
     lookup_field = 'pk'
@@ -362,14 +268,14 @@ class AdminRoomConsumer(ListModelMixin,
         if action == 'join_room':
             permission_instances += [CanAdminJoinRoom()]
         elif action in (
-            'leave_room',
-            'get_room_messages',
+                'leave_room',
+                'get_room_messages',
         ):
             permission_instances += [UserInRoom()]
         elif action in (
-            'create_message',
-            'edit_message',
-            'delete_messages',
+                'create_message',
+                'edit_message',
+                'delete_messages',
         ):
             permission_instances += [CanAdminAct()]
 
@@ -414,8 +320,7 @@ class AdminRoomConsumer(ListModelMixin,
             await self.close()
 
     async def disconnect(self, code):
-        if hasattr(self, 'paginator'):
-            delattr(self, 'paginator')
+        self.delete_all_paginators()
 
     @action()
     async def join_room(self, room_pk, **kwargs):
@@ -424,6 +329,7 @@ class AdminRoomConsumer(ListModelMixin,
 
         self.room = await database_sync_to_async(self.get_object)(pk=room_pk)
         self.room_group_name = f'room_{room_pk}'
+        self.action_paginators = {}
 
         # can create/edit/delete messages only in support chat
         # can view messages in all chats
@@ -431,7 +337,7 @@ class AdminRoomConsumer(ListModelMixin,
 
         await self.add_group(self.room_group_name)
 
-        room_data = await self.get_serialized_room(**kwargs)
+        room_data = await self.get_serialized_data(self.room, **kwargs)
 
         return room_data, status.HTTP_200_OK
 
@@ -440,8 +346,7 @@ class AdminRoomConsumer(ListModelMixin,
         if hasattr(self, 'room_group_name'):
             await self.remove_group(self.room_group_name)
 
-        if hasattr(self, 'paginator'):
-            delattr(self, 'paginator')
+        self.delete_paginator_for_action('get_room_messages')
 
         pk = self.room.pk
         delattr(self, 'room')
@@ -451,29 +356,16 @@ class AdminRoomConsumer(ListModelMixin,
 
     @action()
     async def get_room_messages(self, page: int, **kwargs):
+        action_ = kwargs.get('action')
         messages = await database_sync_to_async(self.get_queryset)(**kwargs)
 
-        if not hasattr(self, 'paginator'):
-            self.paginator = Paginator(messages, 100)
+        paginator = await self.paginate_queryset(messages, 100, action_)
 
-        await self.check_page_number(page)
+        page_objs = await self.get_page_objects(paginator, page)
 
-        page = await database_sync_to_async(self.paginator.get_page)(page)
+        messages_data = await self.get_serialized_data(page_objs, many=True, **kwargs)
 
-        try:
-            next_ = page.next_page_number()
-        except InvalidPage:
-            next_ = None
-
-        page_objs = page.object_list
-
-        messages_data = await self.get_serialized_message(page_objs, many=True, **kwargs)
-
-        data = {
-            'count': self.paginator.count,
-            'messages': messages_data,
-            'next': next_
-        }
+        data = await self.get_paginated_data(messages_data, paginator, page)
 
         return data, status.HTTP_200_OK
 
@@ -485,7 +377,7 @@ class AdminRoomConsumer(ListModelMixin,
             text=msg_text
         )
 
-        message_data = await self.get_serialized_message(message, **kwargs)
+        message_data = await self.get_serialized_data(message, **kwargs)
 
         await reply_to_groups(
             groups=(self.room_group_name,),
@@ -558,7 +450,7 @@ class AdminRoomConsumer(ListModelMixin,
     async def get_support_room(self, **kwargs):
         room, created = await self.get_or_create_support_room()
 
-        room_data = await self.get_serialized_room(room=room, **kwargs)
+        room_data = await self.get_serialized_data(room, **kwargs)
 
         if created:
             return room_data, status.HTTP_201_CREATED
@@ -567,92 +459,3 @@ class AdminRoomConsumer(ListModelMixin,
 
     async def data_to_groups(self, event):
         await self.send_json(event['payload'])
-
-    @database_sync_to_async
-    def check_page_number(self, page) -> None:
-        if type(page) is not int:
-            raise BadRequest('Page number must be an integer!')
-
-        if page not in self.paginator.page_range:
-            raise BadRequest(f'Page {page} does not exist!')
-
-    @database_sync_to_async
-    def edit_message_in_db(self, msg_id: int, text: str) -> int:
-        """
-        Edit message text in db. Allows editing only messages authored by the current user.
-        Admins are not exception.
-
-        Args:
-            msg_id: primary key of message being edited
-            text: new text to be set
-
-        Returns number of rows matched in db.
-        Either 0 if message with msg_id was not found in db
-        or 1 if message was found and updated
-        """
-        # filter uses user = self.scope['user'] to allow editing current user's messages only
-        # if message with id msg_id don't belong to user, then nothing happens
-        return Message.objects.filter(pk=msg_id, user=self.scope['user'], room=self.room).update(text=text)
-
-    @database_sync_to_async
-    def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
-        """
-        Delete messages from db. Can only delete own messages in current room.
-
-        Args:
-            msg_id_list: list of ids of message to delete
-
-        Returns number of messages deleted
-        """
-        return Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).delete()[0]
-
-    @database_sync_to_async
-    def get_or_create_support_room(self) -> tuple[Room, bool]:
-        """
-        Get support room for current user. If room does not exist, then create it.
-
-        Returns room instance and status whether it was created or not.
-        """
-        created = False  # whether a new room was created
-        try:
-            room = self.scope['user'].rooms.get(type=Room.SUPPORT)
-        except Room.DoesNotExist:
-            try:
-                with transaction.atomic():
-                    room = Room.objects.create(type=Room.SUPPORT)
-                    room.participants.add(self.scope['user'])
-                    created = True
-            except DatabaseError:
-                raise ServerError('Room creation failed! Please try again.')
-
-        return room, created
-
-    @database_sync_to_async
-    def get_serialized_room(self, room: Optional[Room] = None, **kwargs):
-        """
-        Get serialized room data.
-        If room argument is passed, then serializes that room, otherwise serializes current room.
-
-        Returns serializer data.
-
-        Args:
-            room: room instance to be serialized [optional]
-            kwargs: keyword arguments from action
-        """
-        if room is None:
-            serializer = self.get_serializer(action_kwargs=kwargs, instance=self.room)
-        else:
-            serializer = self.get_serializer(action_kwargs=kwargs, instance=room)
-        return serializer.data
-
-    @database_sync_to_async
-    def get_serialized_message(self, message: Message | QuerySet[Message], many: bool = False, **kwargs):
-        """
-        Serializes messages and returns serializer data.
-
-        Args:
-            message: Message model instance or queryset of model instances to be serialized
-            many: flag that indicates whether to serialize one message or queryset
-        """
-        serializer = self.get_serializer(action_kwargs=kwargs, instance=message, many=many)
-        return serializer.data

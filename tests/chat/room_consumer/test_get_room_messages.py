@@ -134,7 +134,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            self.assertEqual(len(response['data']['messages']), len(messages))
+            self.assertEqual(len(response['data']['results']), len(messages))
 
         await communicator1.disconnect()
         await communicator2.disconnect()
@@ -194,7 +194,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            self.assertEqual(len(response['data']['messages']), len(room1_messages))
+            self.assertEqual(len(response['data']['results']), len(room1_messages))
 
         await communicator.disconnect()
 
@@ -240,7 +240,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
             self.assertEqual(response['data']['count'], len(messages))
-            self.assertEqual(len(response['data']['messages']), 100)
+            self.assertEqual(len(response['data']['results']), 100)
             self.assertEqual(response['data']['next'], 2)
 
             # second page
@@ -248,7 +248,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            self.assertEqual(len(response['data']['messages']), 100)
+            self.assertEqual(len(response['data']['results']), 100)
             self.assertEqual(response['data']['next'], 3)
 
             # third page
@@ -256,7 +256,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            self.assertEqual(len(response['data']['messages']), 20)
+            self.assertEqual(len(response['data']['results']), 20)
             self.assertIsNone(response['data']['next'])
 
             # negative page number

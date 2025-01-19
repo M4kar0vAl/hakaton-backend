@@ -179,7 +179,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
             self.assertTrue(await user_communicator.receive_nothing())
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            messages_resp = response['data']['messages']
+            messages_resp = response['data']['results']
 
             self.assertEqual(len(messages_resp), 2)
             # check that messages ordered by created_at desc
@@ -193,7 +193,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
             self.assertTrue(await user_communicator.receive_nothing())
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            messages_resp = response['data']['messages']
+            messages_resp = response['data']['results']
 
             self.assertEqual(len(messages_resp), 2)
             # check that messages ordered by created_at desc
@@ -207,7 +207,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
             self.assertTrue(await user_communicator.receive_nothing())
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            messages_resp = response['data']['messages']
+            messages_resp = response['data']['results']
 
             self.assertEqual(len(messages_resp), 2)
             # check that messages ordered by created_at desc
@@ -219,7 +219,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
             response = await self.get_room_messages(admin_communicator, 1)
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            messages_resp = response['data']['messages']
+            messages_resp = response['data']['results']
 
             self.assertEqual(len(messages_resp), 2)
             # check that messages ordered by created_at desc
@@ -294,7 +294,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
             self.assertEqual(response['data']['count'], len(messages))
-            self.assertEqual(len(response['data']['messages']), 100)
+            self.assertEqual(len(response['data']['results']), 100)
             self.assertEqual(response['data']['next'], 2)
 
             # second page
@@ -302,7 +302,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            self.assertEqual(len(response['data']['messages']), 100)
+            self.assertEqual(len(response['data']['results']), 100)
             self.assertEqual(response['data']['next'], 3)
 
             # third page
@@ -310,7 +310,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            self.assertEqual(len(response['data']['messages']), 10)
+            self.assertEqual(len(response['data']['results']), 10)
             self.assertIsNone(response['data']['next'])
 
             # negative page number
