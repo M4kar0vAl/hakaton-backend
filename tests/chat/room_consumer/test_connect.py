@@ -1,12 +1,10 @@
-from channels.db import database_sync_to_async
 from cities_light.models import Country, City
 from django.contrib.auth import get_user_model
-from django.test import override_settings, TransactionTestCase, tag
-from rest_framework_simplejwt.tokens import AccessToken
+from django.test import TransactionTestCase, override_settings, tag
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
-from tests.utils import get_websocket_communicator
+from tests.utils import get_websocket_communicator, get_websocket_communicator_for_user
 
 User = get_user_model()
 
@@ -69,7 +67,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
             protocols=[self.accepted_protocol],
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 
@@ -78,7 +76,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_wo_brand(self):
-        user_wo_brand = await database_sync_to_async(User.objects.create_user)(
+        user_wo_brand = await User.objects.acreate(
             email=f'user_wo_brand@example.com',
             phone='+79993332211',
             fullname='Юзеров Юзер Юзерович',
@@ -86,17 +84,15 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
             is_active=True
         )
 
-        access = AccessToken.for_user(user_wo_brand)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=user_wo_brand
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 
@@ -107,14 +103,12 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_authenticated_brand(self):
-        access = AccessToken.for_user(self.user)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.user
         )
 
         connected, subprotocol = await communicator.connect()
@@ -128,17 +122,15 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_unsupported_protocol(self):
-        access = AccessToken.for_user(self.user)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=['unsupported'],
-            token=access
+            user=self.user
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 
@@ -147,14 +139,12 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_supported_and_unsupported_protocols_together(self):
-        access = AccessToken.for_user(self.user)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=['unsupported', self.accepted_protocol],
-            token=access
+            user=self.user
         )
 
         connected, subprotocol = await communicator.connect()

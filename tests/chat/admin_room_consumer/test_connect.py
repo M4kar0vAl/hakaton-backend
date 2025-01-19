@@ -1,10 +1,8 @@
-from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
-from rest_framework_simplejwt.tokens import AccessToken
 
 from core.apps.chat.consumers import AdminRoomConsumer
-from tests.utils import get_websocket_communicator
+from tests.utils import get_websocket_communicator, get_websocket_communicator_for_user
 
 User = get_user_model()
 
@@ -49,7 +47,7 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
             protocols=[self.accepted_protocol],
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 
@@ -58,7 +56,7 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_non_admin_user_not_allowed(self):
-        non_admin_user = await database_sync_to_async(User.objects.create_user)(
+        non_admin_user = await User.objects.acreate(
             email=f'non_admin_user@example.com',
             phone='+79993332211',
             fullname='Юзеров Юзер Юзерович',
@@ -66,17 +64,15 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
             is_active=True
         )
 
-        access = AccessToken.for_user(non_admin_user)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=AdminRoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=non_admin_user
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 
@@ -85,17 +81,15 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_unsupported_protocol(self):
-        access = AccessToken.for_user(self.admin_user)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=AdminRoomConsumer,
             protocols=['unsupported'],
-            token=access
+            user=self.admin_user
         )
 
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
 
@@ -104,14 +98,12 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_supported_and_unsupported_protocols_together(self):
-        access = AccessToken.for_user(self.admin_user)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=AdminRoomConsumer,
             protocols=['unsupported', self.accepted_protocol],
-            token=access
+            user=self.admin_user
         )
 
         connected, subprotocol = await communicator.connect()
@@ -122,14 +114,12 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_admin_user(self):
-        access = AccessToken.for_user(self.admin_user)
-
-        communicator = get_websocket_communicator(
+        communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
             consumer_class=AdminRoomConsumer,
             protocols=[self.accepted_protocol],
-            token=access
+            user=self.admin_user
         )
 
         connected, subprotocol = await communicator.connect()

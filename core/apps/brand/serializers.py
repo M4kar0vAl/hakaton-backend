@@ -860,20 +860,16 @@ class GetShortBrandSerializer(serializers.ModelSerializer):
         model = Brand
         fields = [
             'id',
-            'brand_name_pos',
-            'fullname',
+            'name',
             'logo',
             'photo',
-            'product_photo',
             'category'
         ]
         read_only_fields = [
             'id',
-            'brand_name_pos',
-            'fullname',
+            'name',
             'logo'
             'photo',
-            'product_photo',
             'category'
         ]
 
@@ -937,14 +933,7 @@ class MatchSerializer(serializers.ModelSerializer):
                         match.room.type = Room.MATCH
                         match.room.save()
                     else:
-                        has_business = Subscription.objects.filter(
-                            Q(brand=initiator) | Q(brand=target),
-                            is_active=True,
-                            end_date__gt=timezone.now(),
-                            tariff__name='Business Match'
-                        ).exists()
-
-                        room = Room.objects.create(has_business=has_business)
+                        room = Room.objects.create(type=Room.MATCH)
                         room.participants.add(initiator.user, target.user)
                         match.room = room
                     match.save()
@@ -962,7 +951,7 @@ class InstantCoopSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         exclude = []
-        read_only_fields = ['id', 'participants', 'has_business', 'type']
+        read_only_fields = ['id', 'participants', 'type']
 
     def validate(self, attrs):
         initiator = self.context['request'].user.brand
@@ -1000,7 +989,7 @@ class InstantCoopSerializer(serializers.ModelSerializer):
 
         try:
             with transaction.atomic():
-                room = Room.objects.create(has_business=True, type=Room.INSTANT)
+                room = Room.objects.create(type=Room.INSTANT)
                 room.participants.add(initiator.user, target.user)
 
                 # assign instant room to this like.
