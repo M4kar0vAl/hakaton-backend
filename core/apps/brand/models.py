@@ -7,8 +7,6 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.deconstruct import deconstructible
 
-from core.apps.brand.utils import get_file_extension
-
 
 @deconstructible
 class UserDirectoryPath:
@@ -26,6 +24,8 @@ class UserDirectoryPath:
         self.field = field
 
     def __call__(self, instance, filename):
+        from core.apps.brand.utils import get_file_extension
+
         # file will be uploaded to MEDIA_ROOT/user_<id>/<field>.<extension>
         extension = get_file_extension(filename)
         new_filename = self.field + extension
@@ -33,6 +33,8 @@ class UserDirectoryPath:
 
 
 def product_photo_path(instance, filename):
+    from core.apps.brand.utils import get_file_extension
+
     # file will be uploaded to MEDIA_ROOT/user_<id>/product_photos/<format>/<uuid4>.<ext>
     format_ = None
     instance_class = instance.__class__
@@ -51,6 +53,8 @@ def product_photo_path(instance, filename):
 
 
 def gallery_path(instance, filename):
+    from core.apps.brand.utils import get_file_extension
+
     # file will be uploaded to MEDIA_ROOT/user_<id>/gallery/<uuid4>.<ext>
     extension = get_file_extension(filename)
     new_filename = f'{uuid.uuid4()}{extension}'
@@ -323,19 +327,24 @@ class Match(models.Model):
         related_name='initiator',
         verbose_name='Кто лайкнул'
     )
+
     target = models.ForeignKey(
         to=Brand,
         on_delete=models.PROTECT,
         related_name='target',
         verbose_name='Кого лайкнули'
     )
+
     is_match = models.BooleanField(
-        default=False,
-        verbose_name='Метч'
+        default=False, verbose_name='Метч'
     )
+
     room = models.OneToOneField(
         'chat.Room', on_delete=models.SET_NULL, blank=True, null=True
     )
+
+    like_at = models.DateTimeField(auto_now_add=True, verbose_name='Время лайка')
+    match_at = models.DateTimeField(null=True, default=None, verbose_name='Время метча')
 
 
 class BusinessGroup(models.Model):
@@ -351,6 +360,10 @@ class Collaboration(models.Model):
     )
     collab_with = models.ForeignKey(
         Brand, on_delete=models.PROTECT, related_name='collab_participant', verbose_name='Коллаборация с'
+    )
+
+    match = models.ForeignKey(
+        Match, on_delete=models.PROTECT, related_name='collaborations', verbose_name='Метч'
     )
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')

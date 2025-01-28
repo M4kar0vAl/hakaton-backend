@@ -2,10 +2,12 @@ import json
 import os
 import shutil
 
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.db.models import Q, Subquery, Prefetch, Value, Count
 from django.http import QueryDict
+from django.utils import timezone
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -13,7 +15,8 @@ from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog
+from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog, \
+    Match, Collaboration
 from core.apps.brand.pagination import StandardResultsSetPagination
 from core.apps.brand.permissions import IsBusinessSub, IsBrand, CanInstantCoop
 from core.apps.brand.serializers import (
@@ -28,8 +31,9 @@ from core.apps.brand.serializers import (
     MyLikesSerializer,
     MyMatchesSerializer,
     RecommendedBrandsSerializer,
-    BrandMeSerializer,
+    BrandMeSerializer, StatisticsSerializer,
 )
+from core.apps.brand.utils import get_periods, get_statistics_list
 from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription
 
@@ -443,6 +447,29 @@ class BrandViewSet(
 
             return result
 
+        elif self.action == 'statistics':
+            current_brand = self.request.user.brand
+            period: int = self.request.query_params.get('period')  # number of months
+
+            if period is None:
+                raise serializers.ValidationError('"period" must be specified')
+
+            try:
+                period = int(period)
+            except ValueError:
+                raise serializers.ValidationError(
+                    f'{period} is not a valid period. Valid period is from range [1, 12] inclusive'
+                )
+
+            if period not in range(1, 13):
+                raise serializers.ValidationError(
+                    f'{period} is not a valid period. Valid period is from range [1, 12] inclusive'
+                )
+
+            results = get_statistics_list(current_brand, period)
+
+            return results
+
         return super().get_queryset()
 
     def get_serializer_class(self):
@@ -465,6 +492,8 @@ class BrandViewSet(
             return MyMatchesSerializer
         elif self.action == 'recommended_brands':
             return RecommendedBrandsSerializer
+        elif self.action == 'statistics':
+            return StatisticsSerializer
 
         return super().get_serializer_class()
 
@@ -494,7 +523,7 @@ class BrandViewSet(
         elif self.action == 'me':
             if self.request.method in ('GET', 'PATCH', 'DELETE'):
                 permission_classes = [IsAuthenticated, IsBrand]
-        elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches', 'recommended_brands'):
+        elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches', 'recommended_brands', 'statistics'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub, CanInstantCoop]
@@ -713,6 +742,13 @@ class BrandViewSet(
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_name='statistics')
+    def statistics(self, request):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 
