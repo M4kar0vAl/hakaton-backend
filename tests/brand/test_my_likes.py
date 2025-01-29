@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import tag
@@ -227,9 +225,22 @@ class BrandMyLikesTestCase(
         self.assertEqual(len(response.data['results']), 2)
 
     @tag('slow')
-    def test_number_of_queries_less_than_7(self):
+    def test_my_likes_number_of_queries(self):
         client = self.create_n_likes(50)
 
-        with self.assertNumQueriesLessThan(7, verbose=True):
+        with self.assertNumQueriesLessThan(5, verbose=True):
             response = client.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_my_likes_ordering(self):
+        self.auth_client1.post(self.like_url, {'target': self.brand2.id})
+        self.auth_client1.post(self.like_url, {'target': self.brand3.id})
+
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data['results']
+
+        self.assertEqual(results[0]['id'], self.brand3.id)
+        self.assertEqual(results[1]['id'], self.brand2.id)

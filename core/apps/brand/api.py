@@ -5,7 +5,7 @@ import shutil
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db import transaction, DatabaseError
-from django.db.models import Q, Subquery, Prefetch, Value, Count
+from django.db.models import Q, Subquery, Prefetch, Value, Count, OuterRef
 from django.http import QueryDict
 from django.utils import timezone
 from rest_framework import viewsets, status, generics, serializers, mixins
@@ -73,14 +73,18 @@ class BrandViewSet(
         if self.action == 'liked_by':
             # get all brands which liked current one and haven't been liked in response yet
             liked_by_ids = self.request.user.brand.target.filter(is_match=False).values_list('initiator', flat=True)
-            return Brand.objects.filter(pk__in=Subquery(liked_by_ids))  # TODO add ordering
+            like_at = Subquery(self.request.user.brand.target.filter(initiator=OuterRef('id')).values('like_at')[:1])
+
+            return Brand.objects.filter(pk__in=Subquery(liked_by_ids)).annotate(like_at=like_at).order_by('-like_at')
 
         elif self.action == 'my_likes':
             my_likes_ids = self.request.user.brand.initiator.filter(is_match=False).values_list('target', flat=True)
+            like_at = Subquery(self.request.user.brand.initiator.filter(target=OuterRef('id')).values('like_at')[:1])
 
-            # get all brands that were like by current brand.
-            # Prefetch product_photos of format CARD to improve performance and set them to 'card_photos' attribute
-            # prefetch instant rooms for brand user
+            # get all brands that were liked by the current brand.
+            # Prefetch product_photos of the CARD format to improve performance
+            # and set them to a 'card_photos' attribute
+            # prefetch instant rooms for the brand user
             return Brand.objects.filter(pk__in=Subquery(my_likes_ids)).select_related('user').prefetch_related(
                 Prefetch(
                     'product_photos',
@@ -92,18 +96,25 @@ class BrandViewSet(
                     queryset=Room.objects.filter(type=Room.INSTANT),
                     to_attr='instant_rooms'
                 )
-            )  # TODO add ordering
+            ).annotate(like_at=like_at).order_by('-like_at')
 
         elif self.action == 'my_matches':
+            current_brand = self.request.user.brand
+
             # get ids of brands that have match with current brand as initiator
-            my_matches_ids_as_initiator = self.request.user.brand.initiator.filter(
+            my_matches_ids_as_initiator = current_brand.initiator.filter(
                 is_match=True
             ).values_list('target', flat=True)
 
             # get ids of brands that have match with current brand as target
-            my_matches_ids_as_target = self.request.user.brand.target.filter(
+            my_matches_ids_as_target = current_brand.target.filter(
                 is_match=True
             ).values_list('initiator', flat=True)
+
+            match_at = Subquery(Match.objects.filter(
+                Q(initiator=current_brand, target=OuterRef('id')) | Q(initiator=OuterRef('id'), target=current_brand),
+                is_match=True
+            ).values('match_at')[:1])
 
             # get all brands that have match with current brand
             # prefetch card photos and match rooms to improve performance
@@ -120,7 +131,7 @@ class BrandViewSet(
                     queryset=Room.objects.filter(type=Room.MATCH),
                     to_attr='match_rooms'
                 )
-            )  # TODO add ordering
+            ).annotate(match_at=match_at).order_by('-match_at')
 
         elif self.action == 'recommended_brands':
             avg_bill = self.request.query_params.get('avg_bill')

@@ -218,13 +218,22 @@ class BrandMyMatchesTestCase(
         self.assertEqual(len(response.data['results']), 1)
 
     @tag('slow')
-    def test_number_of_queries_less_than_7(self):
-        """
-        Test that calling my_likes action results in less than 7 queries in db,
-        no matter how many matches the brand has
-        """
+    def test_my_matches_number_of_queries(self):
         auth_client_50_matches = self.create_n_matches(50)
 
-        with self.assertNumQueriesLessThan(7, verbose=True):
+        with self.assertNumQueriesLessThan(5, verbose=True):
             response = auth_client_50_matches.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_my_matches_ordering(self):
+        self.auth_client1.post(self.like_url, {'target': self.brand2.id})
+        self.auth_client1.post(self.like_url, {'target': self.brand3.id})
+        self.auth_client2.post(self.like_url, {'target': self.brand1.id})
+        self.auth_client3.post(self.like_url, {'target': self.brand1.id})
+
+        response = self.auth_client1.get(self.url)
+
+        results = response.data['results']
+
+        self.assertEqual(results[0]['id'], self.brand3.id)
+        self.assertEqual(results[1]['id'], self.brand2.id)
