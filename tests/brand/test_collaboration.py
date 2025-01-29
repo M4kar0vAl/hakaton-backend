@@ -1,10 +1,11 @@
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.analytics.models import MatchActivity
-from core.apps.brand.models import Brand, Category, Collaboration
+from core.apps.brand.models import Brand, Category, Collaboration, Match
 
 User = get_user_model()
 
@@ -33,7 +34,7 @@ class CollaborationTestCase(APITestCase):
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
 
-        brand_data = {
+        cls.brand_data = {
             'tg_nickname': '@asfhbnaf',
             'name': 'brand1',
             'position': 'position',
@@ -51,10 +52,18 @@ class CollaborationTestCase(APITestCase):
             'photo': 'string'
         }
 
-        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
-        cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
+        cls.brand1 = Brand.objects.create(user=cls.user1, **cls.brand_data)
+        cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
+
+        cls.match = Match.objects.create(
+            initiator=cls.brand1,
+            target=cls.brand2,
+            is_match=True,
+            match_at=timezone.now()
+        )
 
         cls.collaboration_data = {
+            "match": cls.match.id,
             "success_assessment": 10,
             "success_reason": "string",
             "to_improve": "string",
@@ -75,34 +84,44 @@ class CollaborationTestCase(APITestCase):
         cls.url = reverse('collaboration')
 
     def test_cannot_collaborate_with_yourself(self):
-        collaboration_data = {**self.collaboration_data, 'collab_with': self.brand1.id}
+        # it's not possible to make match with yourself using API,
+        # but this is in the case of a random creation of such thing
+        match_with_self = Match.objects.create(initiator=self.brand1, target=self.brand1, is_match=True)
+
+        collaboration_data = {**self.collaboration_data, 'match': match_with_self.id}
 
         response = self.auth_client1.post(self.url, collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_collaboration_target_does_not_exist(self):
-        collaboration_data = {**self.collaboration_data, 'collab_with': 0}
+    def test_collaboration_match_does_not_exist(self):
+        collaboration_data = {**self.collaboration_data, 'match': 0}
 
         response = self.auth_client1.post(self.url, collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_collaboration_with_brand_without_match(self):
-        collaboration_data = {**self.collaboration_data, 'collab_with': self.brand2.id}
+        user_wo_match = User.objects.create_user(
+            email='user3@example.com',
+            phone='+79993332212',
+            fullname='Юзеров Юзер1 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        brand_wo_match = Brand.objects.create(**self.brand_data, user=user_wo_match)
+
+        like = Match.objects.create(initiator=self.brand1, target=brand_wo_match, is_match=False)
+
+        collaboration_data = {**self.collaboration_data, 'match': like.id}
 
         response = self.auth_client1.post(self.url, collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_collaboration_create(self):
-        like_url = reverse('brand-like')
-        self.auth_client1.post(like_url, {'target': self.brand2.id})
-        self.auth_client2.post(like_url, {'target': self.brand1.id})
-
-        collaboration_data = {**self.collaboration_data, 'collab_with': self.brand2.id}
-
-        response = self.auth_client1.post(self.url, collaboration_data)
+        response = self.auth_client1.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -112,35 +131,26 @@ class CollaborationTestCase(APITestCase):
         self.assertEqual(collab.collab_with.id, self.brand2.id)
 
         for key, value in self.collaboration_data.items():
+            if key == 'match':
+                self.assertEqual(getattr(collab, key).id, value)
+                continue
+
             self.assertEqual(getattr(collab, key), value)
 
     def test_collaboration_already_reported(self):
-        like_url = reverse('brand-like')
-        self.auth_client1.post(like_url, {'target': self.brand2.id})
-        self.auth_client2.post(like_url, {'target': self.brand1.id})
-
-        collaboration_data = {**self.collaboration_data, 'collab_with': self.brand2.id}
-
         # first collab
-        self.auth_client1.post(self.url, collaboration_data)
+        self.auth_client1.post(self.url, self.collaboration_data)
 
-        response = self.auth_client1.post(self.url, collaboration_data)
+        response = self.auth_client1.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_collaboration_participant_can_report(self):
-        like_url = reverse('brand-like')
-        self.auth_client1.post(like_url, {'target': self.brand2.id})
-        self.auth_client2.post(like_url, {'target': self.brand1.id})
+        # collab of the initiator
+        self.auth_client1.post(self.url, self.collaboration_data)
 
-        collaboration_data = {**self.collaboration_data, 'collab_with': self.brand2.id}
-
-        # first collab
-        self.auth_client1.post(self.url, collaboration_data)
-
-        collaboration_data = {**self.collaboration_data, 'collab_with': self.brand1.id}
-
-        response = self.auth_client2.post(self.url, collaboration_data)
+        # collab of the participant
+        response = self.auth_client2.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -150,16 +160,16 @@ class CollaborationTestCase(APITestCase):
         self.assertEqual(collab.collab_with.id, self.brand1.id)
 
         for key, value in self.collaboration_data.items():
+            if key == 'match':
+                self.assertEqual(getattr(collab, key).id, value)
+                continue
+
             self.assertEqual(getattr(collab, key), value)
 
     def test_collaboration_activity_created_in_db(self):
-        like_url = reverse('brand-like')
-        self.auth_client1.post(like_url, {'target': self.brand2.id})
-        self.auth_client2.post(like_url, {'target': self.brand1.id})
+        response = self.auth_client1.post(self.url, self.collaboration_data)
 
-        collaboration_data = {**self.collaboration_data, 'collab_with': self.brand2.id}
-
-        response = self.auth_client1.post(self.url, collaboration_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         collab = Collaboration.objects.prefetch_related('reporter', 'collab_with').get(pk=response.data['id'])
 
@@ -172,7 +182,7 @@ class CollaborationTestCase(APITestCase):
         self.assertTrue(activity_obj.is_match)
 
     def test_unauthenticated_not_allowed(self):
-        response = self.client.post(self.url, {**self.collaboration_data, 'collab_with': self.brand2.id})
+        response = self.client.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -188,6 +198,6 @@ class CollaborationTestCase(APITestCase):
         no_brand_auth_client = APIClient()
         no_brand_auth_client.force_authenticate(user)
 
-        response = no_brand_auth_client.post(self.url, {**self.collaboration_data, 'collab_with': self.brand2.id})
+        response = no_brand_auth_client.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

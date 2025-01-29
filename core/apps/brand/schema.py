@@ -149,6 +149,38 @@ class Fix1(OpenApiViewExtension):
             def recommended_brands(self, request, *args, **kwargs):
                 return super().recommended_brands(request, *args, **kwargs)
 
+            @extend_schema(
+                tags=['Brand'],
+                description="Get statistics for the brand.\n\n"
+                            "The result will be a list of like/match/collab counts for each period.\n\n"
+                            "Each period is calculated by subtracting 1 month from the previous one.\n\n"
+                            "For example:\n\n"
+                            "\tfirst period will be calculated as: "
+                            "<current date-time - 1 month> to <current date-time>\n\n"
+                            "If today is 13th January, then first period will be: 13th December - 13th January\n\n"
+                            "\tsecond period will be calculated as: "
+                            "<first period lower bound - 1 month> to <first period lower bound>\n\n"
+                            "Continuing example with 13th January, the second period will be: "
+                            "13th November - 13th December\n\n"
+                            "And so on.",
+                parameters=[
+                    OpenApiParameter(
+                        'period',
+                        OpenApiTypes.INT,
+                        OpenApiParameter.QUERY,
+                        required=True,
+                        description='Number of months to calculate statistics for.\n\n'
+                                    'Statistics will be calculated for range:\n\n'
+                                    '\t[now - {period} months, now]\n\n'
+                                    'Constraints:\n\n'
+                                    '\tmin: 1\n\n'
+                                    '\tmax: 12'
+                    )
+                ]
+            )
+            def statistics(self, request, *args, **kwargs):
+                return super().statistics(request, *args, **kwargs)
+
         return Fixed
 
 

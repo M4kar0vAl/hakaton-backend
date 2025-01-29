@@ -4,11 +4,15 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Category, Brand
+from tests.mixins import AssertNumQueriesLessThanMixin
 
 User = get_user_model()
 
 
-class LikedByTestCase(APITestCase):
+class LikedByTestCase(
+    APITestCase,
+    AssertNumQueriesLessThanMixin
+):
     @classmethod
     def setUpTestData(cls):
         cls.user1 = User.objects.create_user(
@@ -116,3 +120,26 @@ class LikedByTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertEqual(len(response.data['results']), 1)
+
+    def test_liked_by_number_of_queries(self):
+        self.auth_client2.post(self.like_url, {'target': self.brand1.id})
+        self.auth_client3.post(self.like_url, {'target': self.brand1.id})
+
+        with self.assertNumQueriesLessThan(2, verbose=True):
+            response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_liked_by_ordering(self):
+        self.auth_client2.post(self.like_url, {'target': self.brand1.id})
+        self.auth_client3.post(self.like_url, {'target': self.brand1.id})
+
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data['results']
+
+        # results are ordered by the time of a like descending
+        self.assertEqual(results[0]['id'], self.brand3.id)
+        self.assertEqual(results[1]['id'], self.brand2.id)

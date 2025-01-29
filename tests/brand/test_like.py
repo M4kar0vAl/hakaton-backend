@@ -99,7 +99,12 @@ class BrandLikeTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        self.assertTrue(Match.objects.filter(is_match=True).exists())  # check that match exists
+        self.assertTrue(Match.objects.filter(id=response.data['id'], is_match=True).exists())  # check that match exists
+
+        match = Match.objects.get(id=response.data['id'])
+
+        # check that match time was set
+        self.assertIsNotNone(match.match_at)
 
         # check that match doesn't create another instance in db and only updates the old one
         self.assertEqual(Match.objects.count(), 1)

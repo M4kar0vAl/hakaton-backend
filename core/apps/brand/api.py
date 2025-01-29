@@ -2,10 +2,12 @@ import json
 import os
 import shutil
 
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db import transaction, DatabaseError
-from django.db.models import Q, Subquery, Prefetch, Value, Count
+from django.db.models import Q, Subquery, Prefetch, Value, Count, OuterRef
 from django.http import QueryDict
+from django.utils import timezone
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -13,7 +15,8 @@ from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog
+from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog, \
+    Match, Collaboration
 from core.apps.brand.pagination import StandardResultsSetPagination
 from core.apps.brand.permissions import IsBusinessSub, IsBrand, CanInstantCoop
 from core.apps.brand.serializers import (
@@ -28,8 +31,9 @@ from core.apps.brand.serializers import (
     MyLikesSerializer,
     MyMatchesSerializer,
     RecommendedBrandsSerializer,
-    BrandMeSerializer,
+    BrandMeSerializer, StatisticsSerializer,
 )
+from core.apps.brand.utils import get_periods, get_statistics_list
 from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription
 
@@ -69,14 +73,18 @@ class BrandViewSet(
         if self.action == 'liked_by':
             # get all brands which liked current one and haven't been liked in response yet
             liked_by_ids = self.request.user.brand.target.filter(is_match=False).values_list('initiator', flat=True)
-            return Brand.objects.filter(pk__in=Subquery(liked_by_ids))  # TODO add ordering
+            like_at = Subquery(self.request.user.brand.target.filter(initiator=OuterRef('id')).values('like_at')[:1])
+
+            return Brand.objects.filter(pk__in=Subquery(liked_by_ids)).annotate(like_at=like_at).order_by('-like_at')
 
         elif self.action == 'my_likes':
             my_likes_ids = self.request.user.brand.initiator.filter(is_match=False).values_list('target', flat=True)
+            like_at = Subquery(self.request.user.brand.initiator.filter(target=OuterRef('id')).values('like_at')[:1])
 
-            # get all brands that were like by current brand.
-            # Prefetch product_photos of format CARD to improve performance and set them to 'card_photos' attribute
-            # prefetch instant rooms for brand user
+            # get all brands that were liked by the current brand.
+            # Prefetch product_photos of the CARD format to improve performance
+            # and set them to a 'card_photos' attribute
+            # prefetch instant rooms for the brand user
             return Brand.objects.filter(pk__in=Subquery(my_likes_ids)).select_related('user').prefetch_related(
                 Prefetch(
                     'product_photos',
@@ -88,18 +96,25 @@ class BrandViewSet(
                     queryset=Room.objects.filter(type=Room.INSTANT),
                     to_attr='instant_rooms'
                 )
-            )  # TODO add ordering
+            ).annotate(like_at=like_at).order_by('-like_at')
 
         elif self.action == 'my_matches':
+            current_brand = self.request.user.brand
+
             # get ids of brands that have match with current brand as initiator
-            my_matches_ids_as_initiator = self.request.user.brand.initiator.filter(
+            my_matches_ids_as_initiator = current_brand.initiator.filter(
                 is_match=True
             ).values_list('target', flat=True)
 
             # get ids of brands that have match with current brand as target
-            my_matches_ids_as_target = self.request.user.brand.target.filter(
+            my_matches_ids_as_target = current_brand.target.filter(
                 is_match=True
             ).values_list('initiator', flat=True)
+
+            match_at = Subquery(Match.objects.filter(
+                Q(initiator=current_brand, target=OuterRef('id')) | Q(initiator=OuterRef('id'), target=current_brand),
+                is_match=True
+            ).values('match_at')[:1])
 
             # get all brands that have match with current brand
             # prefetch card photos and match rooms to improve performance
@@ -116,7 +131,7 @@ class BrandViewSet(
                     queryset=Room.objects.filter(type=Room.MATCH),
                     to_attr='match_rooms'
                 )
-            )  # TODO add ordering
+            ).annotate(match_at=match_at).order_by('-match_at')
 
         elif self.action == 'recommended_brands':
             avg_bill = self.request.query_params.get('avg_bill')
@@ -443,6 +458,29 @@ class BrandViewSet(
 
             return result
 
+        elif self.action == 'statistics':
+            current_brand = self.request.user.brand
+            period: int = self.request.query_params.get('period')  # number of months
+
+            if period is None:
+                raise serializers.ValidationError('"period" must be specified')
+
+            try:
+                period = int(period)
+            except ValueError:
+                raise serializers.ValidationError(
+                    f'{period} is not a valid period. Valid period is from range [1, 12] inclusive'
+                )
+
+            if period not in range(1, 13):
+                raise serializers.ValidationError(
+                    f'{period} is not a valid period. Valid period is from range [1, 12] inclusive'
+                )
+
+            results = get_statistics_list(current_brand, period)
+
+            return results
+
         return super().get_queryset()
 
     def get_serializer_class(self):
@@ -465,6 +503,8 @@ class BrandViewSet(
             return MyMatchesSerializer
         elif self.action == 'recommended_brands':
             return RecommendedBrandsSerializer
+        elif self.action == 'statistics':
+            return StatisticsSerializer
 
         return super().get_serializer_class()
 
@@ -494,7 +534,7 @@ class BrandViewSet(
         elif self.action == 'me':
             if self.request.method in ('GET', 'PATCH', 'DELETE'):
                 permission_classes = [IsAuthenticated, IsBrand]
-        elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches', 'recommended_brands'):
+        elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches', 'recommended_brands', 'statistics'):
             permission_classes = [IsAuthenticated, IsBrand]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub, CanInstantCoop]
@@ -713,6 +753,13 @@ class BrandViewSet(
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
+        return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_name='statistics')
+    def statistics(self, request):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
 

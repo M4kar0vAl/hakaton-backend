@@ -35,7 +35,6 @@ from core.apps.brand.models import (
 )
 from core.apps.chat.models import Room
 from core.apps.cities.serializers import CitySerializer
-from core.apps.payments.models import Subscription
 from core.apps.payments.serializers import SubscriptionSerializer
 
 User = get_user_model()
@@ -927,6 +926,7 @@ class MatchSerializer(serializers.ModelSerializer):
                 if match is not None:
                     # if not None, then is_match is False (checked in validate)
                     match.is_match = True
+                    match.match_at = timezone.now()
 
                     if match.room is not None:
                         # if match already have room (instant), then change its type to match
@@ -1010,29 +1010,43 @@ class InstantCoopRequestSerializer(serializers.Serializer):
 
 
 class CollaborationSerializer(serializers.ModelSerializer):
+    match = serializers.PrimaryKeyRelatedField(queryset=Match.objects.filter(is_match=True))
+
     class Meta:
         model = Collaboration
         exclude = []
-        read_only_fields = ['reporter', 'created_at']
+        read_only_fields = ['reporter', 'collab_with', 'created_at']
 
     def validate(self, attrs):
         reporter = self.context['request'].user.brand
-        collab_with = attrs.get('collab_with')  # brand obj
+        match = attrs.get('match')  # match obj
 
-        if reporter.id == collab_with.id:
-            raise serializers.ValidationError('You cannot report collaboration with yourself!')
+        match_initiator_id = match.initiator_id
+        match_target_id = match.target_id
 
-        if not Match.objects.filter(
-                Q(initiator=reporter, target=collab_with) | Q(initiator=collab_with, target=reporter), is_match=True
-        ).exists():
-            raise serializers.ValidationError(
-                'You cannot report about collaboration with brand you do not have match with!'
-            )
+        collab_with_id = None
+
+        if reporter.id == match_initiator_id:
+            # if the brand is the initiator of the match, then collab_with is the target
+            collab_with_id = match_target_id
+        elif reporter.id == match_target_id:
+            # if the brand is the target of the match, then collab_with is the initiator
+            collab_with_id = match_initiator_id
+
+        if collab_with_id is None:
+            # if brand is not the initiator and not the target of the match, then this is not the brand's match
+            raise serializers.ValidationError('You cannot report a collaboration unless you are a member of the match.')
+
+        collab_with = Brand.objects.get(id=collab_with_id)
+
+        if reporter.id == collab_with_id:
+            raise serializers.ValidationError('You cannot report a collaboration with yourself!')
 
         if Collaboration.objects.filter(reporter=reporter, collab_with=collab_with).exists():
             raise serializers.ValidationError("You have already reported collaboration with that brand!")
 
         attrs['reporter'] = reporter
+        attrs['collab_with'] = collab_with
 
         return attrs
 
@@ -1157,3 +1171,10 @@ class RecommendedBrandsSerializer(serializers.ModelSerializer):
 
     def get_match_photos(self, brand):
         return ProductPhotoSerializer(brand.match_photos, many=True).data
+
+
+class StatisticsSerializer(serializers.Serializer):
+    period = serializers.CharField(read_only=True)
+    likes = serializers.IntegerField(read_only=True)
+    matches = serializers.IntegerField(read_only=True)
+    collabs = serializers.IntegerField(read_only=True)
