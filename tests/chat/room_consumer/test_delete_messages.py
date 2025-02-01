@@ -1,13 +1,16 @@
 from cities_light.models import Country, City
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
+from django.utils import timezone
 from rest_framework import status
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.models import Room, Message
+from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import RoomConsumerActionsMixin
-from tests.utils import get_websocket_communicator_for_user, join_room_communal
+from tests.utils import get_websocket_communicator_for_user, join_room_communal, join_room
 
 User = get_user_model()
 
@@ -59,8 +62,77 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         self.brand1 = Brand.objects.create(user=self.user1, **self.brand_data)
         self.brand2 = Brand.objects.create(user=self.user2, **self.brand_data)
 
+        now = timezone.now()
+        self.tariff = Tariff.objects.get(name='Lite Match')
+
+        Subscription.objects.bulk_create([
+            Subscription(
+                brand=brand,
+                tariff=self.tariff,
+                start_date=now,
+                end_date=now + relativedelta(months=self.tariff.duration.days // 30),
+                is_active=True
+            )
+            for brand in [self.brand1, self.brand2]
+        ])
+
         self.path = 'ws/chat/'
         self.accepted_protocol = 'chat'
+
+    async def test_delete_messages_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = await User.objects.acreate(
+            email=f'user3@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        brand = await Brand.objects.acreate(user=user_wo_active_sub, **self.brand_data)
+
+        room = await Room.objects.acreate(type=Room.INSTANT)
+        await room.participants.aset([user_wo_active_sub])
+
+        msg = await Message.objects.acreate(
+            text='test',
+            user=user_wo_active_sub,
+            room=room
+        )
+
+        now = timezone.now()
+
+        # create active sub
+        sub = await Subscription.objects.acreate(
+            brand=brand,
+            tariff=self.tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=self.tariff.duration.days // 30),
+            is_active=True
+        )
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=user_wo_active_sub
+        )
+
+        # connect with active sub
+        connected, _ = await communicator.connect()
+
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            # make sub expired
+            sub.end_date = now - relativedelta(days=1)
+            await sub.asave()
+
+            response = await self.delete_messages(communicator, [msg.id])
+
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+
+        await communicator.disconnect()
 
     async def test_delete_messages_not_in_room_not_allowed(self):
         room = await Room.objects.acreate(type=Room.MATCH)

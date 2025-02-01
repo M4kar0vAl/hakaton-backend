@@ -1,12 +1,15 @@
 from datetime import timedelta
 
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Brand, Category, Match, Collaboration
 from core.apps.brand.utils import get_periods
+from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 User = get_user_model()
@@ -43,6 +46,17 @@ class StatisticsTestCase(
 
         cls.brand = Brand.objects.create(user=cls.user, **cls.brand_data)
 
+        cls.business_tariff = Tariff.objects.get(name='Business Match')
+        now = timezone.now()
+
+        Subscription.objects.create(
+            brand=cls.brand,
+            tariff=cls.business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            is_active=True
+        )
+
         cls.url = reverse('brand-statistics')
         cls.like_url = reverse('brand-like')
         cls.collab_url = reverse('collaboration')
@@ -65,6 +79,24 @@ class StatisticsTestCase(
         client_wo_brand.force_authenticate(user_wo_brand)
 
         response = client_wo_brand.get(f'{self.url}?period=1')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_statistics_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = User.objects.create_user(
+            email='user_wo_active_sub@example.com',
+            phone='+79993332214',
+            fullname='Юзеров Юзер3 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        client_wo_active_sub = APIClient()
+        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+
+        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+
+        response = client_wo_active_sub.get(f'{self.url}?period=1')
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -94,6 +126,19 @@ class StatisticsTestCase(
 
         brand1, brand2, brand3 = brands
         client1, client2, client3 = clients
+
+        now = timezone.now()
+
+        Subscription.objects.bulk_create([
+            Subscription(
+                brand=brand,
+                tariff=self.business_tariff,
+                start_date=now,
+                end_date=now + relativedelta(months=self.business_tariff.duration.days // 30),
+                is_active=True
+            )
+            for brand in brands
+        ])
 
         self.auth_client.post(self.like_url, {'target': brand1.id})  # initial brand likes brand1
         self.auth_client.post(self.like_url, {'target': brand2.id})  # initial brand likes brand2
@@ -222,7 +267,7 @@ class StatisticsTestCase(
         # ---------------------------
 
         # check number of queries
-        with self.assertNumQueriesLessThan(4, verbose=True):
+        with self.assertNumQueriesLessThan(5, verbose=True):
             response = self.auth_client.get(f'{self.url}?period={period}')
 
             self.assertEqual(response.status_code, status.HTTP_200_OK)

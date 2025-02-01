@@ -961,10 +961,22 @@ class BrandRetrieveTestCase(APITestCase):
         cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
         cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
 
-        cls.url = reverse('brand-detail', kwargs={'pk': cls.brand2.pk})
+        cls.tariff = Tariff.objects.get(name='Lite Match')
+        now = timezone.now()
+
+        Subscription.objects.create(
+            brand=cls.brand1,
+            tariff=cls.tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.tariff.duration.days // 30),
+            is_active=True
+        )
+
+        cls.brand1_url = reverse('brand-detail', kwargs={'pk': cls.brand1.pk})
+        cls.brand2_url = reverse('brand-detail', kwargs={'pk': cls.brand2.pk})
 
     def test_brand_retrieve_unauthenticated_not_allowed(self):
-        response = self.client.get(self.url)
+        response = self.client.get(self.brand1_url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -980,24 +992,26 @@ class BrandRetrieveTestCase(APITestCase):
         auth_client_wo_brand = APIClient()
         auth_client_wo_brand.force_authenticate(user_wo_brand)
 
-        response = auth_client_wo_brand.get(self.url)
+        response = auth_client_wo_brand.get(self.brand1_url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['id'], self.brand2.id)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_brand_retrieve_wo_active_sub_not_allowed(self):
+        response = self.auth_client2.get(self.brand1_url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_brand_retrieve_other_brand(self):
-        response = self.auth_client1.get(self.url)  # brand1 gets info about brand2
+        response = self.auth_client1.get(self.brand2_url)  # brand1 gets info about brand2
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertEqual(response.data['id'], self.brand2.id)
 
     def test_brand_retrieve_self(self):
-        response = self.auth_client2.get(self.url)  # brand2 gets info about brand2
+        response = self.auth_client1.get(self.brand1_url)  # brand1 gets info about brand1
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(response.data['id'], self.brand2.id)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class BrandMeGetTestCase(APITestCase):

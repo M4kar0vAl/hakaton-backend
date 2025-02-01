@@ -47,7 +47,7 @@ class Fix1(OpenApiViewExtension):
                             "If user is on tariff other than Lite Match, then status 403 will be returned.\n\n"
                             "If user tries to upgrade to tariff other than Business Match, "
                             "then status 400 will be returned.\n\n"
-                            "Authenticated brand only.",
+                            "Authenticated brand with \"Lite Match\" tariff only.",
                 responses={200: SubscriptionSerializer}
             )
             def upgrade(self, request, *args, **kwargs):
@@ -108,7 +108,7 @@ class Fix3(OpenApiViewExtension):
                             "\ttariff: id of a tariff that will be gifted\n\n"
                             "\tpromocode: discount promo code id that was used to purchase this gift\n\n"
                             "Gift promo code is valid for 6 months since creation.\n\n"
-                            "Authenticated brand only."
+                            "Authenticated brand with active subscription only."
             )
             def create(self, request, *args, **kwargs):
                 return super().create(request, *args, **kwargs)

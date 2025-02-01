@@ -1,9 +1,12 @@
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Category, Brand
+from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 User = get_user_model()
@@ -47,7 +50,7 @@ class LikedByTestCase(
         cls.auth_client2.force_authenticate(cls.user2)
         cls.auth_client3.force_authenticate(cls.user3)
 
-        brand_data = {
+        cls.brand_data = {
             'tg_nickname': '@asfhbnaf',
             'name': 'brand1',
             'position': 'position',
@@ -65,9 +68,36 @@ class LikedByTestCase(
             'photo': 'string'
         }
 
-        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
-        cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
-        cls.brand3 = Brand.objects.create(user=cls.user3, **brand_data)
+        cls.brand1 = Brand.objects.create(user=cls.user1, **cls.brand_data)
+        cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
+        cls.brand3 = Brand.objects.create(user=cls.user3, **cls.brand_data)
+
+        cls.tariff = Tariff.objects.get(name='Business Match')
+        now = timezone.now()
+
+        Subscription.objects.create(
+            brand=cls.brand1,
+            tariff=cls.tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.tariff.duration.days // 30),
+            is_active=True
+        )
+
+        Subscription.objects.create(
+            brand=cls.brand2,
+            tariff=cls.tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.tariff.duration.days // 30),
+            is_active=True
+        )
+
+        Subscription.objects.create(
+            brand=cls.brand3,
+            tariff=cls.tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.tariff.duration.days // 30),
+            is_active=True
+        )
 
         cls.like_url = reverse('brand-like')
         cls.url = reverse('brand-liked_by')
@@ -89,6 +119,24 @@ class LikedByTestCase(
         auth_client.force_authenticate(user_wo_brand)
 
         response = auth_client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_liked_by_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = User.objects.create_user(
+            email='user5@example.com',
+            phone='+79993332214',
+            fullname='Юзеров Юзер3 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        client_wo_active_sub = APIClient()
+        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+
+        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+
+        response = client_wo_active_sub.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -125,7 +173,7 @@ class LikedByTestCase(
         self.auth_client2.post(self.like_url, {'target': self.brand1.id})
         self.auth_client3.post(self.like_url, {'target': self.brand1.id})
 
-        with self.assertNumQueriesLessThan(2, verbose=True):
+        with self.assertNumQueriesLessThan(3, verbose=True):
             response = self.auth_client1.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

@@ -20,7 +20,9 @@ from core.apps.chat.permissions import (
     CanUserJoinRoom,
     UserInRoom,
     CanCreateMessage,
-    CanAdminAct, CanAdminJoinRoom
+    CanAdminAct,
+    CanAdminJoinRoom,
+    HasActiveSub
 )
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer, RoomListSerializer
 from core.apps.chat.utils import reply_to_groups
@@ -36,10 +38,14 @@ class RoomConsumer(
 ):
     serializer_class = RoomSerializer
     lookup_field = "pk"
-    permission_classes = [IsAuthenticatedConnect, IsBrand]
+    permission_classes = [IsAuthenticatedConnect, IsBrand, HasActiveSub]
 
     async def get_permissions(self, action: str, **kwargs):
         permission_instances = await super().get_permissions(action, **kwargs)
+
+        if action == 'leave_room':
+            # brand can leave room if it does not have an active subscription
+            permission_instances = [perm_i for perm_i in permission_instances if not isinstance(perm_i, HasActiveSub)]
 
         if action == 'join_room':
             permission_instances += [CanUserJoinRoom()]

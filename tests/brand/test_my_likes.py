@@ -130,6 +130,17 @@ class BrandMyLikesTestCase(
         client = APIClient()
         client.force_authenticate(users[0])
 
+        business_tariff = Tariff.objects.get(name='Business Match')
+        now = timezone.now()
+
+        Subscription.objects.create(
+            brand=brands[0],
+            tariff=business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=business_tariff.duration.days // 30),
+            is_active=True
+        )
+
         for brand in brands[1:]:
             client.post(self.like_url, {'target': brand.id})
 
@@ -153,6 +164,11 @@ class BrandMyLikesTestCase(
         auth_client_wo_brand.force_authenticate(user_wo_brand)
 
         response = auth_client_wo_brand.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_my_likes_wo_active_sub_not_allowed(self):
+        response = self.auth_client2.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -203,8 +219,8 @@ class BrandMyLikesTestCase(
         self.assertEqual(len(response.data['results']), 1)
 
     def test_my_likes_exclude_matches(self):
-        self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
-        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
+        self.auth_client1.post(self.like_url, {'target': self.brand3.id})  # brand1 likes brand2
+        self.auth_client3.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
 
         response = self.auth_client1.get(self.url)
 
@@ -228,7 +244,7 @@ class BrandMyLikesTestCase(
     def test_my_likes_number_of_queries(self):
         client = self.create_n_likes(50)
 
-        with self.assertNumQueriesLessThan(5, verbose=True):
+        with self.assertNumQueriesLessThan(6, verbose=True):
             response = client.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 

@@ -1,9 +1,12 @@
 from cities_light.models import Country, City
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase, override_settings, tag
+from django.utils import timezone
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
+from core.apps.payments.models import Tariff, Subscription
 from tests.utils import get_websocket_communicator, get_websocket_communicator_for_user
 
 User = get_user_model()
@@ -41,7 +44,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         country = Country.objects.create(name='Country', continent='EU')
         city = City.objects.create(name='City', country=country)
 
-        brand_data = self.brand_data = {
+        self.brand_data = {
             'tg_nickname': '@asfhbnaf',
             'city': city,
             'name': 'brand1',
@@ -54,7 +57,18 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
             'photo': 'string'
         }
 
-        self.brand = Brand.objects.create(user=self.user, **brand_data)
+        self.brand = Brand.objects.create(user=self.user, **self.brand_data)
+
+        now = timezone.now()
+        tariff = Tariff.objects.get(name='Lite Match')
+
+        Subscription.objects.create(
+            brand=self.brand,
+            tariff=tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=tariff.duration.days // 30),
+            is_active=True
+        )
 
         self.path = 'ws/chat/'
         self.accepted_protocol = 'chat'
@@ -99,6 +113,33 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         # check that scope was populated with user
         # but connection rejected because user has no brand
         self.assertEqual(communicator.scope['user'].id, user_wo_brand.id)
+
+        await communicator.disconnect()
+
+    async def test_connect_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = await User.objects.acreate(
+            email=f'user_wo_active_sub@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        await Brand.objects.acreate(user=user_wo_active_sub, **self.brand_data)
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=user_wo_active_sub
+        )
+
+        connected, _ = await communicator.connect()
+
+        self.assertFalse(connected)
+
+        self.assertEqual(communicator.scope['user'].id, user_wo_active_sub.id)
 
         await communicator.disconnect()
 

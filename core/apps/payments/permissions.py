@@ -17,3 +17,23 @@ class CanUpgradeTariff(permissions.BasePermission):
         # can upgrade only from Lite tariff
         # Trial doesn't have cost, so should use subscribe endpoint to upgrade Trial
         return current_sub.tariff.name == 'Lite Match'
+
+
+class HasActiveSub(permissions.BasePermission):
+    """
+    Allow access only to brands that have an active subscription.
+    """
+    def has_permission(self, request, view):
+        return request.user.brand.subscriptions.filter(
+            is_active=True, end_date__gt=timezone.now()
+        ).exists()
+
+
+class IsBusinessSub(permissions.BasePermission):
+    """
+    Allow access only to brands with business subscription.
+    """
+    def has_permission(self, request, view):
+        return request.user.brand.subscriptions.filter(
+            is_active=True, end_date__gt=timezone.now(), tariff__name='Business Match'
+        ).exists()

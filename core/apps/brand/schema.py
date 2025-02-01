@@ -41,7 +41,12 @@ class Fix1(OpenApiViewExtension):
             def create(self, request, *args, **kwargs):
                 return super().create(request, *args, **kwargs)
 
-            @extend_schema(description='Получение бренда по id')
+            @extend_schema(
+                description='Get brand by id.\n\n'
+                            'Brand cannot get information about itself using this method.\n\n'
+                            'To get info about yourself use GET brand/me endpoint.\n\n'
+                            'Authenticated brand with active subscription only.'
+            )
             def retrieve(self, request, *args, **kwargs):
                 return super().retrieve(request, *args, **kwargs)
 
@@ -57,7 +62,7 @@ class Fix1(OpenApiViewExtension):
                             '\t4) brand1 "like" brand2 & brand1 "instant coop" brand2 & brand2 "like" brand1 '
                             '-> like + 1 message (is_match: false, room: 1 (room type is INSTANT)) '
                             '-> match (is_match: true, room: 1 (room type is MATCH, id did not change))\n\n'
-                            'Authenticated brand only',
+                            'Authenticated brand with active subscription only',
                 tags=['Brand'],
                 responses={201: MatchSerializer}
             )
@@ -66,6 +71,15 @@ class Fix1(OpenApiViewExtension):
 
             @extend_schema(
                 tags=['Brand'],
+                description="Instant cooperation.\n\n"
+                            "Returns room instance.\n\n"
+                            "If room already exists, will raise BadRequest exception (400) "
+                            "and return error text with existing room id.\n\n"
+                            "After calling this method you should use room id "
+                            "to connect to the room and send a message.\n\n"
+                            "Only 1 message can be created by the user.\n\n"
+                            "Requires target to be liked by the user. Otherwise, permission will be denied (403).\n\n"
+                            "Business subscription only.",
                 request=InstantCoopRequestSerializer,
                 responses={201: InstantCoopSerializer}
             )
@@ -76,7 +90,7 @@ class Fix1(OpenApiViewExtension):
                 tags=['Brand'],
                 description="Get a list of brands that liked the current one.\n\n"
                             "Excludes matches and likes of current brand.\n\n"
-                            "Authenticated brand only.",
+                            "Authenticated brand with active subscription only.",
                 responses={200: LikedBySerializer(many=True)},
                 parameters=[] + get_schema_standard_pagination_parameters()
             )
@@ -87,7 +101,7 @@ class Fix1(OpenApiViewExtension):
                 tags=['Brand'],
                 description="Get a list of liked brands.\n\n"
                             "instant_room: id of a room of type 'I' if it already exists OR null if it doesn't.\n\n"
-                            "Authenticated brand only.",
+                            "Authenticated brand with active subscription only.",
                 responses={200: MyLikesSerializer(many=True)},
                 parameters=[] + get_schema_standard_pagination_parameters()
             )
@@ -98,7 +112,7 @@ class Fix1(OpenApiViewExtension):
                 tags=['Brand'],
                 description="Get a list of matches of the current brand.\n\n"
                             "match_room: id of a room of type 'M'\n\n"
-                            "Authenticated brand only.",
+                            "Authenticated brand with active subscription only.",
                 responses={200: MyMatchesSerializer(many=True)},
                 parameters=[] + get_schema_standard_pagination_parameters()
             )
@@ -110,7 +124,7 @@ class Fix1(OpenApiViewExtension):
                 description="Get a list of recommended brands.\n\n"
                             "Supports filtering.\n\n"
                             "Filters are joined using AND statement.\n\n"
-                            "Authenticated brand only.",
+                            "Authenticated brand with active subscription only.",
                 parameters=[
                     OpenApiParameter(
                         'avg_bill',
@@ -162,7 +176,8 @@ class Fix1(OpenApiViewExtension):
                             "<first period lower bound - 1 month> to <first period lower bound>\n\n"
                             "Continuing example with 13th January, the second period will be: "
                             "13th November - 13th December\n\n"
-                            "And so on.",
+                            "And so on.\n\n"
+                            "Authenticated brand with active subscription only.",
                 parameters=[
                     OpenApiParameter(
                         'period',
@@ -209,7 +224,7 @@ class Fix3(OpenApiViewExtension):
 
             collab_with: id of brand to report collaboration with
 
-            Authenticated brand only.
+            Authenticated brand with active subscription only.
             """
             pass
 
