@@ -6,7 +6,7 @@ from rest_framework.response import Response
 
 from core.apps.brand.permissions import IsBrand
 from core.apps.payments.models import Tariff, PromoCode, GiftPromoCode
-from core.apps.payments.permissions import CanUpgradeTariff
+from core.apps.payments.permissions import CanUpgradeTariff, HasActiveSub
 from core.apps.payments.serializers import (
     TariffSerializer,
     TariffSubscribeSerializer,
@@ -95,13 +95,20 @@ class GiftPromoCodeViewSet(
     queryset = GiftPromoCode.objects.filter(is_used=False, expires_at__gt=timezone.now())
     serializer_class = GiftPromoCodeGetSerializer
     lookup_field = 'code'
-    permission_classes = [IsAuthenticated, IsBrand]
 
     def get_queryset(self):
         if self.action == 'list':
             # return unused and unexpired gift promo codes purchased by the current brand
             return self.request.user.brand.gifts_as_giver.filter(is_used=False, expires_at__gt=timezone.now())
         return super().get_queryset()
+
+    def get_permissions(self):
+        permission_classes = [IsAuthenticated, IsBrand]
+
+        if self.action == 'create':
+            permission_classes += [HasActiveSub]
+
+        return [permission() for permission in permission_classes]
 
     def get_serializer_class(self):
         if self.action == 'create':

@@ -3,10 +3,12 @@ from typing import Dict, Any
 from channels.consumer import AsyncConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from djangochannelsrestframework.permissions import IsAuthenticated, BasePermission
 
 from core.apps.brand.models import Brand, Match
 from core.apps.chat.models import Room
+from core.apps.payments.models import Subscription
 
 User = get_user_model()
 
@@ -39,6 +41,25 @@ class IsBrand(BasePermission):
             return False
 
         return await Brand.objects.filter(user=user).aexists()
+
+
+class HasActiveSub(BasePermission):
+    """
+    Allow access only to users that have an active subscription.
+    """
+    async def has_permission(
+        self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
+    ) -> bool:
+        return await Subscription.objects.filter(
+            is_active=True, end_date__gt=timezone.now(), brand__user=scope['user']
+        ).aexists()
+
+    async def can_connect(
+        self, scope: Dict[str, Any], consumer: AsyncConsumer, message=None
+    ) -> bool:
+        return await Subscription.objects.filter(
+            is_active=True, end_date__gt=timezone.now(), brand__user=scope['user']
+        ).aexists()
 
 
 class IsAdminUser(BasePermission):

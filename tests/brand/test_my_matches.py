@@ -1,10 +1,13 @@
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import tag
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Brand, Category
+from core.apps.payments.models import Subscription, Tariff
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 User = get_user_model()
@@ -48,7 +51,7 @@ class BrandMyMatchesTestCase(
         cls.auth_client2.force_authenticate(cls.user2)
         cls.auth_client3.force_authenticate(cls.user3)
 
-        brand_data = {
+        cls.brand_data = {
             'tg_nickname': '@asfhbnaf',
             'name': 'brand1',
             'position': 'position',
@@ -66,9 +69,36 @@ class BrandMyMatchesTestCase(
             'photo': 'string'
         }
 
-        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
-        cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
-        cls.brand3 = Brand.objects.create(user=cls.user3, **brand_data)
+        cls.brand1 = Brand.objects.create(user=cls.user1, **cls.brand_data)
+        cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
+        cls.brand3 = Brand.objects.create(user=cls.user3, **cls.brand_data)
+
+        cls.business_tariff = Tariff.objects.get(name='Business Match')
+        now = timezone.now()
+
+        Subscription.objects.create(
+            brand=cls.brand1,
+            tariff=cls.business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            is_active=True
+        )
+
+        Subscription.objects.create(
+            brand=cls.brand2,
+            tariff=cls.business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            is_active=True
+        )
+
+        Subscription.objects.create(
+            brand=cls.brand3,
+            tariff=cls.business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            is_active=True
+        )
 
         cls.url = reverse('brand-my_matches')
         cls.like_url = reverse('brand-like')
@@ -117,6 +147,20 @@ class BrandMyMatchesTestCase(
 
         brands = Brand.objects.bulk_create([Brand(user=user, **brand_data) for user in users])
 
+        business_tariff = Tariff.objects.get(name='Business Match')
+        now = timezone.now()
+
+        Subscription.objects.bulk_create([
+            Subscription(
+                brand=brand,
+                tariff=business_tariff,
+                start_date=now,
+                end_date=now + relativedelta(months=business_tariff.duration.days // 30),
+                is_active=True
+            )
+            for brand in brands
+        ])
+
         auth_clients = [APIClient() for _ in range(n + 1)]
 
         for i in range(n + 1):
@@ -149,6 +193,24 @@ class BrandMyMatchesTestCase(
         auth_client_wo_brand.force_authenticate(user_wo_brand)
 
         response = auth_client_wo_brand.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_my_matches_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = User.objects.create_user(
+            email='user5@example.com',
+            phone='+79993332214',
+            fullname='Юзеров Юзер3 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        client_wo_active_sub = APIClient()
+        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+
+        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+
+        response = client_wo_active_sub.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -221,7 +283,7 @@ class BrandMyMatchesTestCase(
     def test_my_matches_number_of_queries(self):
         auth_client_50_matches = self.create_n_matches(50)
 
-        with self.assertNumQueriesLessThan(5, verbose=True):
+        with self.assertNumQueriesLessThan(6, verbose=True):
             response = auth_client_50_matches.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 

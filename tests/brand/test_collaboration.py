@@ -1,3 +1,4 @@
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -6,6 +7,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from core.apps.analytics.models import MatchActivity
 from core.apps.brand.models import Brand, Category, Collaboration, Match
+from core.apps.payments.models import Subscription, Tariff
 
 User = get_user_model()
 
@@ -54,6 +56,20 @@ class CollaborationTestCase(APITestCase):
 
         cls.brand1 = Brand.objects.create(user=cls.user1, **cls.brand_data)
         cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
+
+        cls.business_tariff = Tariff.objects.get(name='Business Match')
+        now = timezone.now()
+
+        Subscription.objects.bulk_create([
+            Subscription(
+                brand=brand,
+                tariff=cls.business_tariff,
+                start_date=now,
+                end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+                is_active=True
+            )
+            for brand in [cls.brand1, cls.brand2]
+        ])
 
         cls.match = Match.objects.create(
             initiator=cls.brand1,
@@ -199,5 +215,23 @@ class CollaborationTestCase(APITestCase):
         no_brand_auth_client.force_authenticate(user)
 
         response = no_brand_auth_client.post(self.url, self.collaboration_data)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_collaboration_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = User.objects.create_user(
+            email='user_wo_active_sub@example.com',
+            phone='+79993332214',
+            fullname='Юзеров Юзер3 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        client_wo_active_sub = APIClient()
+        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+
+        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+
+        response = client_wo_active_sub.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

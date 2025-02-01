@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from cities_light.models import Country, City
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -150,7 +151,7 @@ class GiftPromoCodeRetrieveTestCase(APITestCase):
         country = Country.objects.create(name='Country', continent='EU')
         city = City.objects.create(name='City', country=country)
 
-        brand_data = cls.brand_data = {
+        cls.brand_data = {
             'tg_nickname': '@asfhbnaf',
             'city': city,
             'name': 'brand1',
@@ -163,28 +164,29 @@ class GiftPromoCodeRetrieveTestCase(APITestCase):
             'photo': 'string'
         }
 
-        cls.brand = Brand.objects.create(user=cls.user, **brand_data)
+        cls.brand = Brand.objects.create(user=cls.user, **cls.brand_data)
 
         cls.lite_tariff = Tariff.objects.get(name='Lite Match')
+        now = timezone.now()
 
         gift_promocodes = GiftPromoCode.objects.bulk_create([
             # valid
             GiftPromoCode(
                 tariff_id=cls.lite_tariff.id,
-                expires_at=timezone.now() + timedelta(days=1),
+                expires_at=now + timedelta(days=1),
                 giver=cls.brand
             ),
             # used
             GiftPromoCode(
                 tariff_id=cls.lite_tariff.id,
-                expires_at=timezone.now() + timedelta(days=1),
+                expires_at=now + timedelta(days=1),
                 giver=cls.brand,
                 is_used=True
             ),
             # expired
             GiftPromoCode(
                 tariff_id=cls.lite_tariff.id,
-                expires_at=timezone.now() - timedelta(days=1),
+                expires_at=now - timedelta(days=1),
                 giver=cls.brand
             )
         ])
@@ -292,6 +294,14 @@ class GiftPromoCodeCreateTestCase(APITestCase):
         now = timezone.now()
         cls.promocode = PromoCode.objects.create(code='test', discount=5, expires_at=now + timedelta(days=30))
 
+        Subscription.objects.create(
+            brand=cls.brand,
+            tariff=cls.business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            is_active=True
+        )
+
         cls.url = reverse('gift_promocodes-list')
 
     def test_create_gift_promocode_unauthenticated_not_allowed(self):
@@ -312,6 +322,24 @@ class GiftPromoCodeCreateTestCase(APITestCase):
         auth_client_wo_brand.force_authenticate(user_wo_brand)
 
         response = auth_client_wo_brand.post(self.url, {'tariff': self.lite_tariff.id})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_create_gift_promocode_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = User.objects.create_user(
+            email='user_wo_active_sub@example.com',
+            phone='+79993332213',
+            fullname='Юзеров Юзер2 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        client_wo_active_sub = APIClient()
+        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+
+        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+
+        response = client_wo_active_sub.post(self.url, {'tariff': self.lite_tariff.id})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

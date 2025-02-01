@@ -1,11 +1,14 @@
 from cities_light.models import Country, City
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
+from django.utils import timezone
 from rest_framework import status
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
 from core.apps.chat.models import Room
+from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user
 
@@ -84,7 +87,18 @@ class AdminRoomConsumerLeaveRoomTestCase(TransactionTestCase, AdminRoomConsumerA
             'photo': 'string'
         }
 
-        await Brand.objects.acreate(user=user, **brand_data)
+        brand = await Brand.objects.acreate(user=user, **brand_data)
+
+        now = timezone.now()
+        tariff = await Tariff.objects.aget(name='Lite Match')
+
+        await Subscription.objects.acreate(
+            brand=brand,
+            tariff=tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=tariff.duration.days // 30),
+            is_active=True
+        )
 
         room = await Room.objects.acreate(type=Room.SUPPORT)
 

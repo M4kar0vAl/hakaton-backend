@@ -1,10 +1,13 @@
 from cities_light.models import Country, City
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Brand, Category, Format, Tag, Goal
+from core.apps.payments.models import Subscription, Tariff
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 User = get_user_model()
@@ -135,6 +138,17 @@ class BrandRecommendedBrandsTestCase(
         cls.brand7.tags.set(cls.tags[5:9])  # tag 6, 7, 8, 9 # don't match
         cls.brand7.goals.set(cls.goals[3:5])  # goal 4, 5 # don't match
 
+        cls.business_tariff = Tariff.objects.get(name='Business Match')
+        now = timezone.now()
+
+        Subscription.objects.create(
+            brand=cls.initial_brand,
+            tariff=cls.business_tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            is_active=True
+        )
+
         cls.url = reverse('brand-recommended_brands')
 
     def test_recommended_brands_unauthenticated_not_allowed(self):
@@ -158,6 +172,24 @@ class BrandRecommendedBrandsTestCase(
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_recommended_brands_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = User.objects.create_user(
+            email='user101@example.com',
+            phone='+79993332214',
+            fullname='Юзеров Юзер3 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        client_wo_active_sub = APIClient()
+        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+
+        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+
+        response = client_wo_active_sub.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_recommended_brands(self):
         response = self.auth_client1.get(self.url)
 
@@ -176,22 +208,35 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.data['results'][6]['id'], self.brand7.id)
 
     def test_recommended_brands_exclude_matches(self):
-        self.brand_match_1 = Brand.objects.create(
+        brand_match_1 = Brand.objects.create(
             user=self.user9,
             **self.brand_data
         )
 
-        self.brand_match_2 = Brand.objects.create(
+        brand_match_2 = Brand.objects.create(
             user=self.user10,
             **self.brand_data
         )
+
+        now = timezone.now()
+
+        Subscription.objects.bulk_create([
+            Subscription(
+                brand=brand,
+                tariff=self.business_tariff,
+                start_date=now,
+                end_date=now + relativedelta(months=self.business_tariff.duration.days // 30),
+                is_active=True
+            )
+            for brand in [brand_match_1, brand_match_2]
+        ])
 
         like_url = reverse('brand-like')
 
         self.auth_client9.post(like_url, {'target': self.initial_brand.id})
         self.auth_client10.post(like_url, {'target': self.initial_brand.id})
-        self.auth_client1.post(like_url, {'target': self.brand_match_1.id})  # initial brand match with brand_match_1
-        self.auth_client1.post(like_url, {'target': self.brand_match_2.id})  # initial brand match with brand_match_2
+        self.auth_client1.post(like_url, {'target': brand_match_1.id})  # initial brand match with brand_match_1
+        self.auth_client1.post(like_url, {'target': brand_match_2.id})  # initial brand match with brand_match_2
 
         response = self.auth_client1.get(self.url)
 

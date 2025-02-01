@@ -2,12 +2,10 @@ import json
 import os
 import shutil
 
-from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.db.models import Q, Subquery, Prefetch, Value, Count, OuterRef
 from django.http import QueryDict
-from django.utils import timezone
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -15,10 +13,20 @@ from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
-from core.apps.brand.models import Brand, Category, Format, Goal, ProductPhoto, GalleryPhoto, Tag, BusinessGroup, Blog, \
-    Match, Collaboration
+from core.apps.brand.models import (
+    Brand,
+    Category,
+    Format,
+    Goal,
+    ProductPhoto,
+    GalleryPhoto,
+    Tag,
+    BusinessGroup,
+    Blog,
+    Match
+)
 from core.apps.brand.pagination import StandardResultsSetPagination
-from core.apps.brand.permissions import IsBusinessSub, IsBrand, CanInstantCoop
+from core.apps.brand.permissions import IsBrand, CanInstantCoop, IsNotCurrentBrand
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
     BrandCreateSerializer,
@@ -31,11 +39,13 @@ from core.apps.brand.serializers import (
     MyLikesSerializer,
     MyMatchesSerializer,
     RecommendedBrandsSerializer,
-    BrandMeSerializer, StatisticsSerializer,
+    BrandMeSerializer,
+    StatisticsSerializer,
 )
-from core.apps.brand.utils import get_periods, get_statistics_list
+from core.apps.brand.utils import get_statistics_list
 from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription
+from core.apps.payments.permissions import HasActiveSub, IsBusinessSub
 
 
 class QuestionnaireChoicesListView(generics.GenericAPIView):
@@ -531,11 +541,13 @@ class BrandViewSet(
     def get_permissions(self):
         if self.action == 'create':
             permission_classes = [IsAuthenticated]
+        elif self.action == 'retrieve':
+            permission_classes = [IsAuthenticated, IsBrand, IsNotCurrentBrand, HasActiveSub]
         elif self.action == 'me':
             if self.request.method in ('GET', 'PATCH', 'DELETE'):
                 permission_classes = [IsAuthenticated, IsBrand]
         elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches', 'recommended_brands', 'statistics'):
-            permission_classes = [IsAuthenticated, IsBrand]
+            permission_classes = [IsAuthenticated, IsBrand, HasActiveSub]
         elif self.action == 'instant_coop':
             permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub, CanInstantCoop]
         else:
@@ -689,19 +701,6 @@ class BrandViewSet(
 
     @action(detail=False, methods=['post'])
     def instant_coop(self, request):
-        """
-        Instant cooperation.
-        Returns room instance.
-
-        If room already exists, will raise BadRequest exception (400) and return error text with existing room id.
-
-        After calling this method you should use room id to connect to the room and send a message.
-        Only 1 message can be created by the user.
-
-        Requires target to be liked by the user. Otherwise, permission will be denied (403).
-
-        Business subscription only.
-        """
         serializer = self.get_serializer(data={})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -765,4 +764,4 @@ class BrandViewSet(
 
 class CollaborationCreateView(generics.CreateAPIView):
     serializer_class = CollaborationSerializer
-    permission_classes = [IsAuthenticated, IsBrand]
+    permission_classes = [IsAuthenticated, IsBrand, HasActiveSub]

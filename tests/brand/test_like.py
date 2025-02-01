@@ -37,7 +37,7 @@ class BrandLikeTestCase(APITestCase):
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
 
-        brand_data = {
+        cls.brand_data = {
             'tg_nickname': '@asfhbnaf',
             'name': 'brand1',
             'position': 'position',
@@ -49,8 +49,27 @@ class BrandLikeTestCase(APITestCase):
             'photo': 'string'
         }
 
-        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
-        cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
+        cls.brand1 = Brand.objects.create(user=cls.user1, **cls.brand_data)
+        cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
+
+        cls.tariff = Tariff.objects.get(name='Business Match')
+        now = timezone.now()
+
+        Subscription.objects.create(
+            brand=cls.brand1,
+            tariff=cls.tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.tariff.duration.days // 30),
+            is_active=True
+        )
+
+        Subscription.objects.create(
+            brand=cls.brand2,
+            tariff=cls.tariff,
+            start_date=now,
+            end_date=now + relativedelta(months=cls.tariff.duration.days // 30),
+            is_active=True
+        )
 
         cls.url = reverse('brand-like')
 
@@ -72,6 +91,24 @@ class BrandLikeTestCase(APITestCase):
         auth_client_wo_brand.force_authenticate(user_wo_brand)
 
         response = auth_client_wo_brand.post(self.url, {'target': self.brand2.id})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_like_wo_active_sub_not_allowed(self):
+        user_wo_active_sub = User.objects.create_user(
+            email='user3@example.com',
+            phone='+79993332213',
+            fullname='Юзеров Юзер2 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        client_wo_active_sub = APIClient()
+        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+
+        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+
+        response = client_wo_active_sub.post(self.url, {'target': self.brand1.id})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -137,17 +174,6 @@ class BrandLikeTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_like_in_response_if_instant_cooped(self):
-        # business subscription for brand1
-        now = timezone.now()
-        business_tariff = Tariff.objects.get(name='Business Match')
-        Subscription.objects.create(
-            brand=self.brand1,
-            tariff=business_tariff,
-            start_date=now,
-            end_date=now + relativedelta(months=business_tariff.duration.days // 30),
-            is_active=True
-        )
-
         self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2
 
         # brand1 instant coop brand2
