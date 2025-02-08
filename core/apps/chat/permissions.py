@@ -3,9 +3,11 @@ from typing import Dict, Any
 from channels.consumer import AsyncConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.utils import timezone
 from djangochannelsrestframework.permissions import IsAuthenticated, BasePermission
 
+from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Brand, Match
 from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription
@@ -47,15 +49,16 @@ class HasActiveSub(BasePermission):
     """
     Allow access only to users that have an active subscription.
     """
+
     async def has_permission(
-        self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
+            self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
     ) -> bool:
         return await Subscription.objects.filter(
             is_active=True, end_date__gt=timezone.now(), brand__user=scope['user']
         ).aexists()
 
     async def can_connect(
-        self, scope: Dict[str, Any], consumer: AsyncConsumer, message=None
+            self, scope: Dict[str, Any], consumer: AsyncConsumer, message=None
     ) -> bool:
         return await Subscription.objects.filter(
             is_active=True, end_date__gt=timezone.now(), brand__user=scope['user']
@@ -89,8 +92,9 @@ class CanUserJoinRoom(BasePermission):
     User can join a room if not connected to a room yet.
     User can join only rooms he is a participant of.
     """
+
     async def has_permission(
-        self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
+            self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
     ) -> bool:
         if hasattr(consumer, 'room'):
             # if already in room
@@ -114,8 +118,9 @@ class UserInRoom(BasePermission):
     """
     Allows access to the action if the user connected to a room.
     """
+
     async def has_permission(
-        self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
+            self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
     ) -> bool:
         if hasattr(consumer, 'room'):
             return True
@@ -133,8 +138,9 @@ class CanCreateMessage(BasePermission):
     If room type is instant, then allow to create a message only
     if the current user is the initiator of the instant coop and hasn't created any messages in this room yet.
     """
+
     async def has_permission(
-        self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
+            self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
     ) -> bool:
         if not hasattr(consumer, 'room'):
             return False
@@ -158,14 +164,62 @@ class CanCreateMessage(BasePermission):
         return True
 
 
+class NotInBlacklist(BasePermission):
+    """
+    Allow access only if current brand haven't blocked interlocutor
+    AND interlocutor haven't blocked current brand.
+
+    If room type is Support, then access will be granted,
+    because admins don't have brands and blacklist is inaccessible for them.
+    """
+
+    async def has_permission(
+            self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
+    ) -> bool:
+        if not hasattr(consumer, 'room'):
+            return False
+
+        room = consumer.room
+
+        if not hasattr(consumer, 'brand'):
+            return False
+
+        brand = consumer.brand
+
+        # support room doesn't have interlocutor, so allow access to it
+        if room.type == Room.SUPPORT:
+            return True
+
+        try:
+            interlocutor_user = await room.participants.exclude(id=scope['user'].id).aget()
+        except User.DoesNotExist:
+            interlocutor_user = None
+
+        if not interlocutor_user:
+            # If user was deleted, then deny access.
+            # If user already deleted, then it cannot be restored,
+            # that's why access will be denied
+            return False
+
+        interlocutor_brand = await Brand.objects.aget(user=interlocutor_user)
+
+        # If current brand blocked interlocutor OR interlocutor blocked current brand,
+        # then deny access
+        return not await BlackList.objects.filter(
+            Q(initiator=brand, blocked=interlocutor_brand)
+            | Q(initiator=interlocutor_brand, blocked=brand)
+        ).aexists()
+
+
 class CanAdminJoinRoom(BasePermission):
     """
     Check whether the admin can join a room.
 
     Admin can join a room if not connected to a room yet.
     """
+
     async def has_permission(
-        self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
+            self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
     ) -> bool:
         if hasattr(consumer, 'room'):
             return False
@@ -184,8 +238,9 @@ class CanAdminAct(BasePermission):
 
     Admins can take "write" actions only in support rooms.
     """
+
     async def has_permission(
-        self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
+            self, scope: Dict[str, Any], consumer: AsyncConsumer, action: str, **kwargs
     ) -> bool:
         if not scope['user'].is_staff:
             return False

@@ -5,6 +5,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Category, Brand
 from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import AssertNumQueriesLessThanMixin
@@ -168,6 +169,24 @@ class LikedByTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertEqual(len(response.data['results']), 1)
+
+    def test_liked_by_excludes_blacklist(self):
+        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1
+        self.auth_client3.post(self.like_url, {'target': self.brand1.id})  # brand3 likes brand1
+
+        BlackList.objects.bulk_create([
+            BlackList(initiator=self.brand2, blocked=self.brand1),  # brand2 blocks brand1
+            BlackList(initiator=self.brand1, blocked=self.brand3),  # brand1 blocks brand3
+        ])
+
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data['results']
+
+        # results must exclude both blocked brands and brands that blocked the current one
+        self.assertEqual(len(results), 0)
 
     def test_liked_by_number_of_queries(self):
         self.auth_client2.post(self.like_url, {'target': self.brand1.id})

@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Category, Brand
 from core.apps.payments.models import Subscription, Tariff
 from tests.mixins import AssertNumQueriesLessThanMixin
@@ -228,6 +229,24 @@ class BrandMyLikesTestCase(
 
         # check that response is empty
         self.assertFalse(response.data['results'])
+
+    def test_my_likes_exclude_blacklist(self):
+        self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2
+        self.auth_client1.post(self.like_url, {'target': self.brand3.id})  # brand1 likes brand3
+
+        BlackList.objects.bulk_create([
+            BlackList(initiator=self.brand1, blocked=self.brand2),  # brand1 blocks brand2
+            BlackList(initiator=self.brand3, blocked=self.brand1),  # brand3 block brand1
+        ])
+
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data['results']
+
+        # results must exclude both blocked brands and brands that blocked the current one
+        self.assertEqual(len(results), 0)
 
     def test_my_likes_can_return_more_than_one_brand(self):
         self.auth_client1.post(self.like_url, {'target': self.brand2.id})  # brand1 likes brand2

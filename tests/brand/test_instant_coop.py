@@ -5,7 +5,8 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.brand.models import Brand, Category, Match
+from core.apps.blacklist.models import BlackList
+from core.apps.brand.models import Brand, Category
 from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription, Tariff
 
@@ -128,6 +129,22 @@ class BrandInstantCooperationTestCase(APITestCase):
 
     def test_instant_coop_wo_like_not_allowed(self):
         response = self.auth_client3.post(self.url, {'target': self.brand2.id})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_instant_coop_if_in_blacklist_of_target_not_allowed(self):
+        BlackList.objects.create(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
+
+        # brand1 tries to instant coop brand2
+        response = self.auth_client1.post(self.url, {'target': self.brand2.id})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_instant_coop_if_blocked_target_not_allowed(self):
+        BlackList.objects.create(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
+
+        # brand1 tries to instant coop brand2
+        response = self.auth_client1.post(self.url, {'target': self.brand2.id})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

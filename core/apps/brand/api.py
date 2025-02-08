@@ -13,6 +13,7 @@ from rest_framework.response import Response
 
 from core.apps.analytics.models import BrandActivity
 from core.apps.analytics.utils import log_brand_activity
+from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import (
     Brand,
     Category,
@@ -26,7 +27,8 @@ from core.apps.brand.models import (
     Match
 )
 from core.apps.brand.pagination import StandardResultsSetPagination
-from core.apps.brand.permissions import IsBrand, CanInstantCoop, IsNotCurrentBrand
+from core.apps.brand.permissions import IsBrand, CanInstantCoop, IsNotCurrentBrand, NotInBlacklistOfTarget, \
+    DidNotBlockTarget
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
     BrandCreateSerializer,
@@ -81,17 +83,47 @@ class BrandViewSet(
 
     def get_queryset(self):
         if self.action == 'liked_by':
-            # get all brands which liked current one and haven't been liked in response yet
-            liked_by_ids = self.request.user.brand.target.filter(is_match=False).values_list('initiator', flat=True)
-            like_at = Subquery(self.request.user.brand.target.filter(initiator=OuterRef('id')).values('like_at')[:1])
+            current_brand = self.request.user.brand
+
+            # get all brands that current brand added to its blacklist
+            blocked_brands = current_brand.blacklist_as_initiator.values_list('blocked', flat=True)
+
+            # get all brands that added the current one to the blacklist
+            blocked_by = current_brand.blacklist_as_blocked.values_list('initiator', flat=True)
+
+            # get ids of all brands which liked current one and haven't been liked in response yet
+            liked_by_ids = current_brand.target.filter(
+                is_match=False
+            ).exclude(
+                Q(initiator__in=blocked_brands)
+                | Q(initiator__in=blocked_by)
+            ).values_list('initiator', flat=True)
+
+            # get time of each like
+            like_at = Subquery(current_brand.target.filter(initiator=OuterRef('id')).values('like_at')[:1])
 
             return Brand.objects.filter(pk__in=Subquery(liked_by_ids)).annotate(like_at=like_at).order_by('-like_at')
 
         elif self.action == 'my_likes':
-            my_likes_ids = self.request.user.brand.initiator.filter(is_match=False).values_list('target', flat=True)
-            like_at = Subquery(self.request.user.brand.initiator.filter(target=OuterRef('id')).values('like_at')[:1])
+            current_brand = self.request.user.brand
 
-            # get all brands that were liked by the current brand.
+            # get all brands that current brand added to its blacklist
+            blocked_brands = current_brand.blacklist_as_initiator.values_list('blocked', flat=True)
+
+            # get all brands that added the current one to the blacklist
+            blocked_by = current_brand.blacklist_as_blocked.values_list('initiator', flat=True)
+
+            # get ids of all brands that were liked by the current brand.
+            my_likes_ids = current_brand.initiator.filter(
+                is_match=False
+            ).exclude(
+                Q(target__in=blocked_brands)
+                | Q(target__in=blocked_by)
+            ).values_list('target', flat=True)
+
+            # get time of each like
+            like_at = Subquery(current_brand.initiator.filter(target=OuterRef('id')).values('like_at')[:1])
+
             # Prefetch product_photos of the CARD format to improve performance
             # and set them to a 'card_photos' attribute
             # prefetch instant rooms for the brand user
@@ -197,11 +229,22 @@ class BrandViewSet(
 
             matches_ids = list(current_brand_matches_ids_as_initiator.union(current_brand_matches_ids_as_target))
 
+            # get all brands that current brand added to its blacklist
+            blocked_brands = current_brand.blacklist_as_initiator.values_list('blocked', flat=True)
+
+            # get all brands that added the current one to the blacklist
+            blocked_by = current_brand.blacklist_as_blocked.values_list('initiator', flat=True)
+
+            blacklist = list(blocked_brands.union(blocked_by))
+
             initial_brands = Brand.objects.filter(
                 user__isnull=False, **filter_kwargs
             ).exclude(
-                # filter out all brands that already have match with current one
-                pk__in=matches_ids
+                # filter out all brands that:
+                # - already have match with current one
+                # - are in current brand's blacklist
+                # - blocked current brand
+                pk__in=matches_ids + blacklist
             )
 
             # get ids of current brand m2m and instantly evaluate it to avoid unnecessary subqueries
@@ -542,14 +585,19 @@ class BrandViewSet(
         if self.action == 'create':
             permission_classes = [IsAuthenticated]
         elif self.action == 'retrieve':
-            permission_classes = [IsAuthenticated, IsBrand, IsNotCurrentBrand, HasActiveSub]
+            permission_classes = [IsAuthenticated, IsBrand, IsNotCurrentBrand, HasActiveSub, NotInBlacklistOfTarget]
         elif self.action == 'me':
             if self.request.method in ('GET', 'PATCH', 'DELETE'):
                 permission_classes = [IsAuthenticated, IsBrand]
         elif self.action in ('like', 'liked_by', 'my_likes', 'my_matches', 'recommended_brands', 'statistics'):
             permission_classes = [IsAuthenticated, IsBrand, HasActiveSub]
+
+            if self.action == 'like':
+                permission_classes += [NotInBlacklistOfTarget, DidNotBlockTarget]
         elif self.action == 'instant_coop':
-            permission_classes = [IsAuthenticated, IsBrand, IsBusinessSub, CanInstantCoop]
+            permission_classes = [
+                IsAuthenticated, IsBrand, IsBusinessSub, CanInstantCoop, NotInBlacklistOfTarget, DidNotBlockTarget
+            ]
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
@@ -629,6 +677,8 @@ class BrandViewSet(
             GalleryPhoto.objects.filter(brand=instance).delete()
             BusinessGroup.objects.filter(brand=instance).delete()
             Subscription.objects.filter(brand=instance).update(is_active=False)  # deactivate active subscriptions
+            # delete all blacklist entities where current brand is initiator or blocked
+            BlackList.objects.filter(Q(initiator=instance) | Q(blocked=instance)).delete()
 
             # ---remove fields that are no value for analytics---
             for field in [

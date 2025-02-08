@@ -22,7 +22,7 @@ from core.apps.chat.permissions import (
     CanCreateMessage,
     CanAdminAct,
     CanAdminJoinRoom,
-    HasActiveSub
+    HasActiveSub, NotInBlacklist
 )
 from core.apps.chat.serializers import RoomSerializer, MessageSerializer, RoomListSerializer
 from core.apps.chat.utils import reply_to_groups
@@ -46,6 +46,9 @@ class RoomConsumer(
         if action == 'leave_room':
             # brand can leave room if it does not have an active subscription
             permission_instances = [perm_i for perm_i in permission_instances if not isinstance(perm_i, HasActiveSub)]
+
+        if action in ('create_message', 'edit_message', 'delete_messages'):
+            permission_instances += [NotInBlacklist()]
 
         if action == 'join_room':
             permission_instances += [CanUserJoinRoom()]
