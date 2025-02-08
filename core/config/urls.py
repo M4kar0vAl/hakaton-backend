@@ -18,6 +18,7 @@ urlpatterns = [
     path('auth/', include('core.apps.accounts.urls')),
     path('api/v1/', include('core.apps.payments.urls')),
     path('api/v1/', include('core.apps.cities.urls')),
+    path('api/v1/', include('core.apps.blacklist.urls')),
 ]
 
 # Нужно чтобы изображения загруженные пользователями корректно отображались при DEBUG = True

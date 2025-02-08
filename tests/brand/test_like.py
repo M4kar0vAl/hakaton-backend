@@ -5,6 +5,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Category, Brand, Match
 from core.apps.chat.models import Room
 from core.apps.payments.models import Subscription, Tariff
@@ -109,6 +110,20 @@ class BrandLikeTestCase(APITestCase):
         Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
 
         response = client_wo_active_sub.post(self.url, {'target': self.brand1.id})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_like_if_in_blacklist_of_target_not_allowed(self):
+        BlackList.objects.create(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
+
+        response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 tries to like brand2
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_like_if_blocked_target_not_allowed(self):
+        BlackList.objects.create(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
+
+        response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 tries to like brand2
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

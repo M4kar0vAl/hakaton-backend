@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Brand, Category, Format, Tag, Goal
 from core.apps.payments.models import Subscription, Tariff
 from tests.mixins import AssertNumQueriesLessThanMixin
@@ -328,7 +329,7 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(len(response.data['results']), 2)
 
     def test_number_of_queries(self):
-        with self.assertNumQueriesLessThan(15, verbose=True):
+        with self.assertNumQueriesLessThan(16, verbose=True):
             response = self.auth_client1.get(self.url)
 
             self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -339,3 +340,18 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertFalse(any(brand['id'] == self.initial_brand.id for brand in response.data['results']))
+
+    def test_recommended_brands_exclude_blacklist(self):
+        BlackList.objects.bulk_create([
+            BlackList(initiator=self.initial_brand, blocked=self.brand1),  # initial brand blocks brand1
+            BlackList(initiator=self.brand2, blocked=self.initial_brand),  # brand2 blocks initial brand
+        ])
+
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data['results']
+
+        # results must exclude both blocked brands and brands that blocked the current one
+        self.assertEqual(len(results), 5)

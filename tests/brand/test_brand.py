@@ -16,6 +16,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Brand, Tag, Blog, ProductPhoto, Age, Gender, Category, Format, Goal, \
     TargetAudience
 from core.apps.payments.models import Tariff, Subscription
@@ -870,6 +871,34 @@ class BrandDeleteTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_brand_delete(self):
+        another_user = User.objects.create_user(
+            email='another_user@example.com',
+            phone='+79993332212',
+            fullname='Юзеров Юзер1 Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        brand_data = {
+            'tg_nickname': '@asfhbnaf',
+            'name': 'brand1',
+            'position': 'position',
+            'category': Category.objects.get(pk=1),
+            'subs_count': 10000,
+            'avg_bill': 10000,
+            'uniqueness': 'uniqueness',
+            'logo': 'string',
+            'photo': 'string'
+        }
+
+        another_brand = Brand.objects.create(user=another_user, **brand_data)
+
+        # initial brand and another brand block each other
+        bl1, bl2 = BlackList.objects.bulk_create([
+            BlackList(initiator=self.brand, blocked=another_brand),
+            BlackList(initiator=another_brand, blocked=self.brand),
+        ])
+
         response = self.auth_client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -882,6 +911,9 @@ class BrandDeleteTestCase(APITestCase):
         # check that subscriptions remained but were deactivated
         self.assertEqual(deleted_brand.subscriptions.count(), 1)
         self.assertFalse(deleted_brand.subscriptions.filter(is_active=True).exists())
+
+        # check that blacklist was cleared
+        self.assertFalse(BlackList.objects.filter(id__in=[bl1.id, bl2.id]).exists())
 
         # check that target audience remains
         self.assertIsNotNone(deleted_brand.target_audience)
@@ -1000,6 +1032,21 @@ class BrandRetrieveTestCase(APITestCase):
         response = self.auth_client2.get(self.brand1_url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_brand_retrieve_if_in_blacklist_of_target_not_allowed(self):
+        BlackList.objects.create(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
+
+        response = self.auth_client1.get(self.brand2_url)  # brand1 tries to get nfo about brand2
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_brand_retrieve_if_blocked_target(self):
+        BlackList.objects.create(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
+
+        response = self.auth_client1.get(self.brand2_url)  # brand1 tries to get nfo about brand2
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['id'], self.brand2.id)
 
     def test_brand_retrieve_other_brand(self):
         response = self.auth_client1.get(self.brand2_url)  # brand1 gets info about brand2

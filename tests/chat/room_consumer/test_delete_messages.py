@@ -5,6 +5,7 @@ from django.test import override_settings, TransactionTestCase, tag
 from django.utils import timezone
 from rest_framework import status
 
+from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.models import Room, Message
@@ -168,6 +169,76 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         msg_exists = await Message.objects.filter(id=message.id).aexists()
 
         self.assertTrue(msg_exists)
+
+    async def test_delete_messages_if_brand_in_blacklist_of_interlocutor_not_allowed(self):
+        room = await Room.objects.acreate(type=Room.MATCH)
+
+        await room.participants.aset([self.user1, self.user2])
+
+        msg = await Message.objects.acreate(
+            text='asf',
+            user=self.user1,
+            room=room
+        )
+
+        # brand2 blocks brand1
+        await BlackList.objects.acreate(initiator=self.brand2, blocked=self.brand1)
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user1
+        )
+
+        connected, _ = await communicator.connect()
+
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            response = await self.delete_messages(communicator, [msg.id])
+
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
+
+        await communicator.disconnect()
+
+    async def test_delete_messages_if_interlocutor_in_blacklist_of_brand_not_allowed(self):
+        room = await Room.objects.acreate(type=Room.MATCH)
+
+        await room.participants.aset([self.user1, self.user2])
+
+        msg = await Message.objects.acreate(
+            text='asf',
+            user=self.user1,
+            room=room
+        )
+
+        # brand1 blocks brand2
+        await BlackList.objects.acreate(initiator=self.brand1, blocked=self.brand2)
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user1
+        )
+
+        connected, _ = await communicator.connect()
+
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            response = await self.delete_messages(communicator, [msg.id])
+
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
+
+        await communicator.disconnect()
 
     async def test_delete_messages_all_not_found(self):
         room = await Room.objects.acreate(type=Room.MATCH)
