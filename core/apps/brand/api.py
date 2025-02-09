@@ -217,17 +217,18 @@ class BrandViewSet(
 
             current_brand = self.request.user.brand
 
-            # get ids of brands that have match with current brand as initiator
-            current_brand_matches_ids_as_initiator = current_brand.initiator.filter(
-                is_match=True
-            ).values_list('target', flat=True)
+            # get ids of current brand likes including matches
+            # liked brands as initiator
+            # matched brands as initiator
+            current_brand_likes_including_matches = current_brand.initiator.values_list('target', flat=True)
 
             # get ids of brands that have match with current brand as target
+            # matched brands as target
             current_brand_matches_ids_as_target = current_brand.target.filter(
                 is_match=True
             ).values_list('initiator', flat=True)
 
-            matches_ids = list(current_brand_matches_ids_as_initiator.union(current_brand_matches_ids_as_target))
+            likes_and_matches_ids = list(current_brand_likes_including_matches.union(current_brand_matches_ids_as_target))
 
             # get all brands that current brand added to its blacklist
             blocked_brands = current_brand.blacklist_as_initiator.values_list('blocked', flat=True)
@@ -244,7 +245,7 @@ class BrandViewSet(
                 # - already have match with current one
                 # - are in current brand's blacklist
                 # - blocked current brand
-                pk__in=matches_ids + blacklist
+                pk__in=likes_and_matches_ids + blacklist
             )
 
             # get ids of current brand m2m and instantly evaluate it to avoid unnecessary subqueries
