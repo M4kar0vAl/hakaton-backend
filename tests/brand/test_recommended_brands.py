@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.blacklist.models import BlackList
-from core.apps.brand.models import Brand, Category, Format, Tag, Goal
+from core.apps.brand.models import Brand, Category, Format, Tag, Goal, Match
 from core.apps.payments.models import Subscription, Tariff
 from tests.mixins import AssertNumQueriesLessThanMixin
 
@@ -207,6 +207,21 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.data['results'][4]['id'], self.brand5.id)
         self.assertEqual(response.data['results'][5]['id'], self.brand6.id)
         self.assertEqual(response.data['results'][6]['id'], self.brand7.id)
+
+    def test_recommended_brands_exclude_likes(self):
+        Match.objects.bulk_create([
+            Match(initiator=self.initial_brand, target=self.brand1),  # initial brand likes brand1
+            Match(initiator=self.brand2, target=self.initial_brand),  # brand2 likes initial brand
+        ])
+
+        response = self.auth_client1.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data['results']
+
+        # results must exclude likes of the current brand and must not exclude brands that liked the current one
+        self.assertEqual(len(results), 6)
 
     def test_recommended_brands_exclude_matches(self):
         brand_match_1 = Brand.objects.create(
