@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
 from djangochannelsrestframework.permissions import IsAuthenticated, BasePermission
+from rest_framework import permissions
 
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Brand, Match
@@ -249,3 +250,12 @@ class CanAdminAct(BasePermission):
             return False
 
         return consumer.room.type == Room.SUPPORT
+
+
+class IsOwnerOfRoomFavorite(permissions.BasePermission):
+    """
+    Allow access only to users that own current RoomFavorite.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        return obj.user == request.user
