@@ -27,3 +27,19 @@ class Message(models.Model):
 
     def __str__(self):
         return f'Message in room {self.room_id}: {self.text[:20]}'
+
+
+class RoomFavorites(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='room_favorites', verbose_name='Пользователь'
+    )
+
+    room = models.ForeignKey(
+        Room, on_delete=models.CASCADE, related_name='as_favorite', verbose_name='Комната'
+    )
+
+    def __str__(self):
+        return f'Favorite room {self.room_id} for user {self.user_id}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(user_id={self.user_id}, room_id={self.room_id})'

@@ -16,6 +16,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Brand, Category, TargetAudience
+from core.apps.chat.models import Room, RoomFavorites
 from core.apps.payments.models import Tariff, Subscription
 
 User = get_user_model()
@@ -184,6 +185,17 @@ class BrandDeleteTestCase(APITestCase):
             BlackList(initiator=another_brand, blocked=self.brand),
         ])
 
+        rooms = Room.objects.bulk_create([
+            Room(type=Room.MATCH),
+            Room(type=Room.INSTANT),
+            Room(type=Room.SUPPORT),
+        ])
+
+        fav1, fav2, fav3 = RoomFavorites.objects.bulk_create([
+            RoomFavorites(user=self.user, room=room)
+            for room in rooms
+        ])
+
         response = self.auth_client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -199,6 +211,9 @@ class BrandDeleteTestCase(APITestCase):
 
         # check that blacklist was cleared
         self.assertFalse(BlackList.objects.filter(id__in=[bl1.id, bl2.id]).exists())
+
+        # check that favorite rooms were cleared
+        self.assertFalse(RoomFavorites.objects.filter(pk__in=[fav1.pk, fav2.pk, fav3.pk]).exists())
 
         # check that target audience remains
         self.assertIsNotNone(deleted_brand.target_audience)
