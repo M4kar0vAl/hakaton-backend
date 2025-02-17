@@ -5,15 +5,15 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APITestCase, APIClient
 
 from core.apps.brand.models import Brand, Category
-from core.apps.payments.models import PromoCode, GiftPromoCode
+from core.apps.payments.models import Tariff, GiftPromoCode
 
 User = get_user_model()
 
 
-class PromoCodeGetTestCase(APITestCase):
+class GiftPromoCodeListTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(
@@ -45,18 +45,38 @@ class PromoCodeGetTestCase(APITestCase):
 
         cls.brand = Brand.objects.create(user=cls.user, **brand_data)
 
-        now = timezone.now()
-        cls.promocode = PromoCode.objects.create(code='test', discount=5, expires_at=now + timedelta(days=30))
+        cls.lite_tariff = Tariff.objects.get(name='Lite Match')
 
-        cls.url = reverse('promocode-detail', args=[cls.promocode.code])
-        cls.subscribe_url = reverse('tariffs-subscribe')
+        GiftPromoCode.objects.bulk_create([
+            # valid
+            GiftPromoCode(
+                tariff_id=cls.lite_tariff.id,
+                expires_at=timezone.now() + timedelta(days=1),
+                giver=cls.brand
+            ),
+            # used
+            GiftPromoCode(
+                tariff_id=cls.lite_tariff.id,
+                expires_at=timezone.now() + timedelta(days=1),
+                giver=cls.brand,
+                is_used=True
+            ),
+            # expired
+            GiftPromoCode(
+                tariff_id=cls.lite_tariff.id,
+                expires_at=timezone.now() - timedelta(days=1),
+                giver=cls.brand
+            )
+        ])
 
-    def test_check_promocode_unauthenticated_not_allowed(self):
+        cls.url = reverse('gift_promocodes-list')
+
+    def test_list_gift_promocodes_unauthenticated_not_allowed(self):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_check_promocode_wo_brand_not_allowed(self):
+    def test_list_gift_promocodes_wo_brand_not_allowed(self):
         user_wo_brand = User.objects.create_user(
             email=f'user2@example.com',
             phone='+79993332211',
@@ -72,32 +92,42 @@ class PromoCodeGetTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_get_promocode(self):
+    def test_list_gift_promocodes(self):
         response = self.auth_client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
 
-    def test_get_promocode_does_not_exist(self):
-        response = self.auth_client.get(reverse('promocode-detail', args=['not_existing']))
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_get_promocode_already_used_in_subscription(self):
-        self.auth_client.post(self.subscribe_url, {'tariff': 2, 'promocode': self.promocode.id})
-
+    def test_list_gift_promocodes_excludes_already_used_gifts(self):
         response = self.auth_client.get(self.url)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
 
-    def test_get_promocode_already_used_in_gift(self):
-        # create gift with promo code
+    def test_list_gift_promocodes_excludes_expired_gifts(self):
+        response = self.auth_client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_list_gift_promocodes_returns_only_current_brand_codes(self):
+        another_user = User.objects.create_user(
+            email=f'another_user@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        another_brand = Brand.objects.create(user=another_user, **self.brand_data)
+
         GiftPromoCode.objects.create(
-            tariff_id=2,
+            tariff_id=self.lite_tariff.id,
             expires_at=timezone.now() + timedelta(days=1),
-            giver=self.brand,
-            promocode=self.promocode
+            giver=another_brand
         )
 
         response = self.auth_client.get(self.url)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)

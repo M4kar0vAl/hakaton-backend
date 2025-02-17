@@ -12,7 +12,7 @@ from core.apps.payments.models import Subscription, Tariff
 User = get_user_model()
 
 
-class CollaborationTestCase(APITestCase):
+class CollaborationCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user1 = User.objects.create_user(
@@ -110,14 +110,14 @@ class CollaborationTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_collaboration_match_does_not_exist(self):
+    def test_collaboration_create_match_does_not_exist(self):
         collaboration_data = {**self.collaboration_data, 'match': 0}
 
         response = self.auth_client1.post(self.url, collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_collaboration_with_brand_without_match(self):
+    def test_collaboration_create_with_brand_without_match(self):
         user_wo_match = User.objects.create_user(
             email='user3@example.com',
             phone='+79993332212',
@@ -153,7 +153,7 @@ class CollaborationTestCase(APITestCase):
 
             self.assertEqual(getattr(collab, key), value)
 
-    def test_collaboration_already_reported(self):
+    def test_collaboration_create_already_reported(self):
         # first collab
         self.auth_client1.post(self.url, self.collaboration_data)
 
@@ -161,7 +161,7 @@ class CollaborationTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_collaboration_participant_can_report(self):
+    def test_collaboration_create_participant_can_report(self):
         # collab of the initiator
         self.auth_client1.post(self.url, self.collaboration_data)
 
@@ -182,7 +182,7 @@ class CollaborationTestCase(APITestCase):
 
             self.assertEqual(getattr(collab, key), value)
 
-    def test_collaboration_activity_created_in_db(self):
+    def test_collaboration_create_activity_created_in_db(self):
         response = self.auth_client1.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -197,12 +197,12 @@ class CollaborationTestCase(APITestCase):
         self.assertEqual(activity_obj.target, self.brand2)
         self.assertTrue(activity_obj.is_match)
 
-    def test_unauthenticated_not_allowed(self):
+    def test_collaboration_create_unauthenticated_not_allowed(self):
         response = self.client.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_user_without_brand_not_allowed(self):
+    def test_collaboration_create_wo_brand_not_allowed(self):
         user = User.objects.create_user(
             email='user3@example.com',
             phone='+79993332213',
@@ -218,7 +218,7 @@ class CollaborationTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_collaboration_wo_active_sub_not_allowed(self):
+    def test_collaboration_create_wo_active_sub_not_allowed(self):
         user_wo_active_sub = User.objects.create_user(
             email='user_wo_active_sub@example.com',
             phone='+79993332214',
