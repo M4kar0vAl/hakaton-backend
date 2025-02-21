@@ -5,7 +5,6 @@ ENV = --env-file .env
 APP_FILE = ./docker-compose/app.yml
 STORAGE_FILE = ./docker-compose/storages.yml
 APP_CONTAINER = django
-BOT_CONTAINER = bot
 DB_CONTAINER = w2w_db
 MANAGE = python manage.py
 
@@ -31,10 +30,6 @@ stor:
 .PHONY: app-logs
 app-logs:
 	${LOGS} ${APP_CONTAINER} -f
-
-.PHONY: bot-logs
-bot-logs:
-	${LOGS} ${BOT_CONTAINER} -f
 
 .PHONY: db-logs
 db-logs:

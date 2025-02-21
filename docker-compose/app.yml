@@ -14,20 +14,6 @@ services:
     volumes:
       - ../core:/app/core
 
-
-  bot:
-    container_name: bot
-    build:
-      context: ../
-      dockerfile: Dockerfile
-    command: ["-m", "telegram_bot.bot"]
-    env_file:
-      - ../example.env
-    tty: true
-    networks:
-      - dev-net
-
-
 networks:
   dev-net:
     name: dev-net

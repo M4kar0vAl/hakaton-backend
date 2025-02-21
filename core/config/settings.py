@@ -201,9 +201,6 @@ CHANNEL_LAYERS = {
     },
 }
 
-# telebot
-BOT_URL = os.getenv('BOT_URL')
-
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_USE_SSL = False
 EMAIL_USE_TLS = True
@@ -215,4 +212,4 @@ EMAIL_PORT = os.getenv('EMAIL_PORT')
 # cities_light
 CITIES_LIGHT_TRANSLATION_LANGUAGES = []
 CITIES_LIGHT_INCLUDE_COUNTRIES = ['RU']
-CITIES_LIGHT_INCLUDE_CITY_TYPES = ['PPL', 'PPLA', 'PPLA2', 'PPLA3', 'PPLA4', 'PPLC', 'PPLF', 'PPLL', 'PPLS',]
+CITIES_LIGHT_INCLUDE_CITY_TYPES = ['PPL', 'PPLA', 'PPLA2', 'PPLA3', 'PPLA4', 'PPLC', 'PPLF', 'PPLL', 'PPLS', ]

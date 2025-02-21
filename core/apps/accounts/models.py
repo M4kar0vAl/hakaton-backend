@@ -1,6 +1,6 @@
-from django.db import models
-from django.contrib.auth.models import PermissionsMixin
 from django.contrib.auth.base_user import AbstractBaseUser
+from django.contrib.auth.models import PermissionsMixin
+from django.db import models
 
 from .manager import UserManager
 from .validators import phone_validator
@@ -14,7 +14,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         validators=[phone_validator, ]
     )
     fullname = models.CharField(max_length=512, verbose_name='ФИО')
-    telegram_id = models.BigIntegerField('Идентификатор телеграм', null=True)
     date_joined = models.DateTimeField(
         'Дата создания',
         auto_now_add=True

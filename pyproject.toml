@@ -13,7 +13,6 @@ uvicorn = {extras = ["standard"], version = "^0.30.1"}
 drf-spectacular = "^0.27.2"
 pillow = "^10.3.0"
 redis = "^5.0.5"
-pytelegrambotapi = "^4.19.1"
 python-dotenv = "^1.0.1"
 djangorestframework-simplejwt = "^5.3.1"
 channels = {version = "4.1.0", extras = ["daphne"]}
