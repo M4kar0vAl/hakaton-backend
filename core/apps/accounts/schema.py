@@ -24,13 +24,6 @@ class Fix1(OpenApiViewExtension):
             def password_reset(self, request, *args, **kwargs):
                 return super().password_reset(request, *args, **kwargs)
 
-            @extend_schema(
-                description='Установить/сменить telegram_id юзера. Для персонала.\n\n'
-                            'Принимает запросы только из бота, для остальных вернет 401'
-            )
-            def set_telegram_id(self, request, *args, **kwargs):
-                return super().set_telegram_id(request, *args, **kwargs)
-
         return Fixed
 
 
@@ -65,6 +58,7 @@ class Fix3(OpenApiViewExtension):
 
         return Fixed
 
+
 class Fix4(OpenApiViewExtension):
     """
     Описание к запросу на восстановление пароля.
@@ -78,6 +72,7 @@ class Fix4(OpenApiViewExtension):
 
         return Fixed
 
+
 class Fix4(OpenApiViewExtension):
     """
     Описание к восстановлению пароля.
@@ -90,6 +85,7 @@ class Fix4(OpenApiViewExtension):
             pass
 
         return Fixed
+
 
 def user_me_postprocessing_hook(result, generator, request, public):
     """

@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
-
 from rest_framework import viewsets, mixins, permissions, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.apps.accounts.models import PasswordRecovery
 from core.apps.accounts.serializers import (
     CreateUserSerializer,
     UserSerializer,
@@ -12,11 +12,8 @@ from core.apps.accounts.serializers import (
     PasswordResetSerializer,
     RequestPasswordRecoverySerializer,
     RecoveryPasswordSerializer,
-    UserTelegramID,
 )
-from core.apps.accounts.models import PasswordRecovery
 from core.apps.accounts.utils import send_password_recovery_email
-from .permissions import IsBot
 
 User = get_user_model()
 
@@ -39,16 +36,12 @@ class UserViewSet(
                 return UpdateUserSerializer
         elif self.action == 'password_reset':
             return PasswordResetSerializer
-        elif self.action == 'set_telegram_id':
-            return UserTelegramID
 
         return super().get_serializer_class()
 
     def get_permissions(self):
         if self.action == 'create':
             return [permissions.AllowAny(), ]
-        if self.action == 'set_telegram_id':
-            return [IsBot(), ]
 
         return super().get_permissions()
 
@@ -74,18 +67,6 @@ class UserViewSet(
         user.save()
         return Response(data=UserSerializer(instance=user).data, status=200)
 
-    @action(methods=['patch'], detail=False, url_name='set_telegram')
-    def set_telegram_id(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        user = serializer.user
-        telegram_id = serializer.validated_data['telegram_id']
-        user.telegram_id = telegram_id
-        user.save()
-
-        return Response(data=serializer.data, status=200)
-
 
 class RequestPasswordRecoveryViewSet(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
@@ -102,7 +83,7 @@ class RequestPasswordRecoveryViewSet(generics.GenericAPIView):
                 reset = PasswordRecovery(email=email, token=token)
                 reset.save()
 
-                #TODO send mail
+                # TODO send mail
                 send_password_recovery_email(email, token, request.get_host())
 
                 return Response({"success": "Password recovery link sent"}, status=status.HTTP_200_OK)
@@ -120,20 +101,20 @@ class RecoveryPasswordViewSet(generics.GenericAPIView):
         if serializer.is_valid():
             new_password = serializer.validated_data['new_password']
             confirm_password = serializer.validated_data['confirm_password']
-            
+
             if new_password != confirm_password:
                 return Response({"error": "Passwords don't match"}, status=status.HTTP_400_BAD_REQUEST)
-            
+
             reset_obj = PasswordRecovery.objects.filter(token=token).first()
 
             if not reset_obj:
                 return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
-            
+
             user = User.objects.filter(email=reset_obj.email).first()
 
             if not user:
                 return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-            
+
             user.set_password(new_password)
             user.save()
             reset_obj.delete()
