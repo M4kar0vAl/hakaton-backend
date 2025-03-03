@@ -162,15 +162,43 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         self.assertTrue(admin_connected)
         self.assertTrue(user_connected)
 
+        # create another admin when current one is already connected
+        # another_admin must be added to the list of groups to which the message is sent
+        another_admin = await User.objects.acreate(
+            email=f'admin_unique@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True,
+            is_staff=True
+        )
+
+        another_admin_communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=another_admin
+        )
+
+        another_admin_connected, _ = await another_admin_communicator.connect()
+
+        self.assertTrue(another_admin_connected)
+
         async with join_room_communal([admin_communicator, user_communicator], support_room.id):
             admin_response = await self.delete_messages(admin_communicator, [support_room_msg.id])
             user_response = await user_communicator.receive_json_from()
+            another_admin_response = await another_admin_communicator.receive_json_from()
 
-            self.assertEqual(admin_response['response_status'], status.HTTP_200_OK)
-            self.assertEqual(user_response['response_status'], status.HTTP_200_OK)
+            # check that only one notification is sent
+            self.assertTrue(await admin_communicator.receive_nothing())
+            self.assertTrue(await user_communicator.receive_nothing())
+            self.assertTrue(await another_admin_communicator.receive_nothing())
 
-            self.assertEqual(admin_response['data']['messages_ids'], [support_room_msg.id])
-            self.assertEqual(user_response['data']['messages_ids'], [support_room_msg.id])
+            # check that user and both admins were notified
+            for response in [admin_response, user_response, another_admin_response]:
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                self.assertEqual(response['data']['messages_ids'], [support_room_msg.id])
 
             # check that messages were deleted from db
             self.assertFalse(await Message.objects.filter(id__in=[support_room_msg.id]).aexists())
@@ -179,16 +207,23 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
 
         async with join_room(admin_communicator, own_support_room.id):
             own_support_room_msgs_ids = [msg.id for msg in own_support_room_msgs]
-            response = await self.delete_messages(admin_communicator, own_support_room_msgs_ids)
+            admin_response = await self.delete_messages(admin_communicator, own_support_room_msgs_ids)
+            another_admin_response = await another_admin_communicator.receive_json_from()
 
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            # check that only one notification is sent
+            self.assertTrue(await admin_communicator.receive_nothing())
+            self.assertTrue(await another_admin_communicator.receive_nothing())
 
-            self.assertEqual(response['data']['messages_ids'], own_support_room_msgs_ids)
+            # check that both admins were notified
+            for response in [admin_response, another_admin_response]:
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                self.assertEqual(response['data']['messages_ids'], own_support_room_msgs_ids)
 
             # check that messages were deleted from db
             self.assertFalse(await Message.objects.filter(id__in=own_support_room_msgs_ids).aexists())
 
         await admin_communicator.disconnect()
+        await another_admin_communicator.disconnect()
 
     async def test_delete_messages_all_not_found(self):
         room = await Room.objects.acreate(type=Room.SUPPORT)

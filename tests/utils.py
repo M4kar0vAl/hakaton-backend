@@ -46,7 +46,7 @@ def get_websocket_communicator(
     Returns:
         WebsocketCommunicator instance
     """
-    protocols_ = f'{', '.join(protocols)}'
+    protocols_ = f"{', '.join(protocols)}"
 
     if token is not None:
         protocols_ += f', {token}'

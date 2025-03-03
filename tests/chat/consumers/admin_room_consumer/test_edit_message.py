@@ -157,16 +157,45 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
         self.assertTrue(admin_connected)
         self.assertTrue(user_connected)
 
+        # create another admin when current one is already connected
+        # another_admin must be added to the list of groups to which the message is sent
+        another_admin = await User.objects.acreate(
+            email=f'admin_unique@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True,
+            is_staff=True
+        )
+
+        another_admin_communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=another_admin
+        )
+
+        another_admin_connected, _ = await another_admin_communicator.connect()
+
+        self.assertTrue(another_admin_connected)
+
         async with join_room_communal([admin_communicator, user_communicator], support_room.id):
             edited_text = 'edited'
             admin_response = await self.edit_message(admin_communicator, support_room_msg.id, edited_text)
             user_response = await user_communicator.receive_json_from()
+            another_admin_response = await another_admin_communicator.receive_json_from()
 
-            self.assertEqual(admin_response['response_status'], status.HTTP_200_OK)
-            self.assertEqual(user_response['response_status'], status.HTTP_200_OK)
+            # check that only one notification is sent
+            self.assertTrue(await admin_communicator.receive_nothing())
+            self.assertTrue(await user_communicator.receive_nothing())
+            self.assertTrue(await another_admin_communicator.receive_nothing())
 
-            self.assertEqual(admin_response['data']['message_text'], edited_text)
-            self.assertEqual(user_response['data']['message_text'], edited_text)
+            # check that user and both admins were notified
+            for response in [admin_response, user_response, another_admin_response]:
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                self.assertEqual(response['data']['id'], support_room_msg.id)
+                self.assertEqual(response['data']['text'], edited_text)
 
             try:
                 msg = await Message.objects.aget(id=support_room_msg.id)
@@ -180,11 +209,18 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
 
         async with join_room(admin_communicator, own_support_room.id):
             edited_text = 'edited'
-            response = await self.edit_message(admin_communicator, own_support_room_msg.id, edited_text)
+            admin_response = await self.edit_message(admin_communicator, own_support_room_msg.id, edited_text)
+            another_admin_response = await another_admin_communicator.receive_json_from()
 
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            # check that only one notification is sent
+            self.assertTrue(await admin_communicator.receive_nothing())
+            self.assertTrue(await another_admin_communicator.receive_nothing())
 
-            self.assertEqual(response['data']['message_text'], edited_text)
+            # check that both admins were notified
+            for response in [admin_response, another_admin_response]:
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                self.assertEqual(response['data']['id'], own_support_room_msg.id)
+                self.assertEqual(response['data']['text'], edited_text)
 
             try:
                 msg = await Message.objects.aget(id=own_support_room_msg.id)
@@ -195,6 +231,7 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
             self.assertEqual(msg.text, edited_text)  # check that text changed in the db
 
         await admin_communicator.disconnect()
+        await another_admin_communicator.disconnect()
 
     async def test_edit_message_of_another_user_not_allowed(self):
         user = await User.objects.acreate(

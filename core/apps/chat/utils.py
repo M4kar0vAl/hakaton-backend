@@ -1,11 +1,11 @@
-import inspect
+from collections.abc import Iterable
 from typing import Any, Optional
 
 from channels.layers import get_channel_layer
 
 
 async def reply_to_groups(
-        groups: list[str] | tuple[str, ...],
+        groups: Iterable[str],
         handler_name: str,
         action: str,
         data: dict[str, Any] = None,
@@ -43,8 +43,8 @@ async def reply_to_groups(
         request_id: helps clients link messages they have sent to responses
     """
 
-    if not isinstance(groups, (list, tuple)):
-        raise TypeError("'groups' must be list or tuple")
+    if not isinstance(groups, Iterable):
+        raise TypeError("'groups' must be an iterable")
 
     if not isinstance(data, dict):
         raise TypeError("'data' must be a dict")
