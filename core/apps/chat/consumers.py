@@ -1,17 +1,19 @@
-from typing import Type, Tuple
+from typing import Type, Tuple, List
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.db.models import QuerySet, Prefetch, Q, OuterRef, Subquery, Max, F
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
+from djangochannelsrestframework.observer import model_observer
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.serializers import Serializer
 from rest_framework.utils.serializer_helpers import ReturnList
 
 from core.apps.brand.models import Brand
-from core.apps.chat.mixins import ConsumerSerializationMixin, ConsumerUtilitiesMixin, ConsumerPaginationMixin
+from core.apps.chat.mixins import ConsumerSerializationMixin, ConsumerUtilitiesMixin, ConsumerPaginationMixin, \
+    ConsumerObserveAdminActivityMixin
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import (
     IsAuthenticatedConnect,
@@ -34,7 +36,8 @@ class RoomConsumer(
     GenericAsyncAPIConsumer,
     ConsumerSerializationMixin,
     ConsumerUtilitiesMixin,
-    ConsumerPaginationMixin
+    ConsumerPaginationMixin,
+    ConsumerObserveAdminActivityMixin,
 ):
     serializer_class = RoomSerializer
     lookup_field = "pk"
@@ -101,23 +104,27 @@ class RoomConsumer(
         return super().get_serializer_class()
 
     async def connect(self):
-        self.user_group_name = f'user_{self.scope["user"].pk}'
-        self.brand = await self.get_brand()
-        self.brand_rooms = await self.get_brand_rooms_pk_set()
-        self.action_paginators = {}
-
-        await self.add_group(self.user_group_name)
-
         if 'chat' in self.scope['subprotocols']:
             await self.accept('chat')
         else:
             await self.close()
 
+        self.user_group_name = f'user_{self.scope["user"].pk}'
+        self.brand = await self.get_brand()
+        self.brand_rooms = await self.get_brand_rooms_pk_set()
+        self.action_paginators = {}
+        self.admins_pks_set = await self.get_admins_pks_set()
+
+        await self.add_group(self.user_group_name)
+        await self.user_activity.subscribe()
+
     async def disconnect(self, code):
         if hasattr(self, 'user_group_name'):
             await self.remove_group(self.user_group_name)
+            delattr(self, 'user_group_name')
 
         self.delete_all_paginators()
+        await self.user_activity.unsubscribe()
 
     @action()
     async def get_rooms(self, page: int, **kwargs) -> Tuple[ReturnList, int]:
@@ -136,24 +143,13 @@ class RoomConsumer(
 
     @action()
     async def join_room(self, room_pk, **kwargs):
-        if hasattr(self, 'room_group_name'):
-            await self.remove_group(self.room_group_name)
-
-        self.room = await database_sync_to_async(self.get_object)(pk=room_pk)
-        self.room_group_name = f'room_{room_pk}'
-
-        await self.add_group(self.room_group_name)
-
+        self.room = await self.get_room_with_participants(room_pk)
         room_data = await self.get_serialized_data(self.room, **kwargs)
 
         return room_data, status.HTTP_200_OK
 
     @action()
     async def leave_room(self, **kwargs):
-        if hasattr(self, 'room_group_name'):
-            await self.remove_group(self.room_group_name)
-            delattr(self, 'room_group_name')
-
         self.delete_paginator_for_action('get_room_messages')
 
         pk = self.room.pk
@@ -186,8 +182,10 @@ class RoomConsumer(
 
         message_data = await self.get_serialized_data(message, **kwargs)
 
+        groups = self.get_user_groups_for_room(self.room)
+
         await reply_to_groups(
-            groups=(self.room_group_name,),
+            groups=groups,
             handler_name='data_to_groups',
             action=kwargs['action'],
             data=message_data,
@@ -202,11 +200,14 @@ class RoomConsumer(
         if updated:
             data = {
                 'room_id': self.room.pk,
-                'message_id': msg_id,
-                'message_text': edited_msg_text,
+                'id': msg_id,
+                'text': edited_msg_text,
             }
+
+            groups = self.get_user_groups_for_room(self.room)
+
             await reply_to_groups(
-                groups=(self.room_group_name,),
+                groups=groups,
                 handler_name='data_to_groups',
                 action=kwargs['action'],
                 data=data,
@@ -244,8 +245,10 @@ class RoomConsumer(
 
         errors = []
 
+        groups = self.get_user_groups_for_room(self.room)
+
         await reply_to_groups(
-            groups=(self.room_group_name,),
+            groups=groups,
             handler_name='data_to_groups',
             action=kwargs['action'],
             data=data,
@@ -281,7 +284,8 @@ class AdminRoomConsumer(
     GenericAsyncAPIConsumer,
     ConsumerSerializationMixin,
     ConsumerUtilitiesMixin,
-    ConsumerPaginationMixin
+    ConsumerPaginationMixin,
+    ConsumerObserveAdminActivityMixin,
 ):
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
@@ -345,15 +349,25 @@ class AdminRoomConsumer(
         return super().get_serializer_class()
 
     async def connect(self):
-        self.action_paginators = {}
-
         if 'admin-chat' in self.scope['subprotocols']:
             await self.accept('admin-chat')
         else:
             await self.close()
 
+        self.action_paginators = {}
+        self.user_group_name = f'user_{self.scope["user"].pk}'
+        self.admins_pks_set = await self.get_admins_pks_set()
+
+        await self.add_group(self.user_group_name)
+        await self.user_activity.subscribe()
+
     async def disconnect(self, code):
+        if hasattr(self, 'user_group_name'):
+            await self.remove_group(self.user_group_name)
+            delattr(self, 'user_group_name')
+
         self.delete_all_paginators()
+        await self.user_activity.unsubscribe()
 
     @action()
     async def get_rooms(self, page: int, **kwargs) -> Tuple[ReturnList, int]:
@@ -372,32 +386,17 @@ class AdminRoomConsumer(
 
     @action()
     async def join_room(self, room_pk, **kwargs):
-        if hasattr(self, 'room_group_name'):
-            await self.remove_group(self.room_group_name)
-
-        self.room = await database_sync_to_async(self.get_object)(pk=room_pk)
-        self.room_group_name = f'room_{room_pk}'
-
-        # can create/edit/delete messages only in support chat
-        # can view messages in all chats
-        self.can_message = self.room.type == Room.SUPPORT
-
-        await self.add_group(self.room_group_name)
-
+        self.room = await self.get_room_with_participants(room_pk)
         room_data = await self.get_serialized_data(self.room, **kwargs)
 
         return room_data, status.HTTP_200_OK
 
     @action()
     async def leave_room(self, **kwargs):
-        if hasattr(self, 'room_group_name'):
-            await self.remove_group(self.room_group_name)
-
         self.delete_paginator_for_action('get_room_messages')
 
         pk = self.room.pk
         delattr(self, 'room')
-        delattr(self, 'can_message')
 
         return {'response': f'Leaved room {pk} successfully!'}, status.HTTP_200_OK
 
@@ -426,8 +425,10 @@ class AdminRoomConsumer(
 
         message_data = await self.get_serialized_data(message, **kwargs)
 
+        groups = self.get_user_groups_for_room(self.room)
+
         await reply_to_groups(
-            groups=(self.room_group_name,),
+            groups=groups,
             handler_name='data_to_groups',
             action=kwargs['action'],
             data=message_data,
@@ -442,11 +443,14 @@ class AdminRoomConsumer(
         if updated:
             data = {
                 'room_id': self.room.pk,
-                'message_id': msg_id,
-                'message_text': edited_msg_text,
+                'id': msg_id,
+                'text': edited_msg_text,
             }
+
+            groups = self.get_user_groups_for_room(self.room)
+
             await reply_to_groups(
-                groups=(self.room_group_name,),
+                groups=groups,
                 handler_name='data_to_groups',
                 action=kwargs['action'],
                 data=data,
@@ -483,8 +487,10 @@ class AdminRoomConsumer(
 
         errors = []
 
+        groups = self.get_user_groups_for_room(self.room)
+
         await reply_to_groups(
-            groups=(self.room_group_name,),
+            groups=groups,
             handler_name='data_to_groups',
             action=kwargs['action'],
             data=data,

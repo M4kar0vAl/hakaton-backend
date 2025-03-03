@@ -202,16 +202,44 @@ class AdminRoomConsumerCreateMessageTestCase(TransactionTestCase, AdminRoomConsu
         self.assertTrue(admin_connected)
         self.assertTrue(user_connected)
 
+        # create another admin when current one is already connected
+        # another_admin must be added to the list of groups to which the message is sent
+        another_admin = await User.objects.acreate(
+            email=f'admin_unique@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True,
+            is_staff=True
+        )
+
+        another_admin_communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=another_admin
+        )
+
+        another_admin_connected, _ = await another_admin_communicator.connect()
+
+        self.assertTrue(another_admin_connected)
+
         async with join_room_communal([admin_communicator, user_communicator], support_room.id):
             msg_text = 'test'
             admin_response = await self.create_message(admin_communicator, msg_text)
             user_response = await user_communicator.receive_json_from()  # check that user receives message
+            another_admin_response = await another_admin_communicator.receive_json_from()
 
-            self.assertEqual(admin_response['response_status'], status.HTTP_201_CREATED)
-            self.assertEqual(user_response['response_status'], status.HTTP_201_CREATED)
+            # check that only one notification is sent
+            self.assertTrue(await admin_communicator.receive_nothing())
+            self.assertTrue(await user_communicator.receive_nothing())
+            self.assertTrue(await another_admin_communicator.receive_nothing())
 
-            self.assertEqual(admin_response['data']['text'], msg_text)
-            self.assertEqual(user_response['data']['text'], msg_text)
+            # check that user and both admins got the message
+            for response in [admin_response, user_response, another_admin_response]:
+                self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
+                self.assertEqual(response['data']['text'], msg_text)
 
             msg_id = admin_response['data']['id']
             try:
@@ -226,13 +254,19 @@ class AdminRoomConsumerCreateMessageTestCase(TransactionTestCase, AdminRoomConsu
 
         async with join_room(admin_communicator, own_support_room.id):
             msg_text = 'test'
-            response = await self.create_message(admin_communicator, msg_text)
+            admin_response = await self.create_message(admin_communicator, msg_text)
+            another_admin_response = await another_admin_communicator.receive_json_from()
 
-            self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
+            # check that only one notification is sent
+            self.assertTrue(await admin_communicator.receive_nothing())
+            self.assertTrue(await another_admin_communicator.receive_nothing())
 
-            self.assertEqual(response['data']['text'], msg_text)
+            # check that both admins got the message
+            for response in [admin_response, another_admin_response]:
+                self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
+                self.assertEqual(response['data']['text'], msg_text)
 
-            msg_id = response['data']['id']
+            msg_id = admin_response['data']['id']
             try:
                 msg = await Message.objects.filter(room=own_support_room).aget()
             except (Message.DoesNotExist, Message.MultipleObjectReturned):
@@ -242,3 +276,4 @@ class AdminRoomConsumerCreateMessageTestCase(TransactionTestCase, AdminRoomConsu
             self.assertEqual(msg.id, msg_id)
 
         await admin_communicator.disconnect()
+        await another_admin_communicator.disconnect()

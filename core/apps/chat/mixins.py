@@ -1,10 +1,17 @@
+from typing import Set
+
 from channels.db import database_sync_to_async
+from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator, InvalidPage
 from django.db import transaction, DatabaseError
-from django.db.models import Model, QuerySet
+from django.db.models import Model, QuerySet, Prefetch
+from djangochannelsrestframework.observer import model_observer
 
 from core.apps.chat.exceptions import ServerError, BadRequest
 from core.apps.chat.models import Message, Room
+
+
+User = get_user_model()
 
 
 class ConsumerSerializationMixin:
@@ -186,3 +193,82 @@ class ConsumerPaginationMixin:
 
         if page_number not in paginator.page_range:
             raise BadRequest(f'Page {page_number} does not exist!')
+
+
+class ConsumerObserveAdminActivityMixin:
+    """
+    Mixin that observes user activity and maintains the set of all admins' pks.
+
+    Consumer must have "admins_pks_set" attribute. In most cases should be populated during connect method.
+    """
+
+    def __init__(self):
+        self.admins_pks_set = set()
+
+    # WARNING
+    # When using this to decorate a method to avoid the method firing multiple times you should ensure that
+    # if there are multiple @model_observer wrapped methods for the same model type within a single file
+    # that each method HAS A DIFFERENT NAME.
+    # (https://github.com/NilCoalescing/djangochannelsrestframework?tab=readme-ov-file#subscribing-to-all-instances-of-a-model)
+    @model_observer(User)
+    async def user_activity(
+            self,
+            data,
+            action,
+            **kwargs
+    ):
+        if not data:
+            return
+
+        if data['is_staff']:
+            if action == 'create':
+                self.admins_pks_set.add(data['pk'])
+            elif action == 'delete':
+                self.admins_pks_set.remove(data['pk'])
+
+    @user_activity.serializer
+    def user_activity(self, instance: User, action, **kwargs):
+        if action == 'update':
+            return
+
+        return {'pk': instance.pk, 'is_staff': instance.is_staff}
+
+    def get_user_groups_for_room(self, room: Room) -> Set[str]:
+        """
+        Get a list of group names for a given room.
+        Room instance must have prefetched participants in attribute 'room_participants'.
+
+        Args:
+            room: instance of the room to get groups for
+
+        Returns:
+            List of group names as strings
+        """
+        groups = {f'user_{user.pk}' for user in room.room_participants}
+
+        if room.type == Room.SUPPORT:
+            for pk in self.admins_pks_set:
+                groups.add(f'user_{pk}')
+
+        return groups
+
+    @database_sync_to_async
+    def get_room_with_participants(self, room_pk):
+        try:
+            room = Room.objects.filter(pk=room_pk).prefetch_related(
+                Prefetch(
+                    'participants',
+                    queryset=User.objects.all(),
+                    to_attr='room_participants'
+                )
+            ).get()
+        except Room.DoesNotExist:
+            return None
+
+        return room
+
+    @database_sync_to_async
+    def get_admins_pks_set(self):
+        admin_pks = User.objects.filter(is_staff=True, is_active=True).values_list('pk', flat=True)
+
+        return set(admin_pks)

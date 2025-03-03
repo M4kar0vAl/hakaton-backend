@@ -192,14 +192,22 @@ SIMPLE_JWT = {
 }
 
 # channels
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [(os.getenv('REDIS_HOST'), os.getenv('REDIS_PORT'))],
+# For some reason it tries to connect to redis in tests sometimes, even if settings were overridden in test case
+if 'test' in sys.argv:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [(os.getenv('REDIS_HOST'), os.getenv('REDIS_PORT'))],
+            },
         },
-    },
-}
+    }
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_USE_SSL = False

@@ -6,8 +6,8 @@ from django.utils import timezone
 from rest_framework import status
 
 from core.apps.blacklist.models import BlackList
-from core.apps.brand.models import Category, Brand
-from core.apps.chat.consumers import RoomConsumer
+from core.apps.brand.models import Category, Brand, Match
+from core.apps.chat.consumers import RoomConsumer, AdminRoomConsumer
 from core.apps.chat.models import Room, Message
 from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import RoomConsumerActionsMixin
@@ -79,6 +79,9 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
         self.path = 'ws/chat/'
         self.accepted_protocol = 'chat'
+
+        self.admin_path = 'ws/admin-chat/'
+        self.admin_accepted_protocol = 'admin-chat'
 
     async def test_delete_messages_wo_active_sub_not_allowed(self):
         user_wo_active_sub = await User.objects.acreate(
@@ -285,24 +288,54 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         await communicator2.disconnect()
 
     async def test_delete_messages(self):
-        room = await Room.objects.acreate(type=Room.MATCH)
+        rooms = await Room.objects.abulk_create([
+            Room(type=Room.MATCH),
+            Room(type=Room.INSTANT),
+            Room(type=Room.SUPPORT),
+        ])
 
-        await room.participants.aset([self.user1, self.user2])
+        match_room, instant_room, support_room = rooms
+
+        await match_room.participants.aset([self.user1, self.user2])
+        await instant_room.participants.aset([self.user1, self.user2])
+        await support_room.participants.aset([self.user1])
+
+        await Match.objects.acreate(
+            initiator=self.user1.brand,
+            target=self.user2.brand,
+            is_match=False,
+            room=instant_room
+        )
 
         messages = await Message.objects.abulk_create([
             Message(
                 text='asf',
                 user=self.user1,
                 room=room
-            ),
+            )
+            for room in rooms
+        ] + [
             Message(
                 text='fahnj',
                 user=self.user1,
                 room=room
             )
+            for room in rooms
         ])
 
-        messages_ids = [msg.id for msg in messages]
+        match_room_messages_ids = [msg.id for msg in messages if msg.room_id == match_room.id]
+        instant_room_messages_ids = [msg.id for msg in messages if msg.room_id == instant_room.id]
+        support_room_messages_ids = [msg.id for msg in messages if msg.room_id == support_room.id]
+
+        # initial admin (that was before the user connected to websocket)
+        admin1 = await User.objects.acreate(
+            email=f'admin_unique@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True,
+            is_staff=True
+        )
 
         communicator1 = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -320,27 +353,93 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
             user=self.user2
         )
 
+        admin_communicator1 = get_websocket_communicator_for_user(
+            url_pattern=self.admin_path,
+            path=self.admin_path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.admin_accepted_protocol],
+            user=admin1
+        )
+
         connected1, _ = await communicator1.connect()
         connected2, __ = await communicator2.connect()
+        connected3, ___ = await admin_communicator1.connect()
 
         self.assertTrue(connected1)
         self.assertTrue(connected2)
+        self.assertTrue(connected3)
 
-        async with join_room_communal([communicator1, communicator2], room.pk):
-            response1 = await self.delete_messages(communicator1, messages_ids)
+        # create another admin when user is already connected
+        # admin2 must be added to the list of groups to which the message is sent
+        admin2 = await User.objects.acreate(
+            email=f'admin2_unique@example.com',
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True,
+            is_staff=True
+        )
+
+        admin_communicator2 = get_websocket_communicator_for_user(
+            url_pattern=self.admin_path,
+            path=self.admin_path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.admin_accepted_protocol],
+            user=admin2
+        )
+
+        connected4, __ = await admin_communicator2.connect()
+
+        self.assertTrue(connected4)
+
+        async with join_room_communal([communicator1, communicator2], match_room.pk):
+            response1 = await self.delete_messages(communicator1, match_room_messages_ids)
             response2 = await communicator2.receive_json_from()
 
-            self.assertEqual(response1['response_status'], status.HTTP_200_OK)
-            self.assertEqual(response2['response_status'], status.HTTP_200_OK)
+            # check that admins aren't notified about non-support room actions
+            self.assertTrue(await admin_communicator1.receive_nothing())
+            self.assertTrue(await admin_communicator2.receive_nothing())
 
-            self.assertEqual(response1['data']['messages_ids'], messages_ids)
-            self.assertEqual(response2['data']['messages_ids'], messages_ids)
+            for response in [response1, response2]:
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                self.assertEqual(response['data']['messages_ids'], match_room_messages_ids)
+                self.assertEqual(response['data']['room_id'], match_room.pk)
 
-            messages_exists = await Message.objects.filter(id__in=messages_ids).aexists()
+            messages_exists = await Message.objects.filter(id__in=match_room_messages_ids).aexists()
             self.assertFalse(messages_exists)
+
+        async with join_room_communal([communicator1, communicator2], instant_room.pk):
+            response1 = await self.delete_messages(communicator1, instant_room_messages_ids)
+            response2 = await communicator2.receive_json_from()
+
+            # check that admins aren't notified about non-support room actions
+            self.assertTrue(await admin_communicator1.receive_nothing())
+            self.assertTrue(await admin_communicator2.receive_nothing())
+
+            for response in [response1, response2]:
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                self.assertEqual(response['data']['messages_ids'], instant_room_messages_ids)
+                self.assertEqual(response['data']['room_id'], instant_room.pk)
+
+        async with join_room(communicator1, support_room.pk):
+            response = await self.delete_messages(communicator1, support_room_messages_ids)
+            admin1_response = await admin_communicator1.receive_json_from()
+            admin2_response = await admin_communicator2.receive_json_from()
+
+            # check that only one notification is sent
+            self.assertTrue(await communicator1.receive_nothing())
+            self.assertTrue(await admin_communicator1.receive_nothing())
+            self.assertTrue(await admin_communicator2.receive_nothing())
+
+            for response in [response, admin1_response, admin2_response]:
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                self.assertEqual(response['data']['messages_ids'], support_room_messages_ids)
+                self.assertEqual(response['data']['room_id'], support_room.pk)
 
         await communicator1.disconnect()
         await communicator2.disconnect()
+        await admin_communicator1.disconnect()
+        await admin_communicator2.disconnect()
 
     async def test_delete_messages_of_another_user_not_allowed(self):
         room = await Room.objects.acreate(type=Room.MATCH)
