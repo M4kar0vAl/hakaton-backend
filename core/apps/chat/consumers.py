@@ -1,19 +1,22 @@
-from typing import Type, Tuple, List
+from typing import Type, Tuple
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.db.models import QuerySet, Prefetch, Q, OuterRef, Subquery, Max, F
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
-from djangochannelsrestframework.observer import model_observer
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.serializers import Serializer
 from rest_framework.utils.serializer_helpers import ReturnList
 
 from core.apps.brand.models import Brand
-from core.apps.chat.mixins import ConsumerSerializationMixin, ConsumerUtilitiesMixin, ConsumerPaginationMixin, \
+from core.apps.chat.mixins import (
+    ConsumerSerializationMixin,
+    ConsumerUtilitiesMixin,
+    ConsumerPaginationMixin,
     ConsumerObserveAdminActivityMixin
+)
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import (
     IsAuthenticatedConnect,
@@ -26,7 +29,11 @@ from core.apps.chat.permissions import (
     CanAdminJoinRoom,
     HasActiveSub, NotInBlacklist
 )
-from core.apps.chat.serializers import RoomSerializer, MessageSerializer, RoomListSerializer
+from core.apps.chat.serializers import (
+    RoomSerializer,
+    MessageSerializer,
+    RoomListSerializer,
+)
 from core.apps.chat.utils import reply_to_groups
 
 User = get_user_model()
@@ -80,7 +87,7 @@ class RoomConsumer(
                 return self.scope['user'].rooms.prefetch_related(
                     Prefetch(
                         'participants',
-                        queryset=User.objects.filter(~Q(pk=self.scope['user'].id)).select_related('brand__category'),
+                        queryset=User.objects.exclude(pk=self.scope['user'].id).select_related('brand__category'),
                         to_attr='interlocutor_users'
                     ),
                     Prefetch(
@@ -97,10 +104,13 @@ class RoomConsumer(
         return self.scope['user'].rooms.all()
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
-        if kwargs['action'] in ('create_message', 'get_room_messages'):
+        action_ = kwargs['action']
+
+        if action_ in ('get_room_messages', 'create_message', 'edit_message', 'delete_messages'):
             return MessageSerializer
-        elif kwargs['action'] == 'get_rooms':
+        elif action_ in ('get_rooms', 'get_support_room'):
             return RoomListSerializer
+
         return super().get_serializer_class()
 
     async def connect(self):
@@ -324,7 +334,7 @@ class AdminRoomConsumer(
                 return Room.objects.prefetch_related(
                     Prefetch(
                         'participants',
-                        queryset=User.objects.filter(~Q(pk=self.scope['user'].id)).select_related('brand__category'),
+                        queryset=User.objects.exclude(pk=self.scope['user'].id).select_related('brand__category'),
                         to_attr='interlocutor_users'
                     ),
                     Prefetch(
@@ -341,9 +351,11 @@ class AdminRoomConsumer(
         return super().get_queryset(**kwargs)
 
     def get_serializer_class(self, **kwargs) -> Type[Serializer]:
-        if kwargs['action'] in ('create_message', 'get_room_messages'):
+        action_ = kwargs['action']
+
+        if action_ in ('get_room_messages', 'create_message', 'edit_message', 'delete_messages'):
             return MessageSerializer
-        elif kwargs['action'] == 'get_rooms':
+        elif action_ in ('get_rooms', 'get_support_room'):
             return RoomListSerializer
 
         return super().get_serializer_class()

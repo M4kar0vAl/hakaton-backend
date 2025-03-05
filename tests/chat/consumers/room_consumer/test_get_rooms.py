@@ -178,7 +178,6 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
         self.assertTrue(connected)
 
         response = await self.get_rooms(communicator, 1)
-
         await communicator.disconnect()
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
@@ -205,21 +204,21 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         # check interlocutors brands
         # check match room
-        self.assertEqual(len(match_room_resp['interlocutors_brand']), 1)
-        self.assertEqual(match_room_resp['interlocutors_brand'][0]['id'], self.brand2.id)
+        self.assertEqual(len(match_room_resp['interlocutors']), 1)
+        self.assertEqual(match_room_resp['interlocutors'][0]['brand']['id'], self.brand2.id)
 
         # check instant room
-        self.assertEqual(len(instant_room_resp['interlocutors_brand']), 1)
-        self.assertEqual(instant_room_resp['interlocutors_brand'][0]['id'], self.brand2.id)
+        self.assertEqual(len(instant_room_resp['interlocutors']), 1)
+        self.assertEqual(instant_room_resp['interlocutors'][0]['brand']['id'], self.brand2.id)
 
         # check support room
-        self.assertEqual(len(support_room_resp['interlocutors_brand']), 0)  # change to W2W agency
+        self.assertEqual(len(support_room_resp['interlocutors']), 0)  # change to W2W agency
 
         # check match room with deleted interlocutor
-        self.assertEqual(len(match_room_1_deleted_resp['interlocutors_brand']), 0)
+        self.assertEqual(len(match_room_1_deleted_resp['interlocutors']), 0)
 
         # check instant room with deleted interlocutor
-        self.assertEqual(len(instant_room_1_deleted_resp['interlocutors_brand']), 0)
+        self.assertEqual(len(instant_room_1_deleted_resp['interlocutors']), 0)
 
     async def test_get_rooms_does_not_return_rooms_of_other_brands(self):
         another_user = await User.objects.acreate(

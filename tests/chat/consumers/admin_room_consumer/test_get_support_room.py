@@ -3,7 +3,7 @@ from django.test import tag, TransactionTestCase, override_settings
 from rest_framework import status
 
 from core.apps.chat.consumers import AdminRoomConsumer
-from core.apps.chat.models import Room
+from core.apps.chat.models import Room, Message
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import join_room, get_websocket_communicator_for_user
 
@@ -38,6 +38,12 @@ class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomCons
 
         await room.participants.aset([self.admin_user])
 
+        msg = await Message.objects.acreate(
+            text='test',
+            user=self.admin_user,
+            room=room
+        )
+
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
@@ -54,7 +60,13 @@ class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomCons
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        self.assertEqual(response['data']['id'], room.id)
+        room_id = response['data']['id']
+        interlocutors = response['data']['interlocutors']
+        last_message = response['data']['last_message']
+
+        self.assertEqual(room_id, room.id)
+        self.assertFalse(interlocutors)
+        self.assertEqual(last_message['id'], msg.id)
 
         await communicator.disconnect()
 
@@ -85,7 +97,13 @@ class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomCons
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            self.assertEqual(response['data']['id'], support_room.id)
+            room_id = response['data']['id']
+            interlocutors = response['data']['interlocutors']
+            last_message = response['data']['last_message']
+
+            self.assertEqual(room_id, support_room.id)
+            self.assertFalse(interlocutors)
+            self.assertIsNone(last_message)
 
         await communicator.disconnect()
 
@@ -107,6 +125,11 @@ class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomCons
         self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
 
         room_id = response['data']['id']
+        interlocutors = response['data']['interlocutors']
+        last_message = response['data']['last_message']
+
+        self.assertFalse(interlocutors)
+        self.assertIsNone(last_message)
 
         try:
             room = await Room.objects.prefetch_related('participants').aget(id=room_id)

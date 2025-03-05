@@ -76,7 +76,7 @@ _**Получить список всех комнат, в которых сос
 
 ##### Пример ответа
 
-`interlocutors_brand` - короткая информация о бренде собеседника, используйте ее для отрисовки списка чатов. Когда пользователь захочет подробно про бренд посмотреть делайте запрос на `/api/v1/brand/{id}/` для получения всей информации.
+`interlocutors` - короткая информация о собеседниках (пользователях), используйте ее для отрисовки списка чатов. Когда пользователь захочет подробно про бренд посмотреть делайте запрос на `/api/v1/brand/{id}/` для получения всей информации.
 
 Пагинация:
 - `count` - кол-во всех комнат текущего бренда
@@ -98,14 +98,20 @@ _**Получить список всех комнат, в которых сос
           "created_at": "2024-09-04T11:22:02.474470Z",
           "user": 1
         },
-        "interlocutors_brand": {
-          "id": 1,
-          "name": "text",
-          "logo": "path",
-          "photo": "path",
-          "category": {
-            "id": 1,
-            "name": "text"
+        "interlocutors": {
+          "id": 0,
+          "fullname": "string",
+          "email": "user@example.com",
+          "phone": "string",
+          "brand": {
+            "id": 0,
+            "name": "string",
+            "logo": "string",
+            "photo": "string",
+            "category": {
+              "id": 0,
+              "name": "string"
+            }
           }
         },
         "type": "M"
@@ -164,23 +170,6 @@ _**Присоединиться к комнате**_
   "errors": [],
   "data": {
     "id": 1,
-    "last_message": {
-      "id": 1,
-      "room": 1,
-      "text": "text",
-      "created_at": "2024-09-04T11:22:02.474470Z",
-      "user": 1
-    },
-    "interlocutors_brand": {
-      "id": 1,
-      "name": "text",
-      "logo": "path",
-      "photo": "path",
-      "category": {
-        "id": 1,
-        "name": "text"
-      }
-    },
     "type": "M"
   },
   "action": "join_room",
@@ -571,11 +560,36 @@ _**Удалить одно или больше сообщений**_
 
 ##### Пример ответа
 
+`interlocutors` - список собеседников (пользователей)
+
 ```json
 {
   "errors": [],
   "data": {
     "id": 1,
+    "interlocutors": {
+      "id": 0,
+      "fullname": "string",
+      "email": "user@example.com",
+      "phone": "string",
+      "brand": {
+        "id": 0,
+        "name": "string",
+        "logo": "string",
+        "photo": "string",
+        "category": {
+          "id": 0,
+          "name": "string"
+        }
+      }
+    },
+    "last_message": {
+      "id": 0,
+      "text": "string",
+      "created_at": "2025-03-05T17:00:09.339Z",
+      "user": 0,
+      "room": 0
+    },
     "type": "S"
   },
   "action": "get_support_room",
@@ -606,7 +620,7 @@ _**Удалить одно или больше сообщений**_
 
 **_У некоторых actions изменено поведение (см. ниже)_**
 
-**_В actions, в ответах которых есть `interlocutors_brand` возвращаются все пользователи, состоящие в комнате._**
+**_В actions, в ответах которых есть `interlocutors` возвращаются все пользователи, состоящие в комнате._**
 
 #### Необходимые разрешения
 

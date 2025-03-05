@@ -12,6 +12,10 @@ from core.apps.chat.models import Room, Message, RoomFavorites
 User = get_user_model()
 
 
+class UserWithShortBrandSerializer(UserSerializer):
+    brand = GetShortBrandSerializer(read_only=True)
+
+
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
@@ -24,13 +28,21 @@ class RoomSerializer(serializers.ModelSerializer):
         exclude = ['participants']
 
 
-class RoomListSerializer(serializers.ModelSerializer):
-    last_message = serializers.SerializerMethodField()
-    interlocutors_brand = serializers.SerializerMethodField()
+class RoomInterlocutorsMixin(serializers.Serializer):
+    interlocutors = serializers.SerializerMethodField()
 
-    class Meta:
-        model = Room
-        exclude = ['participants']
+    @extend_schema_field(UserWithShortBrandSerializer)
+    def get_interlocutors(self, room):
+        # if room.type == Room.SUPPORT and not room.interlocutor_users:
+        #     return W2W agency
+
+        data = UserWithShortBrandSerializer(room.interlocutor_users, many=True).data
+
+        return data
+
+
+class RoomLastMessageMixin(serializers.Serializer):
+    last_message = serializers.SerializerMethodField()
 
     @extend_schema_field(MessageSerializer)
     def get_last_message(self, room):
@@ -39,32 +51,13 @@ class RoomListSerializer(serializers.ModelSerializer):
 
         return None
 
-    @extend_schema_field(GetShortBrandSerializer)
-    def get_interlocutors_brand(self, room):
-        # if room.type == Room.SUPPORT and not room.interlocutor_users:
-        #     return W2W agency
 
-        users = []
-        brands = []
-
-        # interlocutor_users is a list of users in the room who are not the current user
-        for user in room.interlocutor_users:
-            try:
-                brand = user.brand
-                brands.append(brand)
-            except User.brand.RelatedObjectDoesNotExist:
-                # users without brands are admins
-                users.append(user)
-
-        data = []
-
-        if users:
-            data += UserSerializer(users, many=True).data
-
-        if brands:
-            data += GetShortBrandSerializer(brands, many=True).data
-
-        return data
+class RoomListSerializer(
+    RoomSerializer,
+    RoomInterlocutorsMixin,
+    RoomLastMessageMixin
+):
+    pass
 
 
 class RoomFavoritesListSerializer(serializers.ModelSerializer):

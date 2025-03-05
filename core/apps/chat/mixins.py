@@ -4,7 +4,7 @@ from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator, InvalidPage
 from django.db import transaction, DatabaseError
-from django.db.models import Model, QuerySet, Prefetch
+from django.db.models import Model, QuerySet, Prefetch, OuterRef, Subquery
 from djangochannelsrestframework.observer import model_observer
 
 from core.apps.chat.exceptions import ServerError, BadRequest
@@ -76,14 +76,36 @@ class ConsumerUtilitiesMixin:
             The room instance and the status whether it was created or not.
         """
         created = False  # whether a new room was created
-        try:
-            room = self.scope['user'].rooms.get(type=Room.SUPPORT)
-        except Room.DoesNotExist:
+
+        last_message_in_room = Message.objects.filter(
+            pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+        )
+
+        # expects a queryset with a single support room or an empty one
+        support_room_queryset = self.scope['user'].rooms.filter(type=Room.SUPPORT).prefetch_related(
+            Prefetch(
+                'participants',
+                queryset=User.objects.exclude(pk=self.scope['user'].id).select_related('brand__category'),
+                to_attr='interlocutor_users'
+            ),
+            Prefetch(
+                'messages',
+                queryset=last_message_in_room,
+                to_attr='last_message'
+            )
+        )
+
+        # if for some reason there are multiple support rooms, then get the first one
+        room = support_room_queryset.first()
+
+        # if there is no support room, then create one
+        if room is None:
             try:
                 with transaction.atomic():
                     room = Room.objects.create(type=Room.SUPPORT)
                     room.participants.add(self.scope['user'])
                     created = True
+                    room = support_room_queryset.first()
             except DatabaseError:
                 raise ServerError("Room creation failed! Please try again.")
 

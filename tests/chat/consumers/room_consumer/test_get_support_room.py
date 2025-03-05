@@ -7,7 +7,7 @@ from rest_framework import status
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
-from core.apps.chat.models import Room
+from core.apps.chat.models import Room, Message
 from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import RoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user, join_room
@@ -132,6 +132,12 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
 
         await room.participants.aset([self.user1])
 
+        msg = await Message.objects.acreate(
+            text='test',
+            user=self.user1,
+            room=room
+        )
+
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
             path=self.path,
@@ -151,7 +157,12 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
         room_id = response['data']['id']
+        interlocutors = response['data']['interlocutors']
+        last_message = response['data']['last_message']
+
         self.assertEqual(room_id, room.id)
+        self.assertFalse(interlocutors)
+        self.assertEqual(last_message['id'], msg.id)
 
     async def test_get_support_room_if_does_not_exist(self):
         communicator = get_websocket_communicator_for_user(
@@ -180,6 +191,12 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
 
         self.assertIsNotNone(room)
         self.assertEqual(room.type, Room.SUPPORT)
+
+        interlocutors = response['data']['interlocutors']
+        last_message = response['data']['last_message']
+
+        self.assertFalse(interlocutors)
+        self.assertIsNone(last_message)
 
         participants = room.participants.all()
 
@@ -215,6 +232,9 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
             room_id = response['data']['id']
+            interlocutors = response['data']['interlocutors']
+
             self.assertEqual(room_id, support_room.id)
+            self.assertFalse(interlocutors)
 
         await communicator.disconnect()
