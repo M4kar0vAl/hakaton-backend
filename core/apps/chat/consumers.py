@@ -2,7 +2,7 @@ from typing import Type, Tuple
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from django.db.models import QuerySet, Prefetch, Q, OuterRef, Subquery, Max, F
+from django.db.models import QuerySet, Prefetch, OuterRef, Subquery, Max, F
 from djangochannelsrestframework.decorators import action
 from djangochannelsrestframework.generics import GenericAsyncAPIConsumer
 from rest_framework import status
@@ -15,7 +15,7 @@ from core.apps.chat.mixins import (
     ConsumerSerializationMixin,
     ConsumerUtilitiesMixin,
     ConsumerPaginationMixin,
-    ConsumerObserveAdminActivityMixin
+    ConsumerObserveAdminActivityMixin, ConsumerReplyToGroupsMixin
 )
 from core.apps.chat.models import Room, Message
 from core.apps.chat.permissions import (
@@ -34,13 +34,13 @@ from core.apps.chat.serializers import (
     MessageSerializer,
     RoomListSerializer,
 )
-from core.apps.chat.utils import reply_to_groups
 
 User = get_user_model()
 
 
 class RoomConsumer(
     GenericAsyncAPIConsumer,
+    ConsumerReplyToGroupsMixin,
     ConsumerSerializationMixin,
     ConsumerUtilitiesMixin,
     ConsumerPaginationMixin,
@@ -194,9 +194,8 @@ class RoomConsumer(
 
         groups = self.get_user_groups_for_room(self.room)
 
-        await reply_to_groups(
+        await self.reply_to_groups(
             groups=groups,
-            handler_name='data_to_groups',
             action=kwargs['action'],
             data=message_data,
             status=status.HTTP_201_CREATED,
@@ -216,9 +215,8 @@ class RoomConsumer(
 
             groups = self.get_user_groups_for_room(self.room)
 
-            await reply_to_groups(
+            await self.reply_to_groups(
                 groups=groups,
-                handler_name='data_to_groups',
                 action=kwargs['action'],
                 data=data,
                 status=status.HTTP_200_OK,
@@ -257,9 +255,8 @@ class RoomConsumer(
 
         groups = self.get_user_groups_for_room(self.room)
 
-        await reply_to_groups(
+        await self.reply_to_groups(
             groups=groups,
-            handler_name='data_to_groups',
             action=kwargs['action'],
             data=data,
             errors=errors,
@@ -278,9 +275,6 @@ class RoomConsumer(
 
         return room_data, status.HTTP_200_OK
 
-    async def data_to_groups(self, event):
-        await self.send_json(event['payload'])
-
     @database_sync_to_async
     def get_brand(self) -> Brand:
         return self.scope['user'].brand
@@ -292,6 +286,7 @@ class RoomConsumer(
 
 class AdminRoomConsumer(
     GenericAsyncAPIConsumer,
+    ConsumerReplyToGroupsMixin,
     ConsumerSerializationMixin,
     ConsumerUtilitiesMixin,
     ConsumerPaginationMixin,
@@ -439,9 +434,8 @@ class AdminRoomConsumer(
 
         groups = self.get_user_groups_for_room(self.room)
 
-        await reply_to_groups(
+        await self.reply_to_groups(
             groups=groups,
-            handler_name='data_to_groups',
             action=kwargs['action'],
             data=message_data,
             status=status.HTTP_201_CREATED,
@@ -461,9 +455,8 @@ class AdminRoomConsumer(
 
             groups = self.get_user_groups_for_room(self.room)
 
-            await reply_to_groups(
+            await self.reply_to_groups(
                 groups=groups,
-                handler_name='data_to_groups',
                 action=kwargs['action'],
                 data=data,
                 status=status.HTTP_200_OK,
@@ -501,9 +494,8 @@ class AdminRoomConsumer(
 
         groups = self.get_user_groups_for_room(self.room)
 
-        await reply_to_groups(
+        await self.reply_to_groups(
             groups=groups,
-            handler_name='data_to_groups',
             action=kwargs['action'],
             data=data,
             errors=errors,
@@ -521,6 +513,3 @@ class AdminRoomConsumer(
             return room_data, status.HTTP_201_CREATED
 
         return room_data, status.HTTP_200_OK
-
-    async def data_to_groups(self, event):
-        await self.send_json(event['payload'])

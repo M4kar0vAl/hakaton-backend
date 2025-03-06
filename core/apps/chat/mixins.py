@@ -1,4 +1,5 @@
-from typing import Set
+from collections.abc import Iterable
+from typing import Set, Any, Optional
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
@@ -9,7 +10,7 @@ from djangochannelsrestframework.observer import model_observer
 
 from core.apps.chat.exceptions import ServerError, BadRequest
 from core.apps.chat.models import Message, Room
-
+from core.apps.chat.utils import _reply_to_groups
 
 User = get_user_model()
 
@@ -296,3 +297,56 @@ class ConsumerObserveAdminActivityMixin:
         admin_pks = User.objects.filter(is_staff=True, is_active=True).values_list('pk', flat=True)
 
         return set(admin_pks)
+
+
+class ConsumerReplyToGroupsMixin:
+    """
+    A mixin that provides the function to broadcast a message to specified groups.
+
+    The consumer must have a 'channel_layer' attribute
+    (be a subclass of channels.consumer.AsyncConsumer or channels.consumer.SyncConsumer)
+    """
+
+    async def reply_to_groups(
+            self,
+            groups: Iterable[str],
+            action: str,
+            data: dict[str, Any] = None,
+            errors: Optional[list[str]] = None,
+            status: int = 200,
+            request_id: int = None
+    ):
+        """
+        Sends data to groups in DCRF format.
+
+        DCRF format is:
+            {
+                "errors": [],
+                "data": {},
+                "action": 'action_name',
+                "response_status": 200,
+                "request_id": 1500000,
+            }
+
+        Args:
+            groups: list or tuple of group names
+            action: requested action from the client
+            data: actual data to be sent
+            errors: list of errors occurred while handling action
+            status: HTTP response status code
+            request_id: helps clients link messages they have sent to responses
+        """
+
+        await _reply_to_groups(
+            groups=groups,
+            handler_name=self.data_to_groups.__name__,
+            channel_layer=self.channel_layer,
+            action=action,
+            data=data,
+            errors=errors,
+            status=status,
+            request_id=request_id
+        )
+
+    async def data_to_groups(self, event):
+        await self.send_json(event['payload'])
