@@ -89,7 +89,7 @@ def get_websocket_communicator_for_user(
 
 
 @asynccontextmanager
-async def join_room(communicator: WebsocketCommunicator, room_pk: int):
+async def join_room(communicator: WebsocketCommunicator, room_id: int):
     """
     Join room and return response
 
@@ -97,11 +97,11 @@ async def join_room(communicator: WebsocketCommunicator, room_pk: int):
 
     Args:
         communicator: connected communicator for interactions with websocket application
-        room_pk: id of a room to join
+        room_id: id of a room to join
     """
     await communicator.send_json_to({
         'action': 'join_room',
-        'room_pk': room_pk,
+        'room_id': room_id,
         'request_id': 1500000
     })
 
@@ -119,7 +119,7 @@ async def join_room(communicator: WebsocketCommunicator, room_pk: int):
 
 
 @asynccontextmanager
-async def join_room_communal(communicators: list[WebsocketCommunicator], room_pk: int):
+async def join_room_communal(communicators: list[WebsocketCommunicator], room_id: int):
     """
     Context manager for connecting several communicators to one room.
 
@@ -127,7 +127,7 @@ async def join_room_communal(communicators: list[WebsocketCommunicator], room_pk
 
     Args:
         communicators: list of communicators for joining the room
-        room_pk: id of the room to be connected to
+        room_id: id of the room to be connected to
 
     Returns:
         list of responses of calling join room for each communicator, preserving the order
@@ -137,7 +137,7 @@ async def join_room_communal(communicators: list[WebsocketCommunicator], room_pk
     for communicator in communicators:
         await communicator.send_json_to({
             'action': 'join_room',
-            'room_pk': room_pk,
+            'room_id': room_id,
             'request_id': 1500000
         })
 

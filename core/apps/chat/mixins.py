@@ -33,14 +33,14 @@ class ConsumerUtilitiesMixin:
     A mixin that provides utility functions to the consumer.
     """
 
-    async def edit_message_in_db(self, msg_id: int, text: str) -> int:
+    async def edit_message_in_db(self, msg_id: int, edited_text: str) -> int:
         """
         Edit message text in db. Allows editing only messages authored by the current user.
         The consumer must have a "room" attribute.
 
         Args:
             msg_id: primary key of the message being edited
-            text: new text to be set
+            edited_text: new text to be set
 
         Returns:
             The number of rows matched in the db.
@@ -49,21 +49,23 @@ class ConsumerUtilitiesMixin:
         """
         # filter uses user = self.scope['user'] to allow editing current user's messages only
         # if the message with id <msg_id> don't belong to the user, then nothing happens
-        return await Message.objects.filter(pk=msg_id, user=self.scope['user'], room=self.room).aupdate(text=text)
+        return await Message.objects.filter(
+            pk=msg_id, user=self.scope['user'], room=self.room
+        ).aupdate(text=edited_text)
 
-    async def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
+    async def delete_messages_in_db(self, messages_ids: list[int]) -> int:
         """
         Delete messages from db. Allows deleting only messages authored by the current user.
         The consumer must have a "room" attribute.
 
         Args:
-            msg_id_list: list of ids of message to delete
+            messages_ids: list of ids of message to delete
 
         Returns:
             The number of messages deleted
         """
         deleted: tuple[int, dict] = await Message.objects.filter(
-            pk__in=msg_id_list, user=self.scope['user'], room=self.room
+            pk__in=messages_ids, user=self.scope['user'], room=self.room
         ).adelete()
         return deleted[0]
 
@@ -275,9 +277,9 @@ class ConsumerObserveAdminActivityMixin:
         return groups
 
     @database_sync_to_async
-    def get_room_with_participants(self, room_pk):
+    def get_room_with_participants(self, room_id):
         try:
-            room = Room.objects.filter(pk=room_pk).prefetch_related(
+            room = Room.objects.filter(pk=room_id).prefetch_related(
                 Prefetch(
                     'participants',
                     queryset=User.objects.all(),

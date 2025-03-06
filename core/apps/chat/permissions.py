@@ -101,15 +101,15 @@ class CanUserJoinRoom(BasePermission):
             # if already in room
             return False
 
-        room_pk = kwargs.get('room_pk')
+        room_id = kwargs.get('room_id')
         brand_rooms = consumer.brand_rooms
 
-        if room_pk not in brand_rooms:
+        if room_id not in brand_rooms:
             # update brand rooms
             brand_rooms = await database_sync_to_async(set)(scope['user'].rooms.values_list('pk', flat=True))
 
             # check again
-            if room_pk not in brand_rooms:
+            if room_id not in brand_rooms:
                 return False
 
         return True

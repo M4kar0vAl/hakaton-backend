@@ -152,8 +152,8 @@ class RoomConsumer(
         return data, status.HTTP_200_OK
 
     @action()
-    async def join_room(self, room_pk, **kwargs):
-        self.room = await self.get_room_with_participants(room_pk)
+    async def join_room(self, room_id, **kwargs):
+        self.room = await self.get_room_with_participants(room_id)
         room_data = await self.get_serialized_data(self.room, **kwargs)
 
         return room_data, status.HTTP_200_OK
@@ -183,11 +183,11 @@ class RoomConsumer(
         return data, status.HTTP_200_OK
 
     @action()
-    async def create_message(self, msg_text: str, **kwargs):
+    async def create_message(self, text: str, **kwargs):
         message = await Message.objects.acreate(
             room=self.room,
             user=self.scope['user'],
-            text=msg_text
+            text=text
         )
 
         message_data = await self.get_serialized_data(message, **kwargs)
@@ -204,14 +204,14 @@ class RoomConsumer(
         )
 
     @action()
-    async def edit_message(self, msg_id, edited_msg_text, **kwargs):
-        updated = bool(await self.edit_message_in_db(msg_id, edited_msg_text))
+    async def edit_message(self, msg_id, edited_text, **kwargs):
+        updated = bool(await self.edit_message_in_db(msg_id, edited_text))
 
         if updated:
             data = {
                 'room_id': self.room.pk,
                 'id': msg_id,
-                'text': edited_msg_text,
+                'text': edited_text,
             }
 
             groups = self.get_user_groups_for_room(self.room)
@@ -231,26 +231,26 @@ class RoomConsumer(
             )
 
     @action()
-    async def delete_messages(self, msg_id_list: list[int], **kwargs):
+    async def delete_messages(self, messages_ids: list[int], **kwargs):
         # get existing messages ids
-        existing = Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).values_list(
+        existing = Message.objects.filter(pk__in=messages_ids, user=self.scope['user'], room=self.room).values_list(
             'pk',
             flat=True
         )
 
         # calculate not existing ids
-        not_existing = await database_sync_to_async(set)(msg_id_list) - await database_sync_to_async(set)(existing)
+        not_existing = await database_sync_to_async(set)(messages_ids) - await database_sync_to_async(set)(existing)
 
         # delete nothing and raise exception if there are not existing messages
         if not_existing:
             raise NotFound(f'Messages with ids {list(not_existing)} do not exist! Nothing was deleted.')
 
         # if all messages were found then delete them
-        await self.delete_messages_in_db(msg_id_list)
+        await self.delete_messages_in_db(messages_ids)
 
         data = {
             'room_id': self.room.pk,
-            'messages_ids': msg_id_list,
+            'messages_ids': messages_ids,
         }
 
         errors = []
@@ -397,8 +397,8 @@ class AdminRoomConsumer(
         return data, status.HTTP_200_OK
 
     @action()
-    async def join_room(self, room_pk, **kwargs):
-        self.room = await self.get_room_with_participants(room_pk)
+    async def join_room(self, room_id, **kwargs):
+        self.room = await self.get_room_with_participants(room_id)
         room_data = await self.get_serialized_data(self.room, **kwargs)
 
         return room_data, status.HTTP_200_OK
@@ -428,11 +428,11 @@ class AdminRoomConsumer(
         return data, status.HTTP_200_OK
 
     @action()
-    async def create_message(self, msg_text, **kwargs):
+    async def create_message(self, text, **kwargs):
         message = await Message.objects.acreate(
             room=self.room,
             user=self.scope['user'],
-            text=msg_text
+            text=text
         )
 
         message_data = await self.get_serialized_data(message, **kwargs)
@@ -449,14 +449,14 @@ class AdminRoomConsumer(
         )
 
     @action()
-    async def edit_message(self, msg_id, edited_msg_text, **kwargs):
-        updated = bool(await self.edit_message_in_db(msg_id, edited_msg_text))
+    async def edit_message(self, msg_id, edited_text, **kwargs):
+        updated = bool(await self.edit_message_in_db(msg_id, edited_text))
 
         if updated:
             data = {
                 'room_id': self.room.pk,
                 'id': msg_id,
-                'text': edited_msg_text,
+                'text': edited_text,
             }
 
             groups = self.get_user_groups_for_room(self.room)
@@ -476,25 +476,25 @@ class AdminRoomConsumer(
             )
 
     @action()
-    async def delete_messages(self, msg_id_list: list[int], **kwargs):
+    async def delete_messages(self, messages_ids: list[int], **kwargs):
         # get existing messages ids
-        existing = Message.objects.filter(pk__in=msg_id_list, user=self.scope['user'], room=self.room).values_list(
+        existing = Message.objects.filter(pk__in=messages_ids, user=self.scope['user'], room=self.room).values_list(
             'pk',
             flat=True
         )
 
         # calculate not existing ids
-        not_existing = await database_sync_to_async(set)(msg_id_list) - await database_sync_to_async(set)(existing)
+        not_existing = await database_sync_to_async(set)(messages_ids) - await database_sync_to_async(set)(existing)
 
         # delete nothing and raise exception if there are not existing messages
         if not_existing:
             raise NotFound(f'Messages with ids {list(not_existing)} do not exist! Nothing was deleted.')
 
-        await self.delete_messages_in_db(msg_id_list)
+        await self.delete_messages_in_db(messages_ids)
 
         data = {
             'room_id': self.room.pk,
-            'messages_ids': msg_id_list,
+            'messages_ids': messages_ids,
         }
 
         errors = []

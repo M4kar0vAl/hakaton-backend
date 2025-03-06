@@ -35,12 +35,12 @@ class BaseConsumerActionsMixin:
 
         return response
 
-    async def join_room(self, communicator: WebsocketCommunicator, room_pk: int):
+    async def join_room(self, communicator: WebsocketCommunicator, room_id: int):
         response = await self._send_json_to_consumer(
             communicator=communicator,
             json_={
                 'action': 'join_room',
-                'room_pk': room_pk,
+                'room_id': room_id,
                 'request_id': 1500000
             }
         )
@@ -70,37 +70,37 @@ class BaseConsumerActionsMixin:
 
         return response
 
-    async def create_message(self, communicator: WebsocketCommunicator, msg_text: str):
+    async def create_message(self, communicator: WebsocketCommunicator, text: str):
         response = await self._send_json_to_consumer(
             communicator=communicator,
             json_={
                 'action': 'create_message',
-                'msg_text': msg_text,
+                'text': text,
                 'request_id': 1500000
             }
         )
 
         return response
 
-    async def edit_message(self, communicator: WebsocketCommunicator, msg_id: int, edited_msg_text: str):
+    async def edit_message(self, communicator: WebsocketCommunicator, msg_id: int, edited_text: str):
         response = await self._send_json_to_consumer(
             communicator=communicator,
             json_={
                 'action': 'edit_message',
                 'msg_id': msg_id,
-                'edited_msg_text': edited_msg_text,
+                'edited_text': edited_text,
                 'request_id': 1500000
             }
         )
 
         return response
 
-    async def delete_messages(self, communicator: WebsocketCommunicator, msg_id_list: list[int]):
+    async def delete_messages(self, communicator: WebsocketCommunicator, messages_ids: list[int]):
         response = await self._send_json_to_consumer(
             communicator=communicator,
             json_={
                 'action': 'delete_messages',
-                'msg_id_list': msg_id_list,
+                'messages_ids': messages_ids,
                 'request_id': 1500000
             }
         )
