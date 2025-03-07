@@ -1,15 +1,16 @@
-from typing import Set
+from collections.abc import Iterable
+from typing import Set, Any, Optional
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator, InvalidPage
 from django.db import transaction, DatabaseError
-from django.db.models import Model, QuerySet, Prefetch
+from django.db.models import Model, QuerySet, Prefetch, OuterRef, Subquery
 from djangochannelsrestframework.observer import model_observer
 
 from core.apps.chat.exceptions import ServerError, BadRequest
 from core.apps.chat.models import Message, Room
-
+from core.apps.chat.utils import _reply_to_groups
 
 User = get_user_model()
 
@@ -33,14 +34,14 @@ class ConsumerUtilitiesMixin:
     A mixin that provides utility functions to the consumer.
     """
 
-    async def edit_message_in_db(self, msg_id: int, text: str) -> int:
+    async def edit_message_in_db(self, msg_id: int, edited_text: str) -> int:
         """
         Edit message text in db. Allows editing only messages authored by the current user.
         The consumer must have a "room" attribute.
 
         Args:
             msg_id: primary key of the message being edited
-            text: new text to be set
+            edited_text: new text to be set
 
         Returns:
             The number of rows matched in the db.
@@ -49,21 +50,23 @@ class ConsumerUtilitiesMixin:
         """
         # filter uses user = self.scope['user'] to allow editing current user's messages only
         # if the message with id <msg_id> don't belong to the user, then nothing happens
-        return await Message.objects.filter(pk=msg_id, user=self.scope['user'], room=self.room).aupdate(text=text)
+        return await Message.objects.filter(
+            pk=msg_id, user=self.scope['user'], room=self.room
+        ).aupdate(text=edited_text)
 
-    async def delete_messages_in_db(self, msg_id_list: list[int]) -> int:
+    async def delete_messages_in_db(self, messages_ids: list[int]) -> int:
         """
         Delete messages from db. Allows deleting only messages authored by the current user.
         The consumer must have a "room" attribute.
 
         Args:
-            msg_id_list: list of ids of message to delete
+            messages_ids: list of ids of message to delete
 
         Returns:
             The number of messages deleted
         """
         deleted: tuple[int, dict] = await Message.objects.filter(
-            pk__in=msg_id_list, user=self.scope['user'], room=self.room
+            pk__in=messages_ids, user=self.scope['user'], room=self.room
         ).adelete()
         return deleted[0]
 
@@ -76,14 +79,36 @@ class ConsumerUtilitiesMixin:
             The room instance and the status whether it was created or not.
         """
         created = False  # whether a new room was created
-        try:
-            room = self.scope['user'].rooms.get(type=Room.SUPPORT)
-        except Room.DoesNotExist:
+
+        last_message_in_room = Message.objects.filter(
+            pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+        )
+
+        # expects a queryset with a single support room or an empty one
+        support_room_queryset = self.scope['user'].rooms.filter(type=Room.SUPPORT).prefetch_related(
+            Prefetch(
+                'participants',
+                queryset=User.objects.exclude(pk=self.scope['user'].id).select_related('brand__category'),
+                to_attr='interlocutor_users'
+            ),
+            Prefetch(
+                'messages',
+                queryset=last_message_in_room,
+                to_attr='last_message'
+            )
+        )
+
+        # if for some reason there are multiple support rooms, then get the first one
+        room = support_room_queryset.first()
+
+        # if there is no support room, then create one
+        if room is None:
             try:
                 with transaction.atomic():
                     room = Room.objects.create(type=Room.SUPPORT)
                     room.participants.add(self.scope['user'])
                     created = True
+                    room = support_room_queryset.first()
             except DatabaseError:
                 raise ServerError("Room creation failed! Please try again.")
 
@@ -253,9 +278,9 @@ class ConsumerObserveAdminActivityMixin:
         return groups
 
     @database_sync_to_async
-    def get_room_with_participants(self, room_pk):
+    def get_room_with_participants(self, room_id):
         try:
-            room = Room.objects.filter(pk=room_pk).prefetch_related(
+            room = Room.objects.filter(pk=room_id).prefetch_related(
                 Prefetch(
                     'participants',
                     queryset=User.objects.all(),
@@ -272,3 +297,56 @@ class ConsumerObserveAdminActivityMixin:
         admin_pks = User.objects.filter(is_staff=True, is_active=True).values_list('pk', flat=True)
 
         return set(admin_pks)
+
+
+class ConsumerReplyToGroupsMixin:
+    """
+    A mixin that provides the function to broadcast a message to specified groups.
+
+    The consumer must have a 'channel_layer' attribute
+    (be a subclass of channels.consumer.AsyncConsumer or channels.consumer.SyncConsumer)
+    """
+
+    async def reply_to_groups(
+            self,
+            groups: Iterable[str],
+            action: str,
+            data: dict[str, Any] = None,
+            errors: Optional[list[str]] = None,
+            status: int = 200,
+            request_id: int = None
+    ):
+        """
+        Sends data to groups in DCRF format.
+
+        DCRF format is:
+            {
+                "errors": [],
+                "data": {},
+                "action": 'action_name',
+                "response_status": 200,
+                "request_id": 1500000,
+            }
+
+        Args:
+            groups: list or tuple of group names
+            action: requested action from the client
+            data: actual data to be sent
+            errors: list of errors occurred while handling action
+            status: HTTP response status code
+            request_id: helps clients link messages they have sent to responses
+        """
+
+        await _reply_to_groups(
+            groups=groups,
+            handler_name=self.data_to_groups.__name__,
+            channel_layer=self.channel_layer,
+            action=action,
+            data=data,
+            errors=errors,
+            status=status,
+            request_id=request_id
+        )
+
+    async def data_to_groups(self, event):
+        await self.send_json(event['payload'])

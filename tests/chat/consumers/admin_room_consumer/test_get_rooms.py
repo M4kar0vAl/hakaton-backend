@@ -142,27 +142,27 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
 
         # check number of interlocutors in rooms
         # check support rooms of users
-        self.assertEqual(len(support_room1_response[0]['interlocutors_brand']), 1)
-        self.assertEqual(len(support_room2_response[0]['interlocutors_brand']), 1)
+        self.assertEqual(len(support_room1_response[0]['interlocutors']), 1)
+        self.assertEqual(len(support_room2_response[0]['interlocutors']), 1)
 
         # check own support room
-        self.assertEqual(len(own_support_room_response[0]['interlocutors_brand']), 0)  # change to W2W agency
+        self.assertEqual(len(own_support_room_response[0]['interlocutors']), 0)  # change to W2W agency
 
         # check support room of another admin
-        self.assertEqual(len(support_another_admin_response[0]['interlocutors_brand']), 1)
-        self.assertEqual(support_another_admin_response[0]['interlocutors_brand'][0]['id'], another_admin.id)
+        self.assertEqual(len(support_another_admin_response[0]['interlocutors']), 1)
+        self.assertEqual(support_another_admin_response[0]['interlocutors'][0]['id'], another_admin.id)
 
         # check match room
-        self.assertEqual(len(match_room_response[0]['interlocutors_brand']), 2)
+        self.assertEqual(len(match_room_response[0]['interlocutors']), 2)
 
         # check match room with 1 deleted user
-        self.assertEqual(len(match_room_1_deleted_response[0]['interlocutors_brand']), 1)
+        self.assertEqual(len(match_room_1_deleted_response[0]['interlocutors']), 1)
 
         # check instant room
-        self.assertEqual(len(instant_room_response[0]['interlocutors_brand']), 2)
+        self.assertEqual(len(instant_room_response[0]['interlocutors']), 2)
 
         # check instant room with 1 deleted user
-        self.assertEqual(len(instant_room_1_deleted_response[0]['interlocutors_brand']), 1)
+        self.assertEqual(len(instant_room_1_deleted_response[0]['interlocutors']), 1)
 
     async def test_get_rooms_pagination(self):
         rooms = await Room.objects.abulk_create([

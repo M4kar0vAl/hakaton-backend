@@ -38,9 +38,9 @@ class RoomFavoritesCreateTestCase(APITestCase):
 
         room_data = response.data['room']
 
-        # check that room in response has last message and interlocutors_brand keys
+        # check that room in response has last message and interlocutors keys
         self.assertTrue('last_message' in room_data)
-        self.assertTrue('interlocutors_brand' in room_data)
+        self.assertTrue('interlocutors' in room_data)
 
         room_fav_id = response.data['id']
 
