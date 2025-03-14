@@ -34,8 +34,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = 'Пользователь'
         verbose_name_plural = 'Пользователи'
 
-    def __repr__(self):
+    def __str__(self):
         return f"User {self.email}"
+
+    def __repr__(self):
+        return (
+            f'{self.__class__.__name__}(email="{self.email}", phone="{self.phone}", fullname="{self.fullname}", '
+            f'is_active={self.is_active}, is_staff={self.is_staff})'
+        )
 
 
 class PasswordRecovery(models.Model):
