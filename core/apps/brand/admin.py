@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 
-from core.apps.brand.models import Brand, Category, Format, Goal, Tag
+from core.apps.brand.models import Brand, Category, Format, Goal, Tag, Blog
 
 
 class BaseBrandRelatedModelActionsMixin:
@@ -127,3 +127,12 @@ class GoalAdmin(BaseBrandRelatedModelAdmin):
 @admin.register(Tag)
 class TagAdmin(BaseBrandRelatedModelAdmin):
     pass
+
+
+@admin.register(Blog)
+class BlogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'blog', 'brand')
+    list_display_links = ('blog',)
+    ordering = ('-id',)
+    search_fields = ('blog', 'brand__id', 'brand__name')
+    raw_id_fields = ('brand',)

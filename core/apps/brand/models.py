@@ -140,6 +140,15 @@ class Blog(models.Model):
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='blogs', verbose_name='Бренд')
     blog = models.URLField(verbose_name='Блог')
 
+    class Meta:
+        verbose_name = 'Блог'
+        verbose_name_plural = 'Блоги'
+
+    def __str__(self):
+        return f'Blog: {self.blog}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(brand_id={self.brand_id}, blog="{self.blog}")'
 
 class Category(models.Model):
     name = models.CharField(max_length=128, verbose_name='Категория')
