@@ -1,6 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
-from core.apps.brand.models import Brand
+from core.apps.brand.models import Brand, Category
 
 
 @admin.register(Brand)
@@ -49,3 +49,31 @@ class BrandAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'is_other')
+    list_display_links = ('name',)
+    ordering = ('-name',)
+    search_fields = ('name',)
+    list_filter = ('is_other',)
+    actions = ('set_as_other', 'set_common')
+
+    @admin.action(description='Set selected categories as other')
+    def set_as_other(self, request, queryset):
+        count = queryset.update(is_other=True)
+        self.message_user(
+            request,
+            f'Set {count} categories as other. Nobody will be able to select them!',
+            messages.WARNING
+        )
+
+    @admin.action(description='Set selected categories as common')
+    def set_common(self, request, queryset):
+        count = queryset.update(is_other=False)
+        self.message_user(
+            request,
+            f'Set {count} categories as common. All users can see and select them now!',
+            messages.WARNING
+        )
