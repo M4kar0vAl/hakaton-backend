@@ -96,6 +96,18 @@ class BrandAdmin(admin.ModelAdmin):
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == 'tags':
+            kwargs['queryset'] = Tag.objects.filter(is_other=False)
+        elif db_field.name == 'goals':
+            kwargs['queryset'] = Goal.objects.filter(is_other=False)
+        elif db_field.name == 'formats':
+            kwargs['queryset'] = Format.objects.filter(is_other=False)
+        elif db_field.name == 'categories_of_interest':
+            kwargs['queryset'] = Category.objects.filter(is_other=False)
+
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
 
 @admin.register(Category)
 class CategoryAdmin(BaseBrandRelatedModelAdmin):
