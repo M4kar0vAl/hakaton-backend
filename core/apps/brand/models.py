@@ -168,7 +168,7 @@ class Format(models.Model):
         return f'Format: {self.name}'
 
     def __repr__(self):
-        return f'Format: {self.name}'
+        return f'{self.__class__.__name__}(name="{self.name}", is_other={self.is_other})'
 
 
 class Goal(models.Model):
