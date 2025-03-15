@@ -50,6 +50,12 @@ class BrandAdmin(admin.ModelAdmin):
         ),
     )
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'category':
+            kwargs['queryset'] = Category.objects.filter(is_other=False)
+
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
