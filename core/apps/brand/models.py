@@ -183,7 +183,7 @@ class Goal(models.Model):
         return f'Goal: {self.name}'
 
     def __repr__(self):
-        return f'Goal: {self.name}'
+        return f'{self.__class__.__name__}(name="{self.name}", is_other={self.is_other})'
 
 
 # Tag model aka ценности
