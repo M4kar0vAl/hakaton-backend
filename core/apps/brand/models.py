@@ -63,7 +63,7 @@ def gallery_path(instance, filename):
 
 class Brand(models.Model):
     user = models.OneToOneField(
-        to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+        to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, verbose_name='Пользователь'
     )
     published = models.BooleanField(
         default=False, verbose_name='Опубликовано'
@@ -121,8 +121,19 @@ class Brand(models.Model):
         verbose_name = 'Бренд'
         verbose_name_plural = 'Бренды'
 
-    def __repr__(self):
+    def __str__(self):
         return f'Brand: {self.name}'
+
+    def __repr__(self):
+        return (
+            f'{self.__class__.__name__}(user_id={self.user_id}, name="{self.name}", tg_nickname="{self.tg_nickname}", '
+            f'city_id={self.city_id}, position="{self.position}", category_id={self.category_id}, '
+            f'inst_url="{self.inst_url}", vk_url="{self.vk_url}", tg_url="{self.tg_url}", wb_url="{self.wb_url}", '
+            f'lamoda_url="{self.lamoda_url}", site_url="{self.site_url}", subs_count={self.subs_count}, '
+            f'avg_bill={self.avg_bill}, uniqueness="{self.uniqueness}", logo="{self.logo}", photo="{self.photo}", '
+            f'mission_statement="{self.mission_statement}", offline_space="{self.offline_space}", '
+            f'problem_solving="{self.problem_solving}")'
+        )
 
 
 class Blog(models.Model):
