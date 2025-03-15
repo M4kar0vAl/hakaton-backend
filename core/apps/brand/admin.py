@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 
-from core.apps.brand.models import Brand, Category, Format, Goal
+from core.apps.brand.models import Brand, Category, Format, Goal, Tag
 
 
 class BaseBrandRelatedModelActionsMixin:
@@ -109,4 +109,9 @@ class FormatAdmin(BaseBrandRelatedModelAdmin):
 
 @admin.register(Goal)
 class GoalAdmin(BaseBrandRelatedModelAdmin):
+    pass
+
+
+@admin.register(Tag)
+class TagAdmin(BaseBrandRelatedModelAdmin):
     pass

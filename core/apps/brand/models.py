@@ -199,7 +199,7 @@ class Tag(models.Model):
         return f'Tag: {self.name}'
 
     def __repr__(self):
-        return f'Tag: {self.name}'
+        return f'{self.__class__.__name__}(name="{self.name}", is_other={self.is_other})'
 
 
 # ----------target audience models----------
