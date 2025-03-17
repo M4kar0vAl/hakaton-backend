@@ -12,12 +12,16 @@ from core.apps.brand.models import (
     TargetAudience,
     Gender,
     GEO,
-    ProductPhoto
+    ProductPhoto, GalleryPhoto
 )
 
 
 class ProductPhotoInline(admin.TabularInline):
     model = ProductPhoto
+
+
+class GalleryPhotoInline(admin.TabularInline):
+    model = GalleryPhoto
 
 
 class BaseBrandRelatedModelActionsMixin:
@@ -69,7 +73,7 @@ class BrandAdmin(admin.ModelAdmin):
     ordering = ('-id',)
     search_fields = ('name', 'user__email', 'user__phone')
     list_filter = ('category',)
-    inlines = [ProductPhotoInline]
+    inlines = [ProductPhotoInline, GalleryPhotoInline]
 
     fieldsets = (
         (None, {"fields": ("user",)}),
@@ -221,17 +225,33 @@ class TargetAudienceAdmin(admin.ModelAdmin):
     search_fields = ('id', 'income')
 
 
-@admin.register(ProductPhoto)
-class ProductPhotoAdmin(admin.ModelAdmin):
-    list_display = ('id', 'photo_image', 'format', 'brand')
+class ImageBrandRelatedModelAdmin(admin.ModelAdmin):
+    """
+    Base ModelAdmin for brand related image model.
+
+    Related model must have "image" field.
+    """
+    list_display = ['id', 'photo_image', 'brand']
     list_display_links = ('id',)
     ordering = ('-id',)
     raw_id_fields = ('brand',)
     search_fields = ('id', 'brand__name')
-    list_filter = ('format',)
     list_per_page = 100
 
     @admin.display(description="Изображение")
-    def photo_image(self, product_photo: ProductPhoto):
+    def photo_image(self, photo_instance):
         # Display image instead of path to image file
-        return mark_safe(f'<img src={product_photo.image.url} width=75>')
+        return mark_safe(f'<img src={photo_instance.image.url} width=75>')
+
+
+@admin.register(ProductPhoto)
+class ProductPhotoAdmin(ImageBrandRelatedModelAdmin):
+    list_filter = ('format',)
+
+    def get_list_display(self, request):
+        return [*self.list_display, 'format']
+
+
+@admin.register(GalleryPhoto)
+class GalleryPhotoAdmin(ImageBrandRelatedModelAdmin):
+    pass

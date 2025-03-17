@@ -338,10 +338,10 @@ class GalleryPhoto(models.Model):
         verbose_name_plural = 'Фото для галереи'
 
     def __str__(self):
-        return f'Gallery photo: {self.pk}'
+        return f'Gallery photo {self.pk}'
 
     def __repr__(self):
-        return f'Gallery photo: {self.pk}'
+        return f'GalleryPhoto {self.pk}'
 
 
 class Match(models.Model):
