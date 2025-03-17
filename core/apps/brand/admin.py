@@ -1,6 +1,6 @@
 from django.contrib import admin, messages
 
-from core.apps.brand.models import Brand, Category, Format, Goal, Tag, Blog
+from core.apps.brand.models import Brand, Category, Format, Goal, Tag, Blog, Age, TargetAudience, Gender, GEO
 
 
 class BaseBrandRelatedModelActionsMixin:
@@ -136,3 +136,68 @@ class BlogAdmin(admin.ModelAdmin):
     ordering = ('-id',)
     search_fields = ('blog', 'brand__id', 'brand__name')
     raw_id_fields = ('brand',)
+
+
+class HasTargetAudienceFilter(admin.SimpleListFilter):
+    title = 'Has associated target audience'
+    parameter_name = 'has_target_audience'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('1', 'Yes'),
+            ('0', 'No')
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == '1':
+            return queryset.filter(target_audience__isnull=False)
+        elif self.value() == '0':
+            return queryset.filter(target_audience__isnull=True)
+
+        return queryset
+
+
+class GenderDistributedTARelatedModelAdmin(admin.ModelAdmin):
+    """
+    Base class for gender distributed related models of target audience
+
+    Gender distributed model must have only two fields: "men" and "women".
+    """
+    list_display = ('id', 'men', 'women')
+    list_display_links = ('id',)
+    ordering = ('-id',)
+    search_fields = ('id', 'men', 'women')
+    list_filter = (HasTargetAudienceFilter,)
+
+
+@admin.register(Age)
+class AgeAdmin(GenderDistributedTARelatedModelAdmin):
+    pass
+
+
+@admin.register(Gender)
+class GenderAdmin(GenderDistributedTARelatedModelAdmin):
+    pass
+
+
+@admin.register(GEO)
+class GEOAdmin(admin.ModelAdmin):
+    list_display = ('id', 'city', 'people_percentage', 'target_audience')
+    list_display_links = ('city',)
+    ordering = ('-id',)
+    raw_id_fields = ('city', 'target_audience')
+    search_fields = ('id', 'city__display_name', 'people_percentage')
+
+
+class GEOInline(admin.TabularInline):
+    model = GEO
+    raw_id_fields = ('city',)
+
+
+@admin.register(TargetAudience)
+class TargetAudienceAdmin(admin.ModelAdmin):
+    list_display = ('id', 'age', 'gender', 'income',)
+    list_display_links = ('id',)
+    ordering = ('-id',)
+    inlines = [GEOInline]
+    search_fields = ('id', 'income')

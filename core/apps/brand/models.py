@@ -224,13 +224,13 @@ class Age(models.Model):
 
     class Meta:
         verbose_name = 'Возраст'
-        verbose_name_plural = 'Возрасты'
+        verbose_name_plural = 'Возраст'
 
     def __str__(self):
-        return f'Age pk: {self.pk}'
+        return f'Average age: [men: {self.men} years, women: {self.women} years]'
 
     def __repr__(self):
-        return f'Age pk: {self.pk}'
+        return f'{self.__class__.__name__}(men={self.men}, women={self.women})'
 
 
 class Gender(models.Model):
@@ -248,10 +248,10 @@ class Gender(models.Model):
         verbose_name_plural = 'Пол'
 
     def __str__(self):
-        return f'Gender pk: {self.pk}'
+        return f'Gender distribution: [men: {self.men}%, women: {self.women}%]'
 
     def __repr__(self):
-        return f'Gender pk: {self.pk}'
+        return f'{self.__class__.__name__}(men={self.men}, women={self.women})'
 
 
 class GEO(models.Model):
@@ -269,10 +269,13 @@ class GEO(models.Model):
         verbose_name_plural = 'ГЕО'
 
     def __str__(self):
-        return f'GEO: {self.city} - {self.people_percentage}'
+        return f'GEO: [city: ({self.city}); people percentage: {self.people_percentage}]'
 
     def __repr__(self):
-        return f'GEO: {self.city} - {self.people_percentage}%'
+        return (
+            f'{self.__class__.__name__}(city_id={self.city_id}, people_percentage={self.people_percentage}, '
+            f'target_audience_id={self.target_audience_id})'
+        )
 
 
 class TargetAudience(models.Model):
@@ -294,10 +297,11 @@ class TargetAudience(models.Model):
         verbose_name_plural = 'Целевая аудитория'
 
     def __str__(self):
-        return f'Target audience: {self.pk}'
+        return f'Target audience {self.pk}'
 
     def __repr__(self):
-        return f'Target audience: {self.pk}'
+        # cannot actually recreate the object because of one-to-one relations
+        return f'{self.__class__.__name__}(age_id={self.age_id}, gender_id={self.gender_id}, income={self.income})'
 
 
 # ------------------------------------------
