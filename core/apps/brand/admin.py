@@ -1,6 +1,23 @@
 from django.contrib import admin, messages
+from django.utils.safestring import mark_safe
 
-from core.apps.brand.models import Brand, Category, Format, Goal, Tag, Blog, Age, TargetAudience, Gender, GEO
+from core.apps.brand.models import (
+    Brand,
+    Category,
+    Format,
+    Goal,
+    Tag,
+    Blog,
+    Age,
+    TargetAudience,
+    Gender,
+    GEO,
+    ProductPhoto
+)
+
+
+class ProductPhotoInline(admin.TabularInline):
+    model = ProductPhoto
 
 
 class BaseBrandRelatedModelActionsMixin:
@@ -52,6 +69,7 @@ class BrandAdmin(admin.ModelAdmin):
     ordering = ('-id',)
     search_fields = ('name', 'user__email', 'user__phone')
     list_filter = ('category',)
+    inlines = [ProductPhotoInline]
 
     fieldsets = (
         (None, {"fields": ("user",)}),
@@ -201,3 +219,19 @@ class TargetAudienceAdmin(admin.ModelAdmin):
     ordering = ('-id',)
     inlines = [GEOInline]
     search_fields = ('id', 'income')
+
+
+@admin.register(ProductPhoto)
+class ProductPhotoAdmin(admin.ModelAdmin):
+    list_display = ('id', 'photo_image', 'format', 'brand')
+    list_display_links = ('id',)
+    ordering = ('-id',)
+    raw_id_fields = ('brand',)
+    search_fields = ('id', 'brand__name')
+    list_filter = ('format',)
+    list_per_page = 100
+
+    @admin.display(description="Изображение")
+    def photo_image(self, product_photo: ProductPhoto):
+        # Display image instead of path to image file
+        return mark_safe(f'<img src={product_photo.image.url} width=75>')

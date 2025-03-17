@@ -323,10 +323,10 @@ class ProductPhoto(models.Model):
         verbose_name_plural = 'Фото продукта'
 
     def __str__(self):
-        return f'Product photo: {self.pk}'
+        return f'Product photo {self.pk} [{self.get_format_display()}]'
 
     def __repr__(self):
-        return f'Product photo: {self.pk}'
+        return f'ProductPhoto {self.pk} [format="{self.format}"]'
 
 
 class GalleryPhoto(models.Model):
