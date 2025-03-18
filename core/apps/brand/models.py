@@ -150,6 +150,7 @@ class Blog(models.Model):
     def __repr__(self):
         return f'{self.__class__.__name__}(brand_id={self.brand_id}, blog="{self.blog}")'
 
+
 class Category(models.Model):
     name = models.CharField(max_length=128, verbose_name='Категория')
     is_other = models.BooleanField(default=False, verbose_name='Другое')
@@ -306,6 +307,22 @@ class TargetAudience(models.Model):
 
 # ------------------------------------------
 
+class BusinessGroup(models.Model):
+    brand = models.ForeignKey(
+        to=Brand, on_delete=models.CASCADE, related_name='business_groups', verbose_name='Бренд'
+    )
+    name = models.CharField(max_length=200, verbose_name='Название или ссылка')
+
+    class Meta:
+        verbose_name = 'Сообщество предпринимателей'
+        verbose_name_plural = 'Сообщества предпринимателей'
+
+    def __str__(self):
+        return f'Business group: {self.name}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(name="{self.name}", brand_id={self.brand_id})'
+
 
 class ProductPhoto(models.Model):
     MATCH = 'M'
@@ -369,13 +386,6 @@ class Match(models.Model):
 
     like_at = models.DateTimeField(auto_now_add=True, verbose_name='Время лайка')
     match_at = models.DateTimeField(null=True, default=None, verbose_name='Время метча')
-
-
-class BusinessGroup(models.Model):
-    brand = models.ForeignKey(
-        to=Brand, on_delete=models.CASCADE, related_name='business_groups', verbose_name='Бренд'
-    )
-    name = models.CharField(max_length=200, verbose_name='Название или ссылка')
 
 
 class Collaboration(models.Model):

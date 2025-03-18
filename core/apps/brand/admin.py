@@ -12,7 +12,7 @@ from core.apps.brand.models import (
     TargetAudience,
     Gender,
     GEO,
-    ProductPhoto, GalleryPhoto
+    ProductPhoto, GalleryPhoto, BusinessGroup
 )
 
 
@@ -22,6 +22,10 @@ class ProductPhotoInline(admin.TabularInline):
 
 class GalleryPhotoInline(admin.TabularInline):
     model = GalleryPhoto
+
+
+class BusinessGroupInline(admin.StackedInline):
+    model = BusinessGroup
 
 
 class BaseBrandRelatedModelActionsMixin:
@@ -73,7 +77,7 @@ class BrandAdmin(admin.ModelAdmin):
     ordering = ('-id',)
     search_fields = ('name', 'user__email', 'user__phone')
     list_filter = ('category',)
-    inlines = [ProductPhotoInline, GalleryPhotoInline]
+    inlines = [BusinessGroupInline, ProductPhotoInline, GalleryPhotoInline]
 
     fieldsets = (
         (None, {"fields": ("user",)}),
@@ -255,3 +259,13 @@ class ProductPhotoAdmin(ImageBrandRelatedModelAdmin):
 @admin.register(GalleryPhoto)
 class GalleryPhotoAdmin(ImageBrandRelatedModelAdmin):
     pass
+
+
+@admin.register(BusinessGroup)
+class BusinessGroupAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'brand')
+    list_display_links = ('name',)
+    ordering = ('-id',)
+    search_fields = ('id', 'name', 'brand__name')
+    raw_id_fields = ('brand',)
+    list_per_page = 100
