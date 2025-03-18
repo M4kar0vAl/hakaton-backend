@@ -450,3 +450,13 @@ class Collaboration(models.Model):
     )
     difficulties = models.BooleanField(verbose_name='Трудности')
     difficulties_comment = models.CharField(max_length=512, blank=True, verbose_name='Комментарий про трудности')
+
+    class Meta:
+        verbose_name = 'Collaboration'
+        verbose_name_plural = 'Collaborations'
+
+    def __str__(self):
+        return f'Collaboration [{self.reporter} about collab with {self.collab_with}]'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__} {self.pk} [match_id={self.match_id}]'

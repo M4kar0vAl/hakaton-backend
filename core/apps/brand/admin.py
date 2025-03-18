@@ -13,7 +13,7 @@ from core.apps.brand.models import (
     TargetAudience,
     Gender,
     GEO,
-    ProductPhoto, GalleryPhoto, BusinessGroup, Match
+    ProductPhoto, GalleryPhoto, BusinessGroup, Match, Collaboration
 )
 from core.apps.chat.models import Room
 
@@ -298,3 +298,84 @@ class MatchAdmin(admin.ModelAdmin):
                 obj.match_at = None
 
         super().save_model(request, obj, form, change)
+
+
+@admin.register(Collaboration)
+class CollaborationAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'reporter', 'collab_with', 'match', 'created_at', 'new_offers', 'perception_change', 'difficulties'
+    )
+
+    list_display_links = ('id',)
+    ordering = ('-created_at',)
+    raw_id_fields = ('reporter', 'collab_with', 'match')
+    list_filter = ('new_offers', 'perception_change', 'difficulties')
+    search_fields = ('id', 'reporter__name', 'collab_with__name')
+    list_per_page = 100
+
+    fieldsets = (
+        (None, {'fields': ('reporter', 'collab_with', 'match')}),
+        (
+            'Overall success',
+            {
+                'classes': ['wide',],
+                'fields': (
+                    'success_assessment',
+                    'success_reason',
+                    'to_improve',
+                )
+            }
+        ),
+        (
+            'Quantitative indicators',
+            {
+                'classes': ['wide', ],
+                'fields': (
+                    'subs_received',
+                    'leads_received',
+                    'sales_growth',
+                    'audience_reach',
+                    'bill_change',
+                )
+            }
+        ),
+        (
+            'Partnership',
+            {
+                'classes': ['wide', ],
+                'fields': (
+                    'new_offers',
+                    'new_offers_comment',
+                )
+            }
+        ),
+        (
+            'Reputation',
+            {
+                'classes': ['wide', ],
+                'fields': (
+                    'perception_change',
+                )
+            }
+        ),
+        (
+            'Compliance',
+            {
+                'classes': ['wide', ],
+                'fields': (
+                    'brand_compliance',
+                )
+            }
+        ),
+        (
+            'platform interaction',
+            {
+                'classes': ['wide', ],
+                'fields': (
+                    'platform_help',
+                    'difficulties',
+                    'difficulties_comment',
+                )
+            }
+        ),
+    )
