@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.utils import timezone
 from django.utils.safestring import mark_safe
 
 from core.apps.brand.models import (
@@ -12,8 +13,9 @@ from core.apps.brand.models import (
     TargetAudience,
     Gender,
     GEO,
-    ProductPhoto, GalleryPhoto, BusinessGroup
+    ProductPhoto, GalleryPhoto, BusinessGroup, Match
 )
+from core.apps.chat.models import Room
 
 
 class ProductPhotoInline(admin.TabularInline):
@@ -269,3 +271,30 @@ class BusinessGroupAdmin(admin.ModelAdmin):
     search_fields = ('id', 'name', 'brand__name')
     raw_id_fields = ('brand',)
     list_per_page = 100
+
+
+@admin.register(Match)
+class MatchAdmin(admin.ModelAdmin):
+    fields = ('initiator', 'target', 'is_match', 'room')
+    list_display = ('id', 'initiator', 'target', 'is_match', 'like_at', 'match_at')
+    list_display_links = ('id',)
+    ordering = ('-id',)
+    raw_id_fields = ('initiator', 'target')
+    list_filter = ('is_match',)
+    search_fields = ('id', 'initiator__name', 'target__name')
+
+    def save_model(self, request, obj, form, change):
+        # if adding a new instance, and it's a match, then manually set "match_at" to current time
+        if not change:
+            if obj.is_match:
+                obj.match_at = timezone.now()
+        # if changing an instance and "is_match" changed, then set it manually
+        elif form.has_changed() and 'is_match' in form.changed_data:
+            # if new value of "is_match" is True, then set it to current time
+            if obj.is_match:
+                obj.match_at = timezone.now()
+            # if new value is False, then unset it
+            else:
+                obj.match_at = None
+
+        super().save_model(request, obj, form, change)

@@ -387,6 +387,19 @@ class Match(models.Model):
     like_at = models.DateTimeField(auto_now_add=True, verbose_name='Время лайка')
     match_at = models.DateTimeField(null=True, default=None, verbose_name='Время метча')
 
+    class Meta:
+        verbose_name = 'Match'
+        verbose_name_plural = 'Matches'
+
+    def __str__(self):
+        type_ = 'Match' if self.is_match else 'Like'
+        separator = '<->' if self.is_match else '->'
+
+        return f'{type_} [{self.initiator} {separator} {self.target}]'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__} {self.pk} [is_match={self.is_match}]'
+
 
 class Collaboration(models.Model):
     reporter = models.ForeignKey(
