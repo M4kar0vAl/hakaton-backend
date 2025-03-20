@@ -98,3 +98,17 @@ class GiftPromoCode(models.Model):
         related_name='gift_promocodes',
         verbose_name='Промокод'
     )  # use common promo code to get discount
+
+    class Meta:
+        verbose_name = 'Gift PromoCode'
+        verbose_name_plural = 'Gift PromoCodes'
+
+    def __str__(self):
+        return f'Gift PromoCode: [{self.code} - {self.tariff}]'
+
+    def __repr__(self):
+        # cannot recreate, because "code" must be unique
+        return (
+            f'{self.__class__.__name__}(code="{self.code}", tariff_id={self.tariff_id}, expires_at="{self.expires_at}", '
+            f'giver_id={self.giver_id}, is_used={self.is_used}, promocode_id={self.promocode_id})'
+        )
