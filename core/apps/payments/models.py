@@ -19,7 +19,7 @@ class Tariff(models.Model):
         return f'Тариф: {self.name} - {self.duration.days} days'
 
     def __repr__(self):
-        return f'Тариф: {self.name} - {self.duration.days} days'
+        return f'{self.__class__.__name__}(name="{self.name}", cost={self.cost}, duration="{self.duration}")'
 
 
 class Subscription(models.Model):
