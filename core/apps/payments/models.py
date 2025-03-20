@@ -74,10 +74,11 @@ class PromoCode(models.Model):
         verbose_name_plural = 'Промокоды'
 
     def __str__(self):
-        return f'Промокод: {self.code} - {self.discount}'
+        return f'PromoCode: {self.code} | {self.discount}%'
 
     def __repr__(self):
-        return f'Промокод: {self.code} - {self.discount}'
+        # cannot recreate, because "code" must be unique
+        return f'{self.__class__.__name__}(code="{self.code}", discount={self.discount}, expires_at="{self.expires_at}")'
 
 
 class GiftPromoCode(models.Model):
