@@ -15,7 +15,6 @@ from core.apps.brand.models import (
     GEO,
     ProductPhoto, GalleryPhoto, BusinessGroup, Match, Collaboration
 )
-from core.apps.chat.models import Room
 
 
 class ProductPhotoInline(admin.TabularInline):

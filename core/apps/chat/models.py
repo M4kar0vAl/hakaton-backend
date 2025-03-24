@@ -29,7 +29,15 @@ class Message(models.Model):
     room = models.ForeignKey(to=Room, on_delete=models.CASCADE, related_name='messages', verbose_name='Чат')
 
     def __str__(self):
-        return f'Message in room {self.room_id}: {self.text[:20]}'
+        display_text = self.text
+
+        if len(self.text) > 20:
+            display_text = f'{display_text[:20]}...'
+
+        return f'Message {display_text}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(text="{self.text}", user_id={self.user_id}, room_id={self.user_id})'
 
 
 class RoomFavorites(models.Model):
