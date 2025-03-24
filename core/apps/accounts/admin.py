@@ -21,6 +21,25 @@ class UserAdminActionsMixin:
         self.message_user(request, f'Deactivated {count} users', messages.WARNING)
 
 
+class UserHasBrandFilter(admin.SimpleListFilter):
+    title = 'Has Brand'
+    parameter_name = 'has_brand'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('1', 'Yes'),
+            ('0', 'No'),
+        ]
+
+    def queryset(self, request, queryset):
+        if not self.value():
+            return queryset
+
+        not_has_brand = not bool(int(self.value()))
+
+        return queryset.filter(brand__isnull=not_has_brand)
+
+
 @admin.register(User)
 class UserAdmin(UserAdminActionsMixin, BaseUserAdmin):
     fieldsets = (
@@ -65,9 +84,19 @@ class UserAdmin(UserAdminActionsMixin, BaseUserAdmin):
     )
     form = UserChangeForm
     add_form = UserCreateForm
-    list_display = ("id", "fullname", "email", "phone", "is_active", "is_staff", "is_superuser", "last_login", "date_joined")
+    list_display = (
+        "id",
+        "fullname",
+        "email",
+        "phone",
+        "is_active",
+        "is_staff",
+        "is_superuser",
+        "last_login",
+        "date_joined"
+    )
     list_display_links = ("fullname",)
-    list_filter = ("is_staff", "is_superuser", "is_active")
+    list_filter = ("is_staff", "is_superuser", "is_active", UserHasBrandFilter)
     list_per_page = 100
     search_fields = ("email", "phone", "fullname")
     readonly_fields = ("date_joined", "last_login")
