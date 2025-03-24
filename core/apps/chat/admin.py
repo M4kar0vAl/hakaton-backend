@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from core.apps.blacklist.admin import custom_title_filter_factory
-from core.apps.chat.models import Room, Message
+from core.apps.chat.models import Room, Message, RoomFavorites
 
 
 @admin.register(Room)
@@ -49,3 +49,18 @@ class MessageAdmin(admin.ModelAdmin):
         else:
             queryset |= self.model.objects.filter(id=search_term_as_int)
         return queryset, may_have_duplicates
+
+
+room_favorites_room_type_filter = custom_title_filter_factory(admin.ChoicesFieldListFilter, 'Room type')
+
+
+@admin.register(RoomFavorites)
+class RoomFavoritesAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'room')
+    list_display_links = ('id',)
+    list_filter = (
+        ('room__type', room_favorites_room_type_filter),
+    )
+    raw_id_fields = ('user', 'room')
+    ordering = ('-id',)
+    list_per_page = 100

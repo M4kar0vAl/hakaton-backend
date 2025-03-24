@@ -49,6 +49,10 @@ class RoomFavorites(models.Model):
         Room, on_delete=models.CASCADE, related_name='as_favorite', verbose_name='Комната'
     )
 
+    class Meta:
+        verbose_name = 'Room Favorites'
+        verbose_name_plural = 'Room Favorites'
+
     def __str__(self):
         return f'Favorite room {self.room_id} for user {self.user_id}'
 
