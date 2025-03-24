@@ -343,7 +343,7 @@ class ProductPhoto(models.Model):
         return f'Product photo {self.pk} [{self.get_format_display()}]'
 
     def __repr__(self):
-        return f'ProductPhoto {self.pk} [format="{self.format}"]'
+        return f'{self.__class__.__name__} {self.pk} [format="{self.format}"]'
 
 
 class GalleryPhoto(models.Model):
@@ -358,7 +358,7 @@ class GalleryPhoto(models.Model):
         return f'Gallery photo {self.pk}'
 
     def __repr__(self):
-        return f'GalleryPhoto {self.pk}'
+        return f'{self.__class__.__name__} {self.pk}'
 
 
 class Match(models.Model):
