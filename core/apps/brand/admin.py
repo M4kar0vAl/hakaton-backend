@@ -74,7 +74,7 @@ class BrandAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'user', 'category', 'subs_count', 'avg_bill', 'city', 'offline_space')
     list_display_links = ('name',)
     filter_horizontal = ('tags', 'formats', 'goals', 'categories_of_interest',)
-    raw_id_fields = ('user', 'city',)
+    raw_id_fields = ('user', 'city', 'target_audience')
     ordering = ('-id',)
     search_fields = ('name', 'user__email', 'user__phone')
     list_filter = ('category',)
@@ -228,6 +228,7 @@ class TargetAudienceAdmin(admin.ModelAdmin):
     ordering = ('-id',)
     inlines = [GEOInline]
     search_fields = ('id', 'income')
+    raw_id_fields = ('age', 'gender')
 
 
 class ImageBrandRelatedModelAdmin(admin.ModelAdmin):
@@ -278,7 +279,7 @@ class MatchAdmin(admin.ModelAdmin):
     list_display = ('id', 'initiator', 'target', 'is_match', 'like_at', 'match_at')
     list_display_links = ('id',)
     ordering = ('-id',)
-    raw_id_fields = ('initiator', 'target')
+    raw_id_fields = ('initiator', 'target', 'room')
     list_filter = ('is_match',)
     search_fields = ('id', 'initiator__name', 'target__name')
 
