@@ -15,7 +15,10 @@ class Room(models.Model):
     type = models.CharField(max_length=1, choices=TYPE_CHOICES, default=MATCH, verbose_name='Тип')
 
     def __str__(self):
-        return f'Room {self.pk}: {self.type}'
+        return f'Room {self.pk}: {self.get_type_display()}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(type="{self.type}")'
 
 
 class Message(models.Model):
