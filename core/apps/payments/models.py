@@ -37,13 +37,19 @@ class Subscription(models.Model):
         verbose_name='Промокод'
     )
     upgraded_from = models.ForeignKey(
-        to='Tariff', on_delete=models.PROTECT, null=True, related_name='sub_upgraded_to', verbose_name='Апгрейд c'
+        to='Tariff',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='sub_upgraded_to',
+        verbose_name='Апгрейд c'
     )
     upgraded_at = models.DateTimeField(blank=True, null=True, verbose_name='Дата-время апгрейда')
     gift_promocode = models.OneToOneField(
         to='GiftPromoCode',
         on_delete=models.PROTECT,
         null=True,
+        blank=True,
         related_name='subscription',
         verbose_name='Подарочный промокод'
     )  # if null => bought by himself, if not null => was gifted by someone
@@ -53,10 +59,15 @@ class Subscription(models.Model):
         verbose_name_plural = 'Подписки'
 
     def __str__(self):
-        return f'Подписка: {self.start_date.date()} - {self.end_date.date()}'
+        return f'Subscription: [{self.tariff} expires at {self.end_date.date()}]'
 
     def __repr__(self):
-        return f'Подписка: {self.start_date.date()} - {self.end_date.date()}'
+        return (
+            f'{self.__class__.__name__}(brand_id={self.brand_id}, tariff_id={self.tariff_id}, '
+            f'end_date="{self.end_date}", is_active={self.is_active}, promocode_id={self.promocode_id}, '
+            f'upgraded_from_id={self.upgraded_from_id}, upgraded_at={self.upgraded_at}, '
+            f'gift_promocode_id={self.gift_promocode_id})'
+        )
 
 
 class PromoCode(models.Model):
