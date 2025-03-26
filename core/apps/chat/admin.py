@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from core.apps.chat.forms import MessageAdminForm
 from core.apps.chat.models import Room, Message, RoomFavorites
 from core.utils.admin import SearchByIdMixin, custom_title_filter_factory
 
@@ -20,6 +21,7 @@ message_room_type_filter = custom_title_filter_factory(admin.ChoicesFieldListFil
 
 @admin.register(Message)
 class MessageAdmin(SearchByIdMixin, admin.ModelAdmin):
+    form = MessageAdminForm
     list_display = ('id', 'short_text', 'user', 'created_at', 'room')
     list_display_links = ('short_text',)
     list_filter = (
