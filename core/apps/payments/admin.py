@@ -1,4 +1,5 @@
 from dateutil.relativedelta import relativedelta
+from django import forms
 from django.contrib import admin, messages
 from django.utils import timezone
 
@@ -67,15 +68,39 @@ class PromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
 @admin.register(GiftPromoCode)
 class GiftPromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = GiftPromoCodeAdminForm
-    fields = ('code', 'tariff', 'giver', 'expires_at', 'is_used', 'promocode')
+    fields = ('code', 'tariff', 'giver', 'is_used', 'promocode')
     list_display = ('id', 'code', 'tariff', 'created_at', 'expires_at', 'is_used', 'giver')
     list_display_links = ('code',)
+    list_filter = ('is_used', 'tariff')
     readonly_fields = ('code',)
     search_fields = ('code', 'giver__name',)
     search_help_text = 'ID, code or giver name'
     ordering = ('-id',)
     raw_id_fields = ('giver', 'promocode',)
     list_per_page = 100
+
+    def save_model(self, request, obj, form, change):
+        # if adding a new instance
+        if not change:
+            self._check_promocode_was_not_used(obj.giver, obj.promocode)
+            obj.expires_at = timezone.now() + relativedelta(months=6)
+        # if changing the existing one and promocode has changed
+        elif form.has_changed() and 'promocode' in form.changed_data:
+            self._check_promocode_was_not_used(obj.giver, obj.promocode)
+
+        return super().save_model(request, obj, form, change)
+
+    def _check_promocode_was_not_used(self, giver, promocode):
+        if not promocode:
+            return
+
+        # check that promo code wasn't used when purchasing subscription
+        if giver.subscriptions.filter(promocode=promocode).exists():
+            raise forms.ValidationError(f'{giver} has already used this promocode!')
+
+        # check that promo code wasn't used when purchasing a gift
+        if giver.gifts_as_giver.filter(promocode=promocode).exists():
+            raise forms.ValidationError(f'{giver} has already used this promocode!')
 
 
 class SubscriptionGiftPromoCodeFilter(admin.SimpleListFilter):
