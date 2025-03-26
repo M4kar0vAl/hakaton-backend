@@ -14,6 +14,10 @@ class Room(models.Model):
     participants = models.ManyToManyField(to=settings.AUTH_USER_MODEL, related_name='rooms', verbose_name='Участники')
     type = models.CharField(max_length=1, choices=TYPE_CHOICES, default=MATCH, verbose_name='Тип')
 
+    class Meta:
+        verbose_name = 'Room'
+        verbose_name_plural = 'Rooms'
+
     def __str__(self):
         return f'Room {self.pk}: {self.get_type_display()}'
 
@@ -27,6 +31,10 @@ class Message(models.Model):
                              verbose_name='Пользователь')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
     room = models.ForeignKey(to=Room, on_delete=models.CASCADE, related_name='messages', verbose_name='Чат')
+
+    class Meta:
+        verbose_name = 'Message'
+        verbose_name_plural = 'Messages'
 
     def __str__(self):
         display_text = self.text
