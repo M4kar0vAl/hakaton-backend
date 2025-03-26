@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from core.apps.chat.forms import MessageAdminForm
+from core.apps.chat.forms import MessageAdminForm, RoomFavoritesAdminForm
 from core.apps.chat.models import Room, Message, RoomFavorites
 from core.utils.admin import SearchByIdMixin, custom_title_filter_factory
 
@@ -46,6 +46,7 @@ room_favorites_room_type_filter = custom_title_filter_factory(admin.ChoicesField
 
 @admin.register(RoomFavorites)
 class RoomFavoritesAdmin(SearchByIdMixin, admin.ModelAdmin):
+    form = RoomFavoritesAdminForm
     list_display = ('id', 'user', 'room')
     list_display_links = ('id',)
     list_filter = (
