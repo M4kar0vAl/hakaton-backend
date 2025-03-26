@@ -130,11 +130,17 @@ class SubscriptionAdmin(SearchByIdMixin, admin.ModelAdmin):
         return queryset, may_have_duplicates
 
     def save_model(self, request, obj, form, change):
-        tariff_duration_days = obj.tariff.duration.days
-        months = tariff_duration_days // 30
-        days = tariff_duration_days % 30
+        if form.has_changed() and 'tariff' in form.changed_data:
+            tariff_duration_days = obj.tariff.duration.days
+            months = tariff_duration_days // 30
+            days = tariff_duration_days % 30
 
-        obj.end_date = timezone.now() + relativedelta(months=months, days=days)
+            # if changing existing object, then start_date is already set
+            if change:
+                obj.end_date = obj.start_date + relativedelta(months=months, days=days)
+            # if adding a new object, then start_date hasn't been set yet, so use current time
+            else:
+                obj.end_date = timezone.now() + relativedelta(months=months, days=days)
 
         return super().save_model(request, obj, form, change)
 
