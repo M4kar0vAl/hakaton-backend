@@ -1,8 +1,7 @@
 from django.contrib import admin
 
-from core.apps.blacklist.admin import custom_title_filter_factory
 from core.apps.chat.models import Room, Message, RoomFavorites
-from core.utils.admin import SearchByIdMixin
+from core.utils.admin import SearchByIdMixin, custom_title_filter_factory
 
 
 @admin.register(Room)
