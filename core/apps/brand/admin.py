@@ -15,6 +15,7 @@ from core.apps.brand.models import (
     GEO,
     ProductPhoto, GalleryPhoto, BusinessGroup, Match, Collaboration
 )
+from core.utils.admin import SearchByIdMixin
 
 
 class ProductPhotoInline(admin.TabularInline):
@@ -70,13 +71,14 @@ class BaseBrandRelatedModelAdmin(BaseBrandRelatedModelActionsMixin, admin.ModelA
 
 
 @admin.register(Brand)
-class BrandAdmin(admin.ModelAdmin):
+class BrandAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_display = ('id', 'name', 'user', 'category', 'subs_count', 'avg_bill', 'city', 'offline_space')
     list_display_links = ('name',)
     filter_horizontal = ('tags', 'formats', 'goals', 'categories_of_interest',)
     raw_id_fields = ('user', 'city', 'target_audience')
     ordering = ('-id',)
     search_fields = ('name', 'user__email', 'user__phone')
+    search_help_text = 'ID, name, user email or user phone'
     list_filter = ('category',)
     inlines = [BusinessGroupInline, ProductPhotoInline, GalleryPhotoInline]
 
@@ -161,8 +163,23 @@ class BlogAdmin(admin.ModelAdmin):
     list_display = ('id', 'blog', 'brand')
     list_display_links = ('blog',)
     ordering = ('-id',)
-    search_fields = ('blog', 'brand__id', 'brand__name')
+    search_fields = ('blog', 'brand__name')
+    search_help_text = 'Blog name, brand ID or brand name'
     raw_id_fields = ('brand',)
+
+    def get_search_results(self, request, queryset, search_term):
+        queryset, may_have_duplicates = super().get_search_results(
+            request,
+            queryset,
+            search_term,
+        )
+        try:
+            search_term_as_int = int(search_term)
+        except ValueError:
+            pass
+        else:
+            queryset |= self.model.objects.filter(brand_id=search_term_as_int)
+        return queryset, may_have_duplicates
 
 
 class HasTargetAudienceFilter(admin.SimpleListFilter):
@@ -184,7 +201,7 @@ class HasTargetAudienceFilter(admin.SimpleListFilter):
         return queryset
 
 
-class GenderDistributedTARelatedModelAdmin(admin.ModelAdmin):
+class GenderDistributedTARelatedModelAdmin(SearchByIdMixin, admin.ModelAdmin):
     """
     Base class for gender distributed related models of target audience
 
@@ -193,8 +210,24 @@ class GenderDistributedTARelatedModelAdmin(admin.ModelAdmin):
     list_display = ('id', 'men', 'women')
     list_display_links = ('id',)
     ordering = ('-id',)
-    search_fields = ('id', 'men', 'women')
+    search_fields = ('id',)
+    search_help_text = 'ID, men or women value'
     list_filter = (HasTargetAudienceFilter,)
+
+    def get_search_results(self, request, queryset, search_term):
+        queryset, may_have_duplicates = super().get_search_results(
+            request,
+            queryset,
+            search_term,
+        )
+        try:
+            search_term_as_int = int(search_term)
+        except ValueError:
+            pass
+        else:
+            queryset |= self.model.objects.filter(men=search_term_as_int)
+            queryset |= self.model.objects.filter(women=search_term_as_int)
+        return queryset, may_have_duplicates
 
 
 @admin.register(Age)
@@ -208,12 +241,27 @@ class GenderAdmin(GenderDistributedTARelatedModelAdmin):
 
 
 @admin.register(GEO)
-class GEOAdmin(admin.ModelAdmin):
+class GEOAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_display = ('id', 'city', 'people_percentage', 'target_audience')
     list_display_links = ('city',)
     ordering = ('-id',)
     raw_id_fields = ('city', 'target_audience')
-    search_fields = ('id', 'city__display_name', 'people_percentage')
+    search_fields = ('city__display_name',)
+    search_help_text = 'ID, city name or people percentage'
+
+    def get_search_results(self, request, queryset, search_term):
+        queryset, may_have_duplicates = super().get_search_results(
+            request,
+            queryset,
+            search_term,
+        )
+        try:
+            search_term_as_int = int(search_term)
+        except ValueError:
+            pass
+        else:
+            queryset |= self.model.objects.filter(people_percentage=search_term_as_int)
+        return queryset, may_have_duplicates
 
 
 class GEOInline(admin.TabularInline):
@@ -222,16 +270,31 @@ class GEOInline(admin.TabularInline):
 
 
 @admin.register(TargetAudience)
-class TargetAudienceAdmin(admin.ModelAdmin):
+class TargetAudienceAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_display = ('id', 'age', 'gender', 'income',)
     list_display_links = ('id',)
     ordering = ('-id',)
     inlines = [GEOInline]
-    search_fields = ('id', 'income')
+    search_fields = ('id',)
+    search_help_text = 'ID or income'
     raw_id_fields = ('age', 'gender')
 
+    def get_search_results(self, request, queryset, search_term):
+        queryset, may_have_duplicates = super().get_search_results(
+            request,
+            queryset,
+            search_term,
+        )
+        try:
+            search_term_as_int = int(search_term)
+        except ValueError:
+            pass
+        else:
+            queryset |= self.model.objects.filter(income=search_term_as_int)
+        return queryset, may_have_duplicates
 
-class ImageBrandRelatedModelAdmin(admin.ModelAdmin):
+
+class ImageBrandRelatedModelAdmin(SearchByIdMixin, admin.ModelAdmin):
     """
     Base ModelAdmin for brand related image model.
 
@@ -241,7 +304,8 @@ class ImageBrandRelatedModelAdmin(admin.ModelAdmin):
     list_display_links = ('id',)
     ordering = ('-id',)
     raw_id_fields = ('brand',)
-    search_fields = ('id', 'brand__name')
+    search_fields = ('brand__name',)
+    search_help_text = 'ID or brand name'
     list_per_page = 100
 
     @admin.display(description="Изображение")
@@ -264,24 +328,26 @@ class GalleryPhotoAdmin(ImageBrandRelatedModelAdmin):
 
 
 @admin.register(BusinessGroup)
-class BusinessGroupAdmin(admin.ModelAdmin):
+class BusinessGroupAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_display = ('id', 'name', 'brand')
     list_display_links = ('name',)
     ordering = ('-id',)
-    search_fields = ('id', 'name', 'brand__name')
+    search_fields = ('name', 'brand__name')
+    search_help_text = 'ID, group name or brand name'
     raw_id_fields = ('brand',)
     list_per_page = 100
 
 
 @admin.register(Match)
-class MatchAdmin(admin.ModelAdmin):
+class MatchAdmin(SearchByIdMixin, admin.ModelAdmin):
     fields = ('initiator', 'target', 'is_match', 'room')
     list_display = ('id', 'initiator', 'target', 'is_match', 'like_at', 'match_at')
     list_display_links = ('id',)
     ordering = ('-id',)
     raw_id_fields = ('initiator', 'target', 'room')
     list_filter = ('is_match',)
-    search_fields = ('id', 'initiator__name', 'target__name')
+    search_fields = ('initiator__name', 'target__name')
+    search_help_text = 'ID, initiator name or target  name'
 
     def save_model(self, request, obj, form, change):
         # if adding a new instance, and it's a match, then manually set "match_at" to current time
@@ -301,7 +367,7 @@ class MatchAdmin(admin.ModelAdmin):
 
 
 @admin.register(Collaboration)
-class CollaborationAdmin(admin.ModelAdmin):
+class CollaborationAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_display = (
         'id', 'reporter', 'collab_with', 'match', 'created_at', 'new_offers', 'perception_change', 'difficulties'
     )
@@ -310,7 +376,8 @@ class CollaborationAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     raw_id_fields = ('reporter', 'collab_with', 'match')
     list_filter = ('new_offers', 'perception_change', 'difficulties')
-    search_fields = ('id', 'reporter__name', 'collab_with__name')
+    search_fields = ('reporter__name', 'collab_with__name')
+    search_help_text = 'ID, reporter name or "collab with" name'
     list_per_page = 100
 
     fieldsets = (

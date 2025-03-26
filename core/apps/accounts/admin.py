@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from core.apps.accounts.forms import UserChangeForm, UserCreateForm
+from core.utils.admin import SearchByIdMixin
 
 User = get_user_model()
 
@@ -41,7 +42,7 @@ class UserHasBrandFilter(admin.SimpleListFilter):
 
 
 @admin.register(User)
-class UserAdmin(UserAdminActionsMixin, BaseUserAdmin):
+class UserAdmin(UserAdminActionsMixin, SearchByIdMixin, BaseUserAdmin):
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Personal info", {"fields": ("fullname", "phone")}),
@@ -99,6 +100,7 @@ class UserAdmin(UserAdminActionsMixin, BaseUserAdmin):
     list_filter = ("is_staff", "is_superuser", "is_active", UserHasBrandFilter)
     list_per_page = 100
     search_fields = ("email", "phone", "fullname")
+    search_help_text = 'ID, email, phone or full name'
     readonly_fields = ("date_joined", "last_login")
     ordering = ("id",)
 

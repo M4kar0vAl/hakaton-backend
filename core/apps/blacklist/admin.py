@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from core.apps.blacklist.forms import BlackListAdminForm
 from core.apps.blacklist.models import BlackList
+from core.utils.admin import SearchByIdMixin
 
 
 def custom_title_filter_factory(filter_cls, title):
@@ -56,13 +57,14 @@ blocked_category_filter = custom_title_filter_factory(admin.RelatedFieldListFilt
 
 
 @admin.register(BlackList)
-class BlacklistAdmin(admin.ModelAdmin):
+class BlacklistAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = BlackListAdminForm
     list_display = ('id', 'initiator', 'blocked')
     list_display_links = ('id',)
     raw_id_fields = ('initiator', 'blocked')
     ordering = ('-id',)
-    search_fields = ('id', 'initiator__name', 'blocked__name')
+    search_fields = ('initiator__name', 'blocked__name')
+    search_help_text = 'ID, initiator name or blocked name'
     list_filter = (
         ('initiator__category', initiator_category_filter),
         ('blocked__category', blocked_category_filter),

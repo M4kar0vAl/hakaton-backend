@@ -4,16 +4,17 @@ from django.utils import timezone
 
 from core.apps.payments.forms import GiftPromoCodeAdminForm, SubscriptionAdminForm
 from core.apps.payments.models import Tariff, PromoCode, GiftPromoCode, Subscription
+from core.utils.admin import SearchByIdMixin
 
 
 @admin.register(Tariff)
-class TariffAdmin(admin.ModelAdmin):
+class TariffAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_display = ('id', 'name', 'cost', 'duration')
     list_display_links = ('name',)
-    search_fields = ('id', 'name', 'cost')
+    search_fields = ('name',)
+    search_help_text = 'ID, name or cost'
     ordering = ('-id',)
     list_per_page = 100
-    search_help_text = 'ID, name or cost'
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
@@ -24,9 +25,23 @@ class TariffAdmin(admin.ModelAdmin):
 
         return form
 
+    def get_search_results(self, request, queryset, search_term):
+        queryset, may_have_duplicates = super().get_search_results(
+            request,
+            queryset,
+            search_term,
+        )
+        try:
+            search_term_as_int = int(search_term)
+        except ValueError:
+            pass
+        else:
+            queryset |= self.model.objects.filter(cost=search_term_as_int)
+        return queryset, may_have_duplicates
+
 
 @admin.register(PromoCode)
-class PromoCodeAdmin(admin.ModelAdmin):
+class PromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_display = ('id', 'code', 'discount', 'expires_at')
     list_display_links = ('code',)
     search_fields = ('code',)
@@ -45,13 +60,12 @@ class PromoCodeAdmin(admin.ModelAdmin):
         except ValueError:
             pass
         else:
-            queryset |= self.model.objects.filter(id=search_term_as_int)
             queryset |= self.model.objects.filter(discount=search_term_as_int)
         return queryset, may_have_duplicates
 
 
 @admin.register(GiftPromoCode)
-class GiftPromoCodeAdmin(admin.ModelAdmin):
+class GiftPromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = GiftPromoCodeAdminForm
     fields = ('code', 'tariff', 'giver', 'expires_at', 'is_used', 'promocode')
     list_display = ('id', 'code', 'tariff', 'created_at', 'expires_at', 'is_used', 'giver')
@@ -62,20 +76,6 @@ class GiftPromoCodeAdmin(admin.ModelAdmin):
     ordering = ('-id',)
     raw_id_fields = ('giver', 'promocode',)
     list_per_page = 100
-
-    def get_search_results(self, request, queryset, search_term):
-        queryset, may_have_duplicates = super().get_search_results(
-            request,
-            queryset,
-            search_term,
-        )
-        try:
-            search_term_as_int = int(search_term)
-        except ValueError:
-            pass
-        else:
-            queryset |= self.model.objects.filter(id=search_term_as_int)
-        return queryset, may_have_duplicates
 
 
 class SubscriptionGiftPromoCodeFilter(admin.SimpleListFilter):
@@ -98,7 +98,7 @@ class SubscriptionGiftPromoCodeFilter(admin.SimpleListFilter):
 
 
 @admin.register(Subscription)
-class SubscriptionAdmin(admin.ModelAdmin):
+class SubscriptionAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = SubscriptionAdminForm
     list_display = ('id', 'brand', 'tariff', 'start_date', 'end_date', 'is_active', 'upgraded_from', 'upgraded_at')
     list_display_links = ('id',)
@@ -126,7 +126,6 @@ class SubscriptionAdmin(admin.ModelAdmin):
         except ValueError:
             pass
         else:
-            queryset |= self.model.objects.filter(id=search_term_as_int)
             queryset |= self.model.objects.filter(brand_id=search_term_as_int)
         return queryset, may_have_duplicates
 
