@@ -44,7 +44,7 @@ class UserHasBrandFilter(admin.SimpleListFilter):
 @admin.register(User)
 class UserAdmin(UserAdminActionsMixin, SearchByIdMixin, BaseUserAdmin):
     fieldsets = (
-        (None, {"fields": ("email", "password")}),
+        (None, {"fields": ("id", "email", "password")}),
         ("Personal info", {"fields": ("fullname", "phone")}),
         (
             "Permissions",
@@ -101,7 +101,7 @@ class UserAdmin(UserAdminActionsMixin, SearchByIdMixin, BaseUserAdmin):
     list_per_page = 100
     search_fields = ("email", "phone", "fullname")
     search_help_text = 'ID, email, phone or full name'
-    readonly_fields = ("date_joined", "last_login")
+    readonly_fields = ("id", "date_joined", "last_login")
     ordering = ("id",)
 
     def get_readonly_fields(self, request, obj=None):

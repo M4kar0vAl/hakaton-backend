@@ -11,6 +11,8 @@ blocked_category_filter = custom_title_filter_factory(admin.RelatedFieldListFilt
 @admin.register(BlackList)
 class BlacklistAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = BlackListAdminForm
+    fields = ('id', 'initiator', 'blocked')
+    readonly_fields = ('id',)
     list_display = ('id', 'initiator', 'blocked')
     list_display_links = ('id',)
     raw_id_fields = ('initiator', 'blocked')

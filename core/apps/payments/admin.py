@@ -1,5 +1,4 @@
 from dateutil.relativedelta import relativedelta
-from django import forms
 from django.contrib import admin, messages
 from django.utils import timezone
 
@@ -10,6 +9,8 @@ from core.utils.admin import SearchByIdMixin
 
 @admin.register(Tariff)
 class TariffAdmin(SearchByIdMixin, admin.ModelAdmin):
+    fields = ('id', 'name', 'cost', 'duration')
+    readonly_fields = ('id',)
     list_display = ('id', 'name', 'cost', 'duration')
     list_display_links = ('name',)
     search_fields = ('name',)
@@ -43,6 +44,8 @@ class TariffAdmin(SearchByIdMixin, admin.ModelAdmin):
 
 @admin.register(PromoCode)
 class PromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
+    fields = ('id', 'code', 'discount', 'expires_at')
+    readonly_fields = ('id',)
     list_display = ('id', 'code', 'discount', 'expires_at')
     list_display_links = ('code',)
     search_fields = ('code',)
@@ -68,11 +71,11 @@ class PromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
 @admin.register(GiftPromoCode)
 class GiftPromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = GiftPromoCodeAdminForm
-    fields = ('code', 'tariff', 'giver', 'is_used', 'promocode')
+    fields = ('id', 'code', 'tariff', 'giver', 'is_used', 'promocode')
     list_display = ('id', 'code', 'tariff', 'created_at', 'expires_at', 'is_used', 'giver')
     list_display_links = ('code',)
     list_filter = ('is_used', 'tariff')
-    readonly_fields = ('code',)
+    readonly_fields = ('id', 'code',)
     search_fields = ('code', 'giver__name',)
     search_help_text = 'ID, code or giver name'
     ordering = ('-id',)
@@ -109,6 +112,7 @@ class SubscriptionGiftPromoCodeFilter(admin.SimpleListFilter):
 @admin.register(Subscription)
 class SubscriptionAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = SubscriptionAdminForm
+    readonly_fields = ('id',)
     list_display = ('id', 'brand', 'tariff', 'start_date', 'end_date', 'is_active', 'upgraded_from', 'upgraded_at')
     list_display_links = ('id',)
     list_filter = ('is_active', 'tariff', SubscriptionGiftPromoCodeFilter)
@@ -119,7 +123,7 @@ class SubscriptionAdmin(SearchByIdMixin, admin.ModelAdmin):
     actions = ('deactivate',)
 
     fieldsets = (
-        (None, {'fields': ('brand', 'tariff', 'is_active')}),
+        (None, {'fields': ('id', 'brand', 'tariff', 'is_active')}),
         ('Promo Codes', {'fields': ('promocode', 'gift_promocode')}),
         ('Upgrade Info', {'fields': ('upgraded_from', 'upgraded_at')})
     )

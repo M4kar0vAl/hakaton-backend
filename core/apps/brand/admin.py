@@ -65,6 +65,8 @@ class BaseBrandRelatedModelAdmin(BaseBrandRelatedModelActionsMixin, admin.ModelA
 
     Related model must have "name" and "is_other" fields.
     """
+    fields = ('id', 'name', 'is_other')
+    readonly_fields = ('id',)
     list_display = ('id', 'name', 'is_other')
     list_display_links = ('name',)
     ordering = ('-name',)
@@ -74,6 +76,7 @@ class BaseBrandRelatedModelAdmin(BaseBrandRelatedModelActionsMixin, admin.ModelA
 
 @admin.register(Brand)
 class BrandAdmin(SearchByIdMixin, admin.ModelAdmin):
+    readonly_fields = ('id',)
     list_display = ('id', 'name', 'user', 'category', 'subs_count', 'avg_bill', 'city', 'offline_space')
     list_display_links = ('name',)
     filter_horizontal = ('tags', 'formats', 'goals', 'categories_of_interest',)
@@ -85,7 +88,7 @@ class BrandAdmin(SearchByIdMixin, admin.ModelAdmin):
     inlines = [BusinessGroupInline, ProductPhotoInline, GalleryPhotoInline]
 
     fieldsets = (
-        (None, {"fields": ("user",)}),
+        (None, {"fields": ("id", "user",)}),
         (
             "Questionnaire Part 1",
             {
@@ -162,6 +165,8 @@ class TagAdmin(BaseBrandRelatedModelAdmin):
 
 @admin.register(Blog)
 class BlogAdmin(admin.ModelAdmin):
+    fields = ('id', 'blog', 'brand')
+    readonly_fields = ('id',)
     list_display = ('id', 'blog', 'brand')
     list_display_links = ('blog',)
     ordering = ('-id',)
@@ -209,6 +214,8 @@ class GenderDistributedTARelatedModelAdmin(SearchByIdMixin, admin.ModelAdmin):
 
     Gender distributed model must have only two fields: "men" and "women".
     """
+    fields = ('id', 'men', 'women')
+    readonly_fields = ('id',)
     list_display = ('id', 'men', 'women')
     list_display_links = ('id',)
     ordering = ('-id',)
@@ -244,6 +251,8 @@ class GenderAdmin(GenderDistributedTARelatedModelAdmin):
 
 @admin.register(GEO)
 class GEOAdmin(SearchByIdMixin, admin.ModelAdmin):
+    fields = ('id', 'city', 'people_percentage', 'target_audience')
+    readonly_fields = ('id',)
     list_display = ('id', 'city', 'people_percentage', 'target_audience')
     list_display_links = ('city',)
     ordering = ('-id',)
@@ -273,6 +282,8 @@ class GEOInline(admin.TabularInline):
 
 @admin.register(TargetAudience)
 class TargetAudienceAdmin(SearchByIdMixin, admin.ModelAdmin):
+    fields = ('id', 'age', 'gender', 'income')
+    readonly_fields = ('id',)
     list_display = ('id', 'age', 'gender', 'income',)
     list_display_links = ('id',)
     ordering = ('-id',)
@@ -302,6 +313,7 @@ class ImageBrandRelatedModelAdmin(SearchByIdMixin, admin.ModelAdmin):
 
     Related model must have "image" field.
     """
+    readonly_fields = ('id',)
     list_display = ['id', 'photo_image', 'brand']
     list_display_links = ('id',)
     ordering = ('-id',)
@@ -320,17 +332,27 @@ class ImageBrandRelatedModelAdmin(SearchByIdMixin, admin.ModelAdmin):
 class ProductPhotoAdmin(ImageBrandRelatedModelAdmin):
     list_filter = ('format',)
 
+    fieldsets = (
+        (None, {'fields': ('id', 'brand'), 'classes': ['wide',]}),
+        ('Image', {'fields': ('format', 'image'), 'classes': ['wide',]})
+    )
+
     def get_list_display(self, request):
         return [*self.list_display, 'format']
 
 
 @admin.register(GalleryPhoto)
 class GalleryPhotoAdmin(ImageBrandRelatedModelAdmin):
-    pass
+    fieldsets = (
+        (None, {'fields': ('id', 'brand'), 'classes': ['wide',]}),
+        ('Image', {'fields': ('image',), 'classes': ['wide',]})
+    )
 
 
 @admin.register(BusinessGroup)
 class BusinessGroupAdmin(SearchByIdMixin, admin.ModelAdmin):
+    fields = ('id', 'brand', 'name')
+    readonly_fields = ('id',)
     list_display = ('id', 'name', 'brand')
     list_display_links = ('name',)
     ordering = ('-id',)
@@ -343,7 +365,8 @@ class BusinessGroupAdmin(SearchByIdMixin, admin.ModelAdmin):
 @admin.register(Match)
 class MatchAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = MatchAdminForm
-    fields = ('initiator', 'target', 'is_match', 'room')
+    readonly_fields = ('id',)
+    fields = ('id', 'initiator', 'target', 'is_match', 'room')
     list_display = ('id', 'initiator', 'target', 'is_match', 'like_at', 'match_at')
     list_display_links = ('id',)
     ordering = ('-id',)

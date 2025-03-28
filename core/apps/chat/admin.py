@@ -7,6 +7,8 @@ from core.utils.admin import SearchByIdMixin, custom_title_filter_factory
 
 @admin.register(Room)
 class RoomAdmin(SearchByIdMixin, admin.ModelAdmin):
+    readonly_fields = ('id',)
+    fields = ('id', 'type', 'participants')
     list_display = ('id', 'type')
     list_display_links = ('id',)
     list_filter = ('type',)
@@ -22,6 +24,8 @@ message_room_type_filter = custom_title_filter_factory(admin.ChoicesFieldListFil
 @admin.register(Message)
 class MessageAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = MessageAdminForm
+    fields = ('id', 'text', 'user', 'room')
+    readonly_fields = ('id',)
     list_display = ('id', 'short_text', 'user', 'created_at', 'room')
     list_display_links = ('short_text',)
     list_filter = (
@@ -47,6 +51,8 @@ room_favorites_room_type_filter = custom_title_filter_factory(admin.ChoicesField
 @admin.register(RoomFavorites)
 class RoomFavoritesAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = RoomFavoritesAdminForm
+    fields = ('id', 'user', 'room')
+    readonly_fields = ('id',)
     list_display = ('id', 'user', 'room')
     list_display_links = ('id',)
     list_filter = (
