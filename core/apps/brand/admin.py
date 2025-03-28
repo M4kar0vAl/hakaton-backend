@@ -1,8 +1,9 @@
 from django.contrib import admin, messages
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 
-from core.apps.brand.forms import MatchAdminForm
+from core.apps.brand.forms import MatchAdminForm, CollaborationAdminForm
 from core.apps.brand.models import (
     Brand,
     Category,
@@ -370,6 +371,8 @@ class MatchAdmin(SearchByIdMixin, admin.ModelAdmin):
 
 @admin.register(Collaboration)
 class CollaborationAdmin(SearchByIdMixin, admin.ModelAdmin):
+    form = CollaborationAdminForm
+    readonly_fields = ('id', 'match',)
     list_display = (
         'id', 'reporter', 'collab_with', 'match', 'created_at', 'new_offers', 'perception_change', 'difficulties'
     )
@@ -383,7 +386,7 @@ class CollaborationAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_per_page = 100
 
     fieldsets = (
-        (None, {'fields': ('reporter', 'collab_with', 'match')}),
+        (None, {'fields': ('id', 'reporter', 'collab_with', 'match')}),
         (
             'Overall success',
             {
@@ -448,3 +451,18 @@ class CollaborationAdmin(SearchByIdMixin, admin.ModelAdmin):
             }
         ),
     )
+
+    def save_model(self, request, obj, form, change):
+        if not form.has_changed():
+            return super().save_model(request, obj, form, change)
+
+        if 'reporter' in form.changed_data or 'collab_with' in form.changed_data:
+            match = Match.objects.get(
+                Q(initiator=obj.reporter, target=obj.collab_with) |
+                Q(initiator=obj.collab_with, target=obj.reporter),
+                is_match=True
+            )
+
+            obj.match = match
+
+        return super().save_model(request, obj, form, change)
