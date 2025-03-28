@@ -2,6 +2,7 @@ from django.contrib import admin, messages
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 
+from core.apps.brand.forms import MatchAdminForm
 from core.apps.brand.models import (
     Brand,
     Category,
@@ -340,6 +341,7 @@ class BusinessGroupAdmin(SearchByIdMixin, admin.ModelAdmin):
 
 @admin.register(Match)
 class MatchAdmin(SearchByIdMixin, admin.ModelAdmin):
+    form = MatchAdminForm
     fields = ('initiator', 'target', 'is_match', 'room')
     list_display = ('id', 'initiator', 'target', 'is_match', 'like_at', 'match_at')
     list_display_links = ('id',)
