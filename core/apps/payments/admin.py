@@ -80,27 +80,11 @@ class GiftPromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_per_page = 100
 
     def save_model(self, request, obj, form, change):
-        # if adding a new instance
+        # if adding a new instance, set expires at
         if not change:
-            self._check_promocode_was_not_used(obj.giver, obj.promocode)
             obj.expires_at = timezone.now() + relativedelta(months=6)
-        # if changing the existing one and promocode has changed
-        elif form.has_changed() and 'promocode' in form.changed_data:
-            self._check_promocode_was_not_used(obj.giver, obj.promocode)
 
         return super().save_model(request, obj, form, change)
-
-    def _check_promocode_was_not_used(self, giver, promocode):
-        if not promocode:
-            return
-
-        # check that promo code wasn't used when purchasing subscription
-        if giver.subscriptions.filter(promocode=promocode).exists():
-            raise forms.ValidationError(f'{giver} has already used this promocode!')
-
-        # check that promo code wasn't used when purchasing a gift
-        if giver.gifts_as_giver.filter(promocode=promocode).exists():
-            raise forms.ValidationError(f'{giver} has already used this promocode!')
 
 
 class SubscriptionGiftPromoCodeFilter(admin.SimpleListFilter):
@@ -155,7 +139,10 @@ class SubscriptionAdmin(SearchByIdMixin, admin.ModelAdmin):
         return queryset, may_have_duplicates
 
     def save_model(self, request, obj, form, change):
-        if form.has_changed() and 'tariff' in form.changed_data:
+        if not form.has_changed():
+            return super().save_model(request, obj, form, change)
+
+        if 'tariff' in form.changed_data:
             tariff_duration_days = obj.tariff.duration.days
             months = tariff_duration_days // 30
             days = tariff_duration_days % 30
@@ -166,6 +153,11 @@ class SubscriptionAdmin(SearchByIdMixin, admin.ModelAdmin):
             # if adding a new object, then start_date hasn't been set yet, so use current time
             else:
                 obj.end_date = timezone.now() + relativedelta(months=months, days=days)
+
+        # if upgraded from
+        if 'upgraded_from' in form.changed_data and 'upgraded_at' not in form.changed_data:
+            if not obj.upgraded_at:
+                obj.upgraded_at = timezone.now()
 
         return super().save_model(request, obj, form, change)
 

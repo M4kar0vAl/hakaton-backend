@@ -4,6 +4,15 @@ from django.utils import timezone
 
 class GiftPromoCodeAdminForm(forms.ModelForm):
 
+    def clean(self):
+        giver = self.cleaned_data.get('giver')
+
+        if 'promocode' in self.changed_data:
+            promocode = self.cleaned_data.get('promocode')
+
+            if promocode and promocode.is_used_by_brand(giver):
+                raise forms.ValidationError(f'{giver} has already used this promocode!')
+
     def clean_tariff(self):
         tariff = self.cleaned_data.get('tariff')
 
@@ -18,24 +27,17 @@ class SubscriptionAdminForm(forms.ModelForm):
     def clean(self):
         brand = self.cleaned_data.get('brand')
         tariff = self.cleaned_data.get('tariff')
-        promocode = self.cleaned_data.get('promocode')
         gift_promocode = self.cleaned_data.get('gift_promocode')
         upgraded_from = self.cleaned_data.get('upgraded_from')
         upgraded_at = self.cleaned_data.get('upgraded_at')
 
-        if promocode:
-            # check that promo code wasn't used when purchasing subscription
-            if brand.subscriptions.filter(promocode=promocode).exists():
-                raise forms.ValidationError(f'{brand} has already used this promocode!')
+        if 'promocode' in self.changed_data:
+            promocode = self.cleaned_data.get('promocode')
 
-            # check that promo code wasn't used when purchasing a gift
-            if brand.gifts_as_giver.filter(promocode=promocode).exists():
+            if promocode and promocode.is_used_by_brand(brand):
                 raise forms.ValidationError(f'{brand} has already used this promocode!')
 
         if gift_promocode:
-            if gift_promocode.is_used:
-                raise forms.ValidationError(f'{gift_promocode} already_used!')
-
             if gift_promocode.giver == brand:
                 raise forms.ValidationError(f'{brand} cannot use own gift!')
 
@@ -46,6 +48,9 @@ class SubscriptionAdminForm(forms.ModelForm):
                 )
 
         if upgraded_from or upgraded_at:
+            if tariff.name != 'Business Match':
+                raise forms.ValidationError(f'Brands can only upgrade to Business Match tariff!')
+
             subscription = brand.subscriptions.filter(
                 is_active=True, end_date__gt=timezone.now()
             ).order_by('-id').select_related('tariff').first()
@@ -56,8 +61,19 @@ class SubscriptionAdminForm(forms.ModelForm):
 
             cur_tariff = subscription.tariff
 
+            if 'tariff' in self.changed_data and tariff == cur_tariff:
+                raise forms.ValidationError(f'Brands cannot upgrade to their current tariff!')
+
             # if current active tariff and selected as "upgraded_from" do not match
             if upgraded_from != cur_tariff:
                 raise forms.ValidationError(
                     f'"Upgraded from" must be current tariff. {brand} now has {cur_tariff} tariff active!'
                 )
+
+    def clean_gift_promocode(self):
+        gift_promocode = self.cleaned_data.get('gift_promocode')
+
+        if gift_promocode and gift_promocode.is_used:
+            raise forms.ValidationError(f'{gift_promocode} already_used!')
+
+        return gift_promocode

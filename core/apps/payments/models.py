@@ -91,6 +91,17 @@ class PromoCode(models.Model):
         # cannot recreate, because "code" must be unique
         return f'{self.__class__.__name__}(code="{self.code}", discount={self.discount}, expires_at="{self.expires_at}")'
 
+    def is_used_by_brand(self, brand):
+        # check if promo code was used when purchasing subscription
+        if brand.subscriptions.filter(promocode=self).exists():
+            return True
+
+        # check if promo code was used when purchasing a gift
+        if brand.gifts_as_giver.filter(promocode=self).exists():
+            return True
+
+        return False
+
 
 class GiftPromoCode(models.Model):
     code = models.UUIDField(unique=True, default=uuid.uuid4, verbose_name='Код')
