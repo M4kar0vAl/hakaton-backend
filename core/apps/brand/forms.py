@@ -4,6 +4,16 @@ from django.db.models import Q
 from core.apps.brand.models import Match, Collaboration
 
 
+class BrandAdminForm(forms.ModelForm):
+    class Meta:
+        widgets = {
+            'uniqueness': forms.Textarea,
+            'mission_statement': forms.Textarea,
+            'offline_space': forms.Textarea,
+            'problem_solving': forms.Textarea,
+        }
+
+
 class MatchAdminForm(forms.ModelForm):
 
     def clean(self):
@@ -38,6 +48,14 @@ class MatchAdminForm(forms.ModelForm):
 
 
 class CollaborationAdminForm(forms.ModelForm):
+
+    class Meta:
+        widgets = {
+            'success_reason': forms.Textarea,
+            'to_improve': forms.Textarea,
+            'new_offers_comment': forms.Textarea,
+            'difficulties_comment': forms.Textarea,
+        }
 
     def clean(self):
         reporter = self.cleaned_data.get('reporter')

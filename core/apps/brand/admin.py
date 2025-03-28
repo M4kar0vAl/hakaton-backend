@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 
-from core.apps.brand.forms import MatchAdminForm, CollaborationAdminForm
+from core.apps.brand.forms import MatchAdminForm, CollaborationAdminForm, BrandAdminForm
 from core.apps.brand.models import (
     Brand,
     Category,
@@ -76,6 +76,7 @@ class BaseBrandRelatedModelAdmin(BaseBrandRelatedModelActionsMixin, admin.ModelA
 
 @admin.register(Brand)
 class BrandAdmin(SearchByIdMixin, admin.ModelAdmin):
+    form = BrandAdminForm
     readonly_fields = ('id',)
     list_display = ('id', 'name', 'user', 'category', 'subs_count', 'avg_bill', 'city', 'offline_space')
     list_display_links = ('name',)
