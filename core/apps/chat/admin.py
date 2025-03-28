@@ -24,7 +24,6 @@ message_room_type_filter = custom_title_filter_factory(admin.ChoicesFieldListFil
 @admin.register(Message)
 class MessageAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = MessageAdminForm
-    fields = ('id', 'text', 'user', 'room')
     readonly_fields = ('id',)
     list_display = ('id', 'short_text', 'user', 'created_at', 'room')
     list_display_links = ('short_text',)
@@ -36,6 +35,12 @@ class MessageAdmin(SearchByIdMixin, admin.ModelAdmin):
     raw_id_fields = ('user', 'room')
     ordering = ('-created_at',)
     list_per_page = 100
+
+    fieldsets = (
+        (None, {'fields': ('id', 'user'), 'classes': ['wide',]}),
+        ('Message', {'fields': ('text',), 'classes': ['wide',]}),
+        ('Chat', {'fields': ('room',), 'classes': ['wide',]}),
+    )
 
     @admin.display(description='Short text')
     def short_text(self, message):

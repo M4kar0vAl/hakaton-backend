@@ -88,7 +88,7 @@ class BrandAdmin(SearchByIdMixin, admin.ModelAdmin):
     inlines = [BusinessGroupInline, ProductPhotoInline, GalleryPhotoInline]
 
     fieldsets = (
-        (None, {"fields": ("id", "user",)}),
+        (None, {"fields": ("id", "user",), 'classes': ['wide',]}),
         (
             "Questionnaire Part 1",
             {
@@ -165,7 +165,6 @@ class TagAdmin(BaseBrandRelatedModelAdmin):
 
 @admin.register(Blog)
 class BlogAdmin(admin.ModelAdmin):
-    fields = ('id', 'blog', 'brand')
     readonly_fields = ('id',)
     list_display = ('id', 'blog', 'brand')
     list_display_links = ('blog',)
@@ -173,6 +172,11 @@ class BlogAdmin(admin.ModelAdmin):
     search_fields = ('blog', 'brand__name')
     search_help_text = 'Blog name, brand ID or brand name'
     raw_id_fields = ('brand',)
+
+    fieldsets = (
+        (None, {'fields': ('id', 'brand'), 'classes': ['wide',]}),
+        ('Blog', {'fields': ('blog',), 'classes': ['wide',]}),
+    )
 
     def get_search_results(self, request, queryset, search_term):
         queryset, may_have_duplicates = super().get_search_results(
@@ -251,7 +255,6 @@ class GenderAdmin(GenderDistributedTARelatedModelAdmin):
 
 @admin.register(GEO)
 class GEOAdmin(SearchByIdMixin, admin.ModelAdmin):
-    fields = ('id', 'city', 'people_percentage', 'target_audience')
     readonly_fields = ('id',)
     list_display = ('id', 'city', 'people_percentage', 'target_audience')
     list_display_links = ('city',)
@@ -259,6 +262,12 @@ class GEOAdmin(SearchByIdMixin, admin.ModelAdmin):
     raw_id_fields = ('city', 'target_audience')
     search_fields = ('city__display_name',)
     search_help_text = 'ID, city name or people percentage'
+
+    fieldsets = (
+        (None, {'fields': ('id',), 'classes': ['wide',]}),
+        ('GEO', {'fields': ('city', 'people_percentage'), 'classes': ['wide',]}),
+        ('Target Audience', {'fields': ('target_audience',), 'classes': ['wide',]}),
+    )
 
     def get_search_results(self, request, queryset, search_term):
         queryset, may_have_duplicates = super().get_search_results(
@@ -282,7 +291,6 @@ class GEOInline(admin.TabularInline):
 
 @admin.register(TargetAudience)
 class TargetAudienceAdmin(SearchByIdMixin, admin.ModelAdmin):
-    fields = ('id', 'age', 'gender', 'income')
     readonly_fields = ('id',)
     list_display = ('id', 'age', 'gender', 'income',)
     list_display_links = ('id',)
@@ -291,6 +299,11 @@ class TargetAudienceAdmin(SearchByIdMixin, admin.ModelAdmin):
     search_fields = ('id',)
     search_help_text = 'ID or income'
     raw_id_fields = ('age', 'gender')
+
+    fieldsets = (
+        (None, {'fields': ('id',), 'classes': ['wide',]}),
+        ('Target Audience', {'fields': ('age', 'gender', 'income'), 'classes': ['wide',]}),
+    )
 
     def get_search_results(self, request, queryset, search_term):
         queryset, may_have_duplicates = super().get_search_results(
@@ -351,7 +364,6 @@ class GalleryPhotoAdmin(ImageBrandRelatedModelAdmin):
 
 @admin.register(BusinessGroup)
 class BusinessGroupAdmin(SearchByIdMixin, admin.ModelAdmin):
-    fields = ('id', 'brand', 'name')
     readonly_fields = ('id',)
     list_display = ('id', 'name', 'brand')
     list_display_links = ('name',)
@@ -361,12 +373,16 @@ class BusinessGroupAdmin(SearchByIdMixin, admin.ModelAdmin):
     raw_id_fields = ('brand',)
     list_per_page = 100
 
+    fieldsets = (
+        (None, {'fields': ('id', 'brand'), 'classes': ['wide',]}),
+        ('Business Group', {'fields': ('name',), 'classes': ['wide',]}),
+    )
+
 
 @admin.register(Match)
 class MatchAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = MatchAdminForm
     readonly_fields = ('id',)
-    fields = ('id', 'initiator', 'target', 'is_match', 'room')
     list_display = ('id', 'initiator', 'target', 'is_match', 'like_at', 'match_at')
     list_display_links = ('id',)
     ordering = ('-id',)
@@ -374,6 +390,12 @@ class MatchAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_filter = ('is_match',)
     search_fields = ('initiator__name', 'target__name')
     search_help_text = 'ID, initiator name or target  name'
+
+    fieldsets = (
+        (None, {'fields': ('id',), 'classes': ['wide']}),
+        ('Match', {'fields': ('initiator', 'target', 'is_match'), 'classes': ['wide']}),
+        ('Chat', {'fields': ('room',), 'classes': ['wide']}),
+    )
 
     def save_model(self, request, obj, form, change):
         # if adding a new instance, and it's a match, then manually set "match_at" to current time
@@ -409,7 +431,7 @@ class CollaborationAdmin(SearchByIdMixin, admin.ModelAdmin):
     list_per_page = 100
 
     fieldsets = (
-        (None, {'fields': ('id', 'reporter', 'collab_with', 'match')}),
+        (None, {'fields': ('id', 'reporter', 'collab_with', 'match'), 'classes': ['wide',]}),
         (
             'Overall success',
             {
@@ -463,7 +485,7 @@ class CollaborationAdmin(SearchByIdMixin, admin.ModelAdmin):
             }
         ),
         (
-            'platform interaction',
+            'Platform interaction',
             {
                 'classes': ['wide', ],
                 'fields': (

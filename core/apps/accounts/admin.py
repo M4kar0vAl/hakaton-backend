@@ -44,11 +44,12 @@ class UserHasBrandFilter(admin.SimpleListFilter):
 @admin.register(User)
 class UserAdmin(UserAdminActionsMixin, SearchByIdMixin, BaseUserAdmin):
     fieldsets = (
-        (None, {"fields": ("id", "email", "password")}),
-        ("Personal info", {"fields": ("fullname", "phone")}),
+        (None, {"fields": ("id", "email", "password"), 'classes': ['wide',]}),
+        ("Personal info", {"fields": ("fullname", "phone"), 'classes': ['wide',]}),
         (
             "Permissions",
             {
+                'classes':['wide',],
                 "fields": (
                     "is_active",
                     "is_staff",
@@ -58,7 +59,7 @@ class UserAdmin(UserAdminActionsMixin, SearchByIdMixin, BaseUserAdmin):
                 ),
             },
         ),
-        ("Important dates", {"fields": ("last_login", "date_joined")})
+        ("Important dates", {"fields": ("last_login", "date_joined"), 'classes': ['wide',]})
     )
     add_fieldsets = (
         (

@@ -71,7 +71,6 @@ class PromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
 @admin.register(GiftPromoCode)
 class GiftPromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
     form = GiftPromoCodeAdminForm
-    fields = ('id', 'code', 'tariff', 'giver', 'is_used', 'promocode')
     list_display = ('id', 'code', 'tariff', 'created_at', 'expires_at', 'is_used', 'giver')
     list_display_links = ('code',)
     list_filter = ('is_used', 'tariff')
@@ -81,6 +80,13 @@ class GiftPromoCodeAdmin(SearchByIdMixin, admin.ModelAdmin):
     ordering = ('-id',)
     raw_id_fields = ('giver', 'promocode',)
     list_per_page = 100
+
+    fieldsets = (
+        (None, {'fields': ('id', 'code', 'giver'), 'classes': ['wide',]}),
+        ('Tariff', {'fields': ('tariff',), 'classes': ['wide',]}),
+        ('Promo Codes', {'fields': ('promocode',), 'classes': ['wide',]}),
+        ('Status', {'fields': ('is_used',), 'classes': ['wide',]}),
+    )
 
     def save_model(self, request, obj, form, change):
         # if adding a new instance, set expires at
@@ -123,9 +129,10 @@ class SubscriptionAdmin(SearchByIdMixin, admin.ModelAdmin):
     actions = ('deactivate',)
 
     fieldsets = (
-        (None, {'fields': ('id', 'brand', 'tariff', 'is_active')}),
-        ('Promo Codes', {'fields': ('promocode', 'gift_promocode')}),
-        ('Upgrade Info', {'fields': ('upgraded_from', 'upgraded_at')})
+        (None, {'fields': ('id', 'brand', 'tariff'), 'classes': ['wide',]}),
+        ('Status', {'fields': ('is_active',), 'classes': ['wide',]}),
+        ('Promo Codes', {'fields': ('promocode', 'gift_promocode'), 'classes': ['wide',]}),
+        ('Upgrade Info', {'fields': ('upgraded_from', 'upgraded_at'), 'classes': ['wide',]})
     )
 
     def get_search_results(self, request, queryset, search_term):
