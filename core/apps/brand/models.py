@@ -65,9 +65,6 @@ class Brand(models.Model):
     user = models.OneToOneField(
         to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, verbose_name='Пользователь'
     )
-    published = models.BooleanField(
-        default=False, verbose_name='Опубликовано'
-    )
 
     # PART 1 (everything is required except social media and marketplaces)
     tg_nickname = models.CharField('Ник в телеграме', blank=True, max_length=64)
