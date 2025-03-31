@@ -835,7 +835,7 @@ class BrandGetSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Brand
-        exclude = ['published']
+        exclude = []
 
 
 class BrandMeSerializer(BrandGetSerializer):
