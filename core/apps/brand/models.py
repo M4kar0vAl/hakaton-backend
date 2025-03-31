@@ -63,7 +63,7 @@ def gallery_path(instance, filename):
 
 class Brand(models.Model):
     user = models.OneToOneField(
-        to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+        to=settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, verbose_name='Пользователь'
     )
     published = models.BooleanField(
         default=False, verbose_name='Опубликовано'
@@ -121,13 +121,34 @@ class Brand(models.Model):
         verbose_name = 'Бренд'
         verbose_name_plural = 'Бренды'
 
-    def __repr__(self):
+    def __str__(self):
         return f'Brand: {self.name}'
+
+    def __repr__(self):
+        return (
+            f'{self.__class__.__name__}(user_id={self.user_id}, name="{self.name}", tg_nickname="{self.tg_nickname}", '
+            f'city_id={self.city_id}, position="{self.position}", category_id={self.category_id}, '
+            f'inst_url="{self.inst_url}", vk_url="{self.vk_url}", tg_url="{self.tg_url}", wb_url="{self.wb_url}", '
+            f'lamoda_url="{self.lamoda_url}", site_url="{self.site_url}", subs_count={self.subs_count}, '
+            f'avg_bill={self.avg_bill}, uniqueness="{self.uniqueness}", logo="{self.logo}", photo="{self.photo}", '
+            f'mission_statement="{self.mission_statement}", offline_space="{self.offline_space}", '
+            f'problem_solving="{self.problem_solving}")'
+        )
 
 
 class Blog(models.Model):
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='blogs', verbose_name='Бренд')
     blog = models.URLField(verbose_name='Блог')
+
+    class Meta:
+        verbose_name = 'Блог'
+        verbose_name_plural = 'Блоги'
+
+    def __str__(self):
+        return f'Blog: {self.blog}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(brand_id={self.brand_id}, blog="{self.blog}")'
 
 
 class Category(models.Model):
@@ -142,7 +163,7 @@ class Category(models.Model):
         return f'Category: {self.name}'
 
     def __repr__(self):
-        return f'Category: {self.name}'
+        return f'{self.__class__.__name__}(name="{self.name}", is_other={self.is_other})'
 
 
 class Format(models.Model):
@@ -157,7 +178,7 @@ class Format(models.Model):
         return f'Format: {self.name}'
 
     def __repr__(self):
-        return f'Format: {self.name}'
+        return f'{self.__class__.__name__}(name="{self.name}", is_other={self.is_other})'
 
 
 class Goal(models.Model):
@@ -172,7 +193,7 @@ class Goal(models.Model):
         return f'Goal: {self.name}'
 
     def __repr__(self):
-        return f'Goal: {self.name}'
+        return f'{self.__class__.__name__}(name="{self.name}", is_other={self.is_other})'
 
 
 # Tag model aka ценности
@@ -188,7 +209,7 @@ class Tag(models.Model):
         return f'Tag: {self.name}'
 
     def __repr__(self):
-        return f'Tag: {self.name}'
+        return f'{self.__class__.__name__}(name="{self.name}", is_other={self.is_other})'
 
 
 # ----------target audience models----------
@@ -204,13 +225,13 @@ class Age(models.Model):
 
     class Meta:
         verbose_name = 'Возраст'
-        verbose_name_plural = 'Возрасты'
+        verbose_name_plural = 'Возраст'
 
     def __str__(self):
-        return f'Age pk: {self.pk}'
+        return f'Average age: [men: {self.men} years, women: {self.women} years]'
 
     def __repr__(self):
-        return f'Age pk: {self.pk}'
+        return f'{self.__class__.__name__}(men={self.men}, women={self.women})'
 
 
 class Gender(models.Model):
@@ -228,10 +249,10 @@ class Gender(models.Model):
         verbose_name_plural = 'Пол'
 
     def __str__(self):
-        return f'Gender pk: {self.pk}'
+        return f'Gender distribution: [men: {self.men}%, women: {self.women}%]'
 
     def __repr__(self):
-        return f'Gender pk: {self.pk}'
+        return f'{self.__class__.__name__}(men={self.men}, women={self.women})'
 
 
 class GEO(models.Model):
@@ -249,10 +270,13 @@ class GEO(models.Model):
         verbose_name_plural = 'ГЕО'
 
     def __str__(self):
-        return f'GEO: {self.city} - {self.people_percentage}'
+        return f'GEO: [city: ({self.city}); people percentage: {self.people_percentage}]'
 
     def __repr__(self):
-        return f'GEO: {self.city} - {self.people_percentage}%'
+        return (
+            f'{self.__class__.__name__}(city_id={self.city_id}, people_percentage={self.people_percentage}, '
+            f'target_audience_id={self.target_audience_id})'
+        )
 
 
 class TargetAudience(models.Model):
@@ -274,13 +298,30 @@ class TargetAudience(models.Model):
         verbose_name_plural = 'Целевая аудитория'
 
     def __str__(self):
-        return f'Target audience: {self.pk}'
+        return f'Target audience {self.pk}'
 
     def __repr__(self):
-        return f'Target audience: {self.pk}'
+        # cannot actually recreate the object because of one-to-one relations
+        return f'{self.__class__.__name__}(age_id={self.age_id}, gender_id={self.gender_id}, income={self.income})'
 
 
 # ------------------------------------------
+
+class BusinessGroup(models.Model):
+    brand = models.ForeignKey(
+        to=Brand, on_delete=models.CASCADE, related_name='business_groups', verbose_name='Бренд'
+    )
+    name = models.CharField(max_length=200, verbose_name='Название или ссылка')
+
+    class Meta:
+        verbose_name = 'Сообщество предпринимателей'
+        verbose_name_plural = 'Сообщества предпринимателей'
+
+    def __str__(self):
+        return f'Business group: {self.name}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(name="{self.name}", brand_id={self.brand_id})'
 
 
 class ProductPhoto(models.Model):
@@ -299,10 +340,10 @@ class ProductPhoto(models.Model):
         verbose_name_plural = 'Фото продукта'
 
     def __str__(self):
-        return f'Product photo: {self.pk}'
+        return f'Product photo {self.pk} [{self.get_format_display()}]'
 
     def __repr__(self):
-        return f'Product photo: {self.pk}'
+        return f'{self.__class__.__name__} {self.pk} [format="{self.format}"]'
 
 
 class GalleryPhoto(models.Model):
@@ -314,10 +355,10 @@ class GalleryPhoto(models.Model):
         verbose_name_plural = 'Фото для галереи'
 
     def __str__(self):
-        return f'Gallery photo: {self.pk}'
+        return f'Gallery photo {self.pk}'
 
     def __repr__(self):
-        return f'Gallery photo: {self.pk}'
+        return f'{self.__class__.__name__} {self.pk}'
 
 
 class Match(models.Model):
@@ -346,12 +387,18 @@ class Match(models.Model):
     like_at = models.DateTimeField(auto_now_add=True, verbose_name='Время лайка')
     match_at = models.DateTimeField(null=True, default=None, verbose_name='Время метча')
 
+    class Meta:
+        verbose_name = 'Match'
+        verbose_name_plural = 'Matches'
 
-class BusinessGroup(models.Model):
-    brand = models.ForeignKey(
-        to=Brand, on_delete=models.CASCADE, related_name='business_groups', verbose_name='Бренд'
-    )
-    name = models.CharField(max_length=200, verbose_name='Название или ссылка')
+    def __str__(self):
+        type_ = 'Match' if self.is_match else 'Like'
+        separator = '<->' if self.is_match else '->'
+
+        return f'{type_} [{self.initiator} {separator} {self.target}]'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__} {self.pk} [is_match={self.is_match}]'
 
 
 class Collaboration(models.Model):
@@ -403,3 +450,13 @@ class Collaboration(models.Model):
     )
     difficulties = models.BooleanField(verbose_name='Трудности')
     difficulties_comment = models.CharField(max_length=512, blank=True, verbose_name='Комментарий про трудности')
+
+    class Meta:
+        verbose_name = 'Collaboration'
+        verbose_name_plural = 'Collaborations'
+
+    def __str__(self):
+        return f'Collaboration [{self.reporter} about collab with {self.collab_with}]'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__} {self.pk} [match_id={self.match_id}]'

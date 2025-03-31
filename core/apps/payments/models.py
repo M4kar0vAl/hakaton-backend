@@ -19,7 +19,7 @@ class Tariff(models.Model):
         return f'Тариф: {self.name} - {self.duration.days} days'
 
     def __repr__(self):
-        return f'Тариф: {self.name} - {self.duration.days} days'
+        return f'{self.__class__.__name__}(name="{self.name}", cost={self.cost}, duration="{self.duration}")'
 
 
 class Subscription(models.Model):
@@ -37,13 +37,19 @@ class Subscription(models.Model):
         verbose_name='Промокод'
     )
     upgraded_from = models.ForeignKey(
-        to='Tariff', on_delete=models.PROTECT, null=True, related_name='sub_upgraded_to', verbose_name='Апгрейд c'
+        to='Tariff',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='sub_upgraded_to',
+        verbose_name='Апгрейд c'
     )
     upgraded_at = models.DateTimeField(blank=True, null=True, verbose_name='Дата-время апгрейда')
     gift_promocode = models.OneToOneField(
         to='GiftPromoCode',
         on_delete=models.PROTECT,
         null=True,
+        blank=True,
         related_name='subscription',
         verbose_name='Подарочный промокод'
     )  # if null => bought by himself, if not null => was gifted by someone
@@ -53,10 +59,15 @@ class Subscription(models.Model):
         verbose_name_plural = 'Подписки'
 
     def __str__(self):
-        return f'Подписка: {self.start_date.date()} - {self.end_date.date()}'
+        return f'Subscription: [{self.tariff} expires at {self.end_date.date()}]'
 
     def __repr__(self):
-        return f'Подписка: {self.start_date.date()} - {self.end_date.date()}'
+        return (
+            f'{self.__class__.__name__}(brand_id={self.brand_id}, tariff_id={self.tariff_id}, '
+            f'end_date="{self.end_date}", is_active={self.is_active}, promocode_id={self.promocode_id}, '
+            f'upgraded_from_id={self.upgraded_from_id}, upgraded_at={self.upgraded_at}, '
+            f'gift_promocode_id={self.gift_promocode_id})'
+        )
 
 
 class PromoCode(models.Model):
@@ -74,10 +85,22 @@ class PromoCode(models.Model):
         verbose_name_plural = 'Промокоды'
 
     def __str__(self):
-        return f'Промокод: {self.code} - {self.discount}'
+        return f'PromoCode: {self.code} | {self.discount}%'
 
     def __repr__(self):
-        return f'Промокод: {self.code} - {self.discount}'
+        # cannot recreate, because "code" must be unique
+        return f'{self.__class__.__name__}(code="{self.code}", discount={self.discount}, expires_at="{self.expires_at}")'
+
+    def is_used_by_brand(self, brand):
+        # check if promo code was used when purchasing subscription
+        if brand.subscriptions.filter(promocode=self).exists():
+            return True
+
+        # check if promo code was used when purchasing a gift
+        if brand.gifts_as_giver.filter(promocode=self).exists():
+            return True
+
+        return False
 
 
 class GiftPromoCode(models.Model):
@@ -97,3 +120,17 @@ class GiftPromoCode(models.Model):
         related_name='gift_promocodes',
         verbose_name='Промокод'
     )  # use common promo code to get discount
+
+    class Meta:
+        verbose_name = 'Gift PromoCode'
+        verbose_name_plural = 'Gift PromoCodes'
+
+    def __str__(self):
+        return f'Gift PromoCode: [{self.code} - {self.tariff}]'
+
+    def __repr__(self):
+        # cannot recreate, because "code" must be unique
+        return (
+            f'{self.__class__.__name__}(code="{self.code}", tariff_id={self.tariff_id}, expires_at="{self.expires_at}", '
+            f'giver_id={self.giver_id}, is_used={self.is_used}, promocode_id={self.promocode_id})'
+        )
