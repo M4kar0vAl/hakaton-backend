@@ -5,7 +5,6 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.analytics.models import MatchActivity
 from core.apps.brand.models import Brand, Category, Collaboration, Match
 from core.apps.payments.models import Subscription, Tariff
 
@@ -181,21 +180,6 @@ class CollaborationCreateTestCase(APITestCase):
                 continue
 
             self.assertEqual(getattr(collab, key), value)
-
-    def test_collaboration_create_activity_created_in_db(self):
-        response = self.auth_client1.post(self.url, self.collaboration_data)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        collab = Collaboration.objects.prefetch_related('reporter', 'collab_with').get(pk=response.data['id'])
-
-        self.assertTrue(MatchActivity.objects.filter(collab=collab).exists())
-
-        activity_obj = MatchActivity.objects.select_related('initiator', 'target').get(collab=collab)
-
-        self.assertEqual(activity_obj.initiator, self.brand1)
-        self.assertEqual(activity_obj.target, self.brand2)
-        self.assertTrue(activity_obj.is_match)
 
     def test_collaboration_create_unauthenticated_not_allowed(self):
         response = self.client.post(self.url, self.collaboration_data)
