@@ -73,12 +73,7 @@ class PromocodeRetrieveApiView(generics.RetrieveAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
 
-        # check that promo code wasn't used when purchasing subscription
-        if request.user.brand.subscriptions.filter(promocode=instance).exists():
-            raise serializers.ValidationError('You have already used this promocode!')
-
-        # check that promo code wasn't used when purchasing a gift
-        if request.user.brand.gifts_as_giver.filter(promocode=instance).exists():
+        if instance.is_used_by_brand(request.user.brand):
             raise serializers.ValidationError('You have already used this promocode!')
 
         serializer = self.get_serializer(instance)

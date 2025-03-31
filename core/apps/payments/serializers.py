@@ -157,14 +157,8 @@ class GiftPromoCodeCreateSerializer(serializers.ModelSerializer):
         if tariff.name == 'Trial':
             raise serializers.ValidationError('You cannot gift trial tariff!')
 
-        if promocode is not None:
-            # check that promo code wasn't used when purchasing subscription
-            if brand.subscriptions.filter(promocode=promocode).exists():
-                raise serializers.ValidationError('You have already used this promocode!')
-
-            # check that promo code wasn't used when purchasing a gift
-            if brand.gifts_as_giver.filter(promocode=promocode).exists():
-                raise serializers.ValidationError('You have already used this promocode!')
+        if promocode is not None and promocode.is_used_by_brand(brand):
+            raise serializers.ValidationError('You have already used this promocode!')
 
         return attrs
 
