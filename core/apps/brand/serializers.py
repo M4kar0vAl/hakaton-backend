@@ -1089,6 +1089,7 @@ class MyLikesSerializer(serializers.ModelSerializer):
         # card_photos are prefetched in BrandViewSet.get_queryset method
         return ProductPhotoSerializer(brand.card_photos, many=True).data
 
+    @extend_schema_field(serializers.CharField)
     def get_user_fullname(self, brand):
         return brand.user.fullname
 
@@ -1141,6 +1142,7 @@ class MyMatchesSerializer(serializers.ModelSerializer):
     def get_product_photos_card(self, brand):
         return ProductPhotoSerializer(brand.card_photos, many=True).data
 
+    @extend_schema_field(serializers.CharField)
     def get_user_fullname(self, brand):
         return brand.user.fullname
 
@@ -1169,6 +1171,7 @@ class RecommendedBrandsSerializer(serializers.ModelSerializer):
             'id', 'name', 'city', 'subs_count', 'logo', 'category', 'uniqueness', 'match_photos'
         ]
 
+    @extend_schema_field(ProductPhotoSerializer(many=True))
     def get_match_photos(self, brand):
         return ProductPhotoSerializer(brand.match_photos, many=True).data
 

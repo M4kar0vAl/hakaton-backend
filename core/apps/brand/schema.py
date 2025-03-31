@@ -10,7 +10,7 @@ from core.apps.brand.serializers import (
     BrandCreateResponseSerializer,
     RecommendedBrandsSerializer,
     MyLikesSerializer,
-    MyMatchesSerializer
+    MyMatchesSerializer, StatisticsSerializer
 )
 from core.apps.brand.utils import get_schema_standard_pagination_parameters
 
@@ -191,7 +191,8 @@ class Fix1(OpenApiViewExtension):
                                     '\tmin: 1\n\n'
                                     '\tmax: 12'
                     )
-                ]
+                ],
+                responses={200: StatisticsSerializer(many=True)}
             )
             def statistics(self, request, *args, **kwargs):
                 return super().statistics(request, *args, **kwargs)
@@ -222,7 +223,7 @@ class Fix3(OpenApiViewExtension):
             """
             Report about collaboration with brand.
 
-            collab_with: id of brand to report collaboration with
+            match: id of a match to report collaboration about
 
             Authenticated brand with active subscription only.
             """

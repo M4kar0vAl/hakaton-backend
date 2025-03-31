@@ -482,7 +482,7 @@ class BrandViewSet(
         serializer = self.get_serializer(queryset, many=True)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['get'], url_name='statistics')
+    @action(detail=False, methods=['get'], url_name='statistics', pagination_class=None)
     def statistics(self, request):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
