@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/v1/', include('core.apps.cities.urls')),
     path('api/v1/', include('core.apps.blacklist.urls')),
     path('api/v1/', include('core.apps.chat.urls')),
+    path('api/v1/', include('core.apps.analytics.urls')),
 ]
 
 # Нужно чтобы изображения загруженные пользователями корректно отображались при DEBUG = True

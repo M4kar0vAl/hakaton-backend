@@ -1,5 +1,5 @@
 from core.apps.analytics.models import BrandActivity
-from core.apps.brand.models import Brand, Collaboration
+from core.apps.brand.models import Brand
 
 
 def log_brand_activity(brand: Brand, action: str) -> None:
