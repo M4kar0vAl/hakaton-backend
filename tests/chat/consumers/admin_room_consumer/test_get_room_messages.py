@@ -1,5 +1,4 @@
 from cities_light.models import Country, City
-from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import tag, TransactionTestCase, override_settings
 from django.utils import timezone
@@ -94,12 +93,13 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
 
         now = timezone.now()
         tariff = await Tariff.objects.aget(name='Lite Match')
+        tariff_relativedelta = tariff.get_duration_as_relativedelta()
 
         await Subscription.objects.acreate(
             brand=brand1,
             tariff=tariff,
             start_date=now,
-            end_date=now + relativedelta(months=tariff.duration.days // 30),
+            end_date=now + tariff_relativedelta,
             is_active=True
         )
 
@@ -274,20 +274,20 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
         await room.participants.aset([user])
 
         messages = await Message.objects.abulk_create([
-            Message(
-                text=f'test{i}',
-                user=user,
-                room=room
-            )
-            for i in range(110)
-        ] + [
-            Message(
-                text=f'test{i}',
-                user=self.admin_user,
-                room=room
-            )
-            for i in range(110, 210)
-        ])
+                                                          Message(
+                                                              text=f'test{i}',
+                                                              user=user,
+                                                              room=room
+                                                          )
+                                                          for i in range(110)
+                                                      ] + [
+                                                          Message(
+                                                              text=f'test{i}',
+                                                              user=self.admin_user,
+                                                              room=room
+                                                          )
+                                                          for i in range(110, 210)
+                                                      ])
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,

@@ -64,13 +64,14 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
         now = timezone.now()
         self.tariff = Tariff.objects.get(name='Lite Match')
+        self.tariff_relativedelta = self.tariff.get_duration_as_relativedelta()
 
         Subscription.objects.bulk_create([
             Subscription(
                 brand=brand,
                 tariff=self.tariff,
                 start_date=now,
-                end_date=now + relativedelta(months=self.tariff.duration.days // 30),
+                end_date=now + self.tariff_relativedelta,
                 is_active=True
             )
             for brand in [self.brand1, self.brand2]
@@ -100,7 +101,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
             brand=brand,
             tariff=self.tariff,
             start_date=now,
-            end_date=now + relativedelta(months=self.tariff.duration.days // 30),
+            end_date=now + self.tariff_relativedelta,
             is_active=True
         )
 

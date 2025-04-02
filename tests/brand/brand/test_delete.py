@@ -3,7 +3,6 @@ import os
 import shutil
 
 from cities_light.models import City, Country
-from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
@@ -123,13 +122,14 @@ class BrandDeleteTestCase(APITestCase):
 
         # add subscription to brand
         self.tariff = Tariff.objects.get(name='Lite Match')
+        self.tariff_relativedelta = self.tariff.get_duration_as_relativedelta()
         now = timezone.now()
 
         Subscription.objects.create(
             brand=self.brand,
             tariff=self.tariff,
             start_date=now,
-            end_date=now + relativedelta(months=self.tariff.duration.days // 30),
+            end_date=now + self.tariff_relativedelta,
             is_active=True
         )
 

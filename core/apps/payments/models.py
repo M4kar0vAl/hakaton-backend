@@ -1,5 +1,6 @@
 import uuid
 
+from dateutil.relativedelta import relativedelta
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
@@ -20,6 +21,13 @@ class Tariff(models.Model):
 
     def __repr__(self):
         return f'{self.__class__.__name__}(name="{self.name}", cost={self.cost}, duration="{self.duration}")'
+
+    def get_duration_as_relativedelta(self):
+        total_days = self.duration.days
+        months = total_days // 30
+        days = total_days % 30
+
+        return relativedelta(months=months, days=days)
 
 
 class Subscription(models.Model):

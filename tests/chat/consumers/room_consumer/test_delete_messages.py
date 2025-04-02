@@ -65,13 +65,14 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
         now = timezone.now()
         self.tariff = Tariff.objects.get(name='Lite Match')
+        self.tariff_relativedelta = self.tariff.get_duration_as_relativedelta()
 
         Subscription.objects.bulk_create([
             Subscription(
                 brand=brand,
                 tariff=self.tariff,
                 start_date=now,
-                end_date=now + relativedelta(months=self.tariff.duration.days // 30),
+                end_date=now + self.tariff_relativedelta,
                 is_active=True
             )
             for brand in [self.brand1, self.brand2]
@@ -110,7 +111,7 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
             brand=brand,
             tariff=self.tariff,
             start_date=now,
-            end_date=now + relativedelta(months=self.tariff.duration.days // 30),
+            end_date=now + self.tariff_relativedelta,
             is_active=True
         )
 
@@ -308,20 +309,20 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         )
 
         messages = await Message.objects.abulk_create([
-            Message(
-                text='asf',
-                user=self.user1,
-                room=room
-            )
-            for room in rooms
-        ] + [
-            Message(
-                text='fahnj',
-                user=self.user1,
-                room=room
-            )
-            for room in rooms
-        ])
+                                                          Message(
+                                                              text='asf',
+                                                              user=self.user1,
+                                                              room=room
+                                                          )
+                                                          for room in rooms
+                                                      ] + [
+                                                          Message(
+                                                              text='fahnj',
+                                                              user=self.user1,
+                                                              room=room
+                                                          )
+                                                          for room in rooms
+                                                      ])
 
         match_room_messages_ids = [msg.id for msg in messages if msg.room_id == match_room.id]
         instant_room_messages_ids = [msg.id for msg in messages if msg.room_id == instant_room.id]

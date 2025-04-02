@@ -51,6 +51,7 @@ class TariffSubscribeSerializer(serializers.ModelSerializer):
                 brand.subscriptions.filter(is_active=True).update(is_active=False)
 
                 now = timezone.now()
+                tariff_relativedelta = tariff.get_duration_as_relativedelta()
 
                 if promocode:
                     if tariff.name == 'Trial':
@@ -58,7 +59,7 @@ class TariffSubscribeSerializer(serializers.ModelSerializer):
                             brand=brand,
                             tariff=tariff,
                             start_date=now,
-                            end_date=now + tariff.duration,
+                            end_date=now + tariff_relativedelta,
                             is_active=True
                         )
                     else:
@@ -66,7 +67,7 @@ class TariffSubscribeSerializer(serializers.ModelSerializer):
                             brand=brand,
                             tariff=tariff,
                             start_date=now,
-                            end_date=now + relativedelta(months=tariff.duration.days // 30),
+                            end_date=now + tariff_relativedelta,
                             is_active=True,
                             promocode=promocode
                         )
@@ -75,7 +76,7 @@ class TariffSubscribeSerializer(serializers.ModelSerializer):
                         brand=brand,
                         tariff=tariff,
                         start_date=now,
-                        end_date=now + relativedelta(months=tariff.duration.days // 30),
+                        end_date=now + tariff_relativedelta,
                         is_active=True
                     )
         except DatabaseError:
@@ -224,13 +225,14 @@ class GiftPromoCodeActivateSerializer(serializers.ModelSerializer):
             with transaction.atomic():
                 brand = self.context['request'].user.brand
                 tariff = gift_promocode.tariff
+                tariff_relativedelta = tariff.get_duration_as_relativedelta()
 
                 # create subscription
                 subscription = Subscription.objects.create(
                     brand=brand,
                     tariff=gift_promocode.tariff,
                     start_date=now,
-                    end_date=now + relativedelta(months=tariff.duration.days // 30),
+                    end_date=now + tariff_relativedelta,
                     is_active=True,
                     gift_promocode=gift_promocode
                 )

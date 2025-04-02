@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 from cities_light.models import Country, City
-from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -49,6 +48,7 @@ class GiftPromoCodeCreateTestCase(APITestCase):
         cls.trial_tariff = Tariff.objects.get(name='Trial')
         cls.lite_tariff = Tariff.objects.get(name='Lite Match')
         cls.business_tariff = Tariff.objects.get(name='Business Match')
+        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
 
         now = timezone.now()
         cls.promocode = PromoCode.objects.create(code='test', discount=5, expires_at=now + timedelta(days=30))
@@ -57,7 +57,7 @@ class GiftPromoCodeCreateTestCase(APITestCase):
             brand=cls.brand,
             tariff=cls.business_tariff,
             start_date=now,
-            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            end_date=now + cls.business_tariff_relativedelta,
             is_active=True
         )
 

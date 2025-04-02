@@ -1,4 +1,3 @@
-from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -57,6 +56,7 @@ class CollaborationCreateTestCase(APITestCase):
         cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
 
         cls.business_tariff = Tariff.objects.get(name='Business Match')
+        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
         now = timezone.now()
 
         Subscription.objects.bulk_create([
@@ -64,7 +64,7 @@ class CollaborationCreateTestCase(APITestCase):
                 brand=brand,
                 tariff=cls.business_tariff,
                 start_date=now,
-                end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+                end_date=now + cls.business_tariff_relativedelta,
                 is_active=True
             )
             for brand in [cls.brand1, cls.brand2]

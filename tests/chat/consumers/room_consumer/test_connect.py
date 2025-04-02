@@ -1,5 +1,4 @@
 from cities_light.models import Country, City
-from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase, override_settings, tag
 from django.utils import timezone
@@ -61,12 +60,13 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
 
         now = timezone.now()
         tariff = Tariff.objects.get(name='Lite Match')
+        tariff_relativedelta = tariff.get_duration_as_relativedelta()
 
         Subscription.objects.create(
             brand=self.brand,
             tariff=tariff,
             start_date=now,
-            end_date=now + relativedelta(months=tariff.duration.days // 30),
+            end_date=now + tariff_relativedelta,
             is_active=True
         )
 

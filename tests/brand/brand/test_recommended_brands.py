@@ -1,5 +1,4 @@
 from cities_light.models import Country, City
-from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -93,7 +92,8 @@ class BrandRecommendedBrandsTestCase(
         # subs_count and avg_bill don't match
         cls.brand3 = Brand.objects.create(
             user=cls.user4,
-            **{**cls.brand_data, 'category': cls.categories[3], 'subs_count': 20000, 'avg_bill': 20000, 'city': cls.city2}
+            **{**cls.brand_data, 'category': cls.categories[3], 'subs_count': 20000, 'avg_bill': 20000,
+               'city': cls.city2}
         )
         cls.brand3.formats.set(cls.formats[2:4])  # format 3, 4
         cls.brand3.tags.set(cls.tags[1:5])  # tag 2, 3, 4, 5
@@ -103,7 +103,8 @@ class BrandRecommendedBrandsTestCase(
         # subs_count, avg_bill and goals don't match
         cls.brand4 = Brand.objects.create(
             user=cls.user5,
-            **{**cls.brand_data, 'category': cls.categories[4], 'subs_count': 20000, 'avg_bill': 20000, 'city': cls.city2}
+            **{**cls.brand_data, 'category': cls.categories[4], 'subs_count': 20000, 'avg_bill': 20000,
+               'city': cls.city2}
         )
         cls.brand4.formats.set(cls.formats[2:4])  # format 3, 4
         cls.brand4.tags.set(cls.tags[1:5])  # tag 2, 3, 4, 5
@@ -113,7 +114,8 @@ class BrandRecommendedBrandsTestCase(
         # subs_count, avg_bill, goals and tags don't match
         cls.brand5 = Brand.objects.create(
             user=cls.user6,
-            **{**cls.brand_data, 'category': cls.categories[1], 'subs_count': 20000, 'avg_bill': 20000, 'city': cls.city2}
+            **{**cls.brand_data, 'category': cls.categories[1], 'subs_count': 20000, 'avg_bill': 20000,
+               'city': cls.city2}
         )
         cls.brand5.formats.set(cls.formats[2:4])  # format 3, 4
         cls.brand5.tags.set(cls.tags[5:9])  # tag 6, 7, 8, 9 # don't match
@@ -140,13 +142,14 @@ class BrandRecommendedBrandsTestCase(
         cls.brand7.goals.set(cls.goals[3:5])  # goal 4, 5 # don't match
 
         cls.business_tariff = Tariff.objects.get(name='Business Match')
+        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
         now = timezone.now()
 
         Subscription.objects.create(
             brand=cls.initial_brand,
             tariff=cls.business_tariff,
             start_date=now,
-            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            end_date=now + cls.business_tariff_relativedelta,
             is_active=True
         )
 
@@ -241,7 +244,7 @@ class BrandRecommendedBrandsTestCase(
                 brand=brand,
                 tariff=self.business_tariff,
                 start_date=now,
-                end_date=now + relativedelta(months=self.business_tariff.duration.days // 30),
+                end_date=now + self.business_tariff_relativedelta,
                 is_active=True
             )
             for brand in [brand_match_1, brand_match_2]

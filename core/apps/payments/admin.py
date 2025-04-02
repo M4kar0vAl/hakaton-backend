@@ -154,16 +154,14 @@ class SubscriptionAdmin(SearchByIdMixin, admin.ModelAdmin):
             return super().save_model(request, obj, form, change)
 
         if 'tariff' in form.changed_data:
-            tariff_duration_days = obj.tariff.duration.days
-            months = tariff_duration_days // 30
-            days = tariff_duration_days % 30
+            tariff_relativedelta = obj.tariff.get_duration_as_relativedelta()
 
             # if changing existing object, then start_date is already set
             if change:
-                obj.end_date = obj.start_date + relativedelta(months=months, days=days)
+                obj.end_date = obj.start_date + tariff_relativedelta
             # if adding a new object, then start_date hasn't been set yet, so use current time
             else:
-                obj.end_date = timezone.now() + relativedelta(months=months, days=days)
+                obj.end_date = timezone.now() + tariff_relativedelta
 
         # if upgraded from
         if 'upgraded_from' in form.changed_data and 'upgraded_at' not in form.changed_data:

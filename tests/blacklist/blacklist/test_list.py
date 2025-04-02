@@ -1,4 +1,3 @@
-from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -60,6 +59,7 @@ class BlacklistListTestCase(
         cls.brand1, cls.brand2 = brands
 
         cls.tariff = Tariff.objects.get(name='Business Match')
+        cls.tariff_relativedelta = cls.tariff.get_duration_as_relativedelta()
         now = timezone.now()
 
         Subscription.objects.bulk_create([
@@ -67,7 +67,7 @@ class BlacklistListTestCase(
                 brand=brand,
                 tariff=cls.tariff,
                 start_date=now,
-                end_date=now + relativedelta(months=cls.tariff.duration.days // 30),
+                end_date=now + cls.tariff_relativedelta,
                 is_active=True
             )
             for brand in brands

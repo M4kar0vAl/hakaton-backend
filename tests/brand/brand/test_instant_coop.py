@@ -1,4 +1,3 @@
-from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
@@ -63,6 +62,9 @@ class BrandInstantCooperationTestCase(APITestCase):
         cls.business_tariff = Tariff.objects.get(name='Business Match')
         cls.lite_tariff = Tariff.objects.get(name='Lite Match')
 
+        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
+        cls.lite_tariff_relativedelta = cls.lite_tariff.get_duration_as_relativedelta()
+
         now = timezone.now()
 
         # business sub and liked brand2
@@ -71,7 +73,7 @@ class BrandInstantCooperationTestCase(APITestCase):
             brand=cls.brand1,
             tariff=cls.business_tariff,
             start_date=now,
-            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            end_date=now + cls.business_tariff_relativedelta,
             is_active=True
         )
 
@@ -81,7 +83,7 @@ class BrandInstantCooperationTestCase(APITestCase):
             brand=cls.brand2,
             tariff=cls.lite_tariff,
             start_date=now,
-            end_date=now + relativedelta(months=cls.lite_tariff.duration.days // 30),
+            end_date=now + cls.lite_tariff_relativedelta,
             is_active=True
         )
 
@@ -91,7 +93,7 @@ class BrandInstantCooperationTestCase(APITestCase):
             brand=cls.brand3,
             tariff=cls.business_tariff,
             start_date=now,
-            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            end_date=now + cls.business_tariff_relativedelta,
             is_active=True
         )
 

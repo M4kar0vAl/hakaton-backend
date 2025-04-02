@@ -1,4 +1,3 @@
-from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
 from django.test import tag
 from django.urls import reverse
@@ -71,7 +70,7 @@ class BrandMyLikesTestCase(
         }
 
         cls.business_tariff = Tariff.objects.get(name='Business Match')
-
+        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
         now = timezone.now()
 
         cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
@@ -79,7 +78,7 @@ class BrandMyLikesTestCase(
             brand=cls.brand1,
             tariff=cls.business_tariff,
             start_date=now,
-            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            end_date=now + cls.business_tariff_relativedelta,
             is_active=True
         )
         cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
@@ -88,7 +87,7 @@ class BrandMyLikesTestCase(
             brand=cls.brand3,
             tariff=cls.business_tariff,
             start_date=now,
-            end_date=now + relativedelta(months=cls.business_tariff.duration.days // 30),
+            end_date=now + cls.business_tariff_relativedelta,
             is_active=True
         )
 
@@ -132,13 +131,14 @@ class BrandMyLikesTestCase(
         client.force_authenticate(users[0])
 
         business_tariff = Tariff.objects.get(name='Business Match')
+        business_tariff_relativedelta = business_tariff.get_duration_as_relativedelta()
         now = timezone.now()
 
         Subscription.objects.create(
             brand=brands[0],
             tariff=business_tariff,
             start_date=now,
-            end_date=now + relativedelta(months=business_tariff.duration.days // 30),
+            end_date=now + business_tariff_relativedelta,
             is_active=True
         )
 
