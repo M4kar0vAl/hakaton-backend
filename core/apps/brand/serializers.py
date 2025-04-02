@@ -14,7 +14,7 @@ from rest_framework import serializers, exceptions
 
 from core.apps.accounts.serializers import UserSerializer
 from core.apps.analytics.models import BrandActivity
-from core.apps.analytics.utils import log_match_activity, log_brand_activity
+from core.apps.analytics.utils import log_brand_activity
 from core.apps.brand.mixins import BrandValidateMixin
 from core.apps.brand.models import (
     Brand,
@@ -939,8 +939,6 @@ class MatchSerializer(serializers.ModelSerializer):
                     match.save()
                 else:
                     match = Match.objects.create(initiator=initiator, target=target)
-
-                log_match_activity(initiator=initiator, target=target, is_match=match.is_match)
         except DatabaseError:
             raise serializers.ValidationError("Failed to perform action!")
 
@@ -1057,7 +1055,6 @@ class CollaborationSerializer(serializers.ModelSerializer):
         try:
             with transaction.atomic():
                 collab = Collaboration.objects.create(reporter=reporter, collab_with=collab_with, **validated_data)
-                log_match_activity(initiator=reporter, target=collab_with, is_match=True, collab=collab)
                 # TODO add points to reported brand
         except DatabaseError:
             raise exceptions.ValidationError("Failed to perform action!")
