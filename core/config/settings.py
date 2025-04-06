@@ -37,6 +37,9 @@ INSTALLED_APPS = [
     'core.apps.analytics.apps.AnalyticsConfig',
     'core.apps.cities.apps.CitiesConfig',
     'core.apps.blacklist.apps.BlacklistConfig',
+
+    # should be last
+    'django_cleanup.apps.CleanupConfig',
 ]
 
 MIDDLEWARE = [
