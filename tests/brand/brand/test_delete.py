@@ -7,11 +7,11 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
+from django.test import override_settings, tag
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APIClient, APITransactionTestCase
 
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Brand, Category, TargetAudience
@@ -22,25 +22,26 @@ User = get_user_model()
 
 
 @override_settings(MEDIA_ROOT=os.path.join(settings.BASE_DIR, 'media', 'TEST'))
-class BrandDeleteTestCase(APITestCase):
-    @classmethod
-    def setUpTestData(cls):
-        cls.user = User.objects.create_user(
+@tag('slow')
+class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires TransactionTestCase to be used
+    serialized_rollback = True
+
+    def setUp(self):
+        self.user = User.objects.create_user(
             email='user1@example.com',
             phone='+79993332211',
             fullname='Юзеров Юзер Юзерович',
             password='Pass!234',
             is_active=True
         )
-        cls.user_id = cls.user.id
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        self.user_id = self.user.id
+        self.auth_client = APIClient()
+        self.auth_client.force_authenticate(self.user)
 
-        cls.country = Country.objects.create(name='Country', continent='EU')
-        cls.city1 = City.objects.create(name='City1', country=cls.country)
-        cls.city2 = City.objects.create(name='City2', country=cls.country)
+        self.country = Country.objects.create(name='Country', continent='EU')
+        self.city1 = City.objects.create(name='City1', country=self.country)
+        self.city2 = City.objects.create(name='City2', country=self.country)
 
-    def setUp(self):
         small_gif = (
             b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x05\x04\x04\x00\x00\x00\x2c\x00\x00\x00\x00\x01'
             b'\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b'

@@ -9,10 +9,10 @@ from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import Q
-from django.test import override_settings
+from django.test import override_settings, tag
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APIClient, APITransactionTestCase
 
 from core.apps.brand.models import Brand, Tag, ProductPhoto, Age, Gender, Category, Format, Goal
 
@@ -24,25 +24,26 @@ User = get_user_model()
 # So default FileSystemStorage is used with overridden MEDIA_ROOT setting
 # TODO try to make InMemoryStorage to work
 @override_settings(MEDIA_ROOT=os.path.join(settings.BASE_DIR, 'media', 'TEST'))
-class BrandUpdateTestCase(APITestCase):
-    @classmethod
-    def setUpTestData(cls):
-        cls.user = User.objects.create_user(
+@tag('slow')
+class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires TransactionTestCase to be used
+    serialized_rollback = True
+
+    def setUp(self):
+        self.user = User.objects.create_user(
             email='user1@example.com',
             phone='+79993332211',
             fullname='Юзеров Юзер Юзерович',
             password='Pass!234',
             is_active=True
         )
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        self.auth_client = APIClient()
+        self.auth_client.force_authenticate(self.user)
 
-        cls.country = Country.objects.create(name='Country', continent='EU')
-        cls.city1 = City.objects.create(name='City1', country=cls.country)
-        cls.city2 = City.objects.create(name='City2', country=cls.country)
-        cls.city3 = City.objects.create(name='City3', country=cls.country)
+        self.country = Country.objects.create(name='Country', continent='EU')
+        self.city1 = City.objects.create(name='City1', country=self.country)
+        self.city2 = City.objects.create(name='City2', country=self.country)
+        self.city3 = City.objects.create(name='City3', country=self.country)
 
-    def setUp(self):
         # create brand-new brand before each test
         small_gif = (
             b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x05\x04\x04\x00\x00\x00\x2c\x00\x00\x00\x00\x01'
@@ -268,24 +269,19 @@ class BrandUpdateTestCase(APITestCase):
         ).count(), 2)
 
         # check single photos
-        logo_num = 0
-        photo_num = 0
-        for filename in default_storage.listdir(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}'))[1]:
-            if filename.startswith('logo'):
-                logo_num += 1
-            elif filename.startswith('photo'):
-                photo_num += 1
+        logo_files = glob.glob(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}', 'logo*'))
+        photo_files = glob.glob(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}', 'photo*'))
 
-        self.assertEqual(logo_num, 1)
-        self.assertEqual(photo_num, 1)
+        self.assertEqual(len(logo_files), 1)
+        self.assertEqual(len(photo_files), 1)
 
         # check that files actually changed by comparing their sizes
         self.assertEqual(
-            default_storage.size(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}', 'logo.gif')),
+            default_storage.size(logo_files[0]),
             37
         )
         self.assertEqual(
-            default_storage.size(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}', 'photo.gif')),
+            default_storage.size(photo_files[0]),
             37
         )
 

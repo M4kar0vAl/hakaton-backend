@@ -467,10 +467,12 @@ class BrandUpdateSerializer(
                         Category.objects.filter(pk=current_category.id).delete()
 
                 if logo is not None:
-                    self.update_single_photo(instance, logo, 'logo')
+                    instance.logo = logo
+                    instance.save()
 
                 if photo is not None:
-                    self.update_single_photo(instance, photo, 'photo')
+                    instance.photo = photo
+                    instance.save()
 
                 if new_blogs is not None:
                     self.update_o2m(
@@ -508,34 +510,12 @@ class BrandUpdateSerializer(
                     )
 
                 if product_photos_match_remove:
-                    paths = list(instance.product_photos.filter(
-                        pk__in=product_photos_match_remove, brand=instance, format=ProductPhoto.MATCH
-                    ).values_list('image', flat=True))
-
                     instance.product_photos.filter(
                         pk__in=product_photos_match_remove, format=ProductPhoto.MATCH
                     ).delete()
 
-                    for path in paths:
-                        try:
-                            os.remove(os.path.join(settings.MEDIA_ROOT, path))
-                        except (FileNotFoundError, OSError):
-                            # do nothing if file was not found or path is a directory
-                            pass
-
                 if product_photos_card_remove:
-                    paths = list(instance.product_photos.filter(
-                        pk__in=product_photos_card_remove, format=ProductPhoto.CARD
-                    ).values_list('image', flat=True))
-
                     instance.product_photos.filter(pk__in=product_photos_card_remove, format=ProductPhoto.CARD).delete()
-
-                    for path in paths:
-                        try:
-                            os.remove(os.path.join(settings.MEDIA_ROOT, path))
-                        except (FileNotFoundError, OSError):
-                            # do nothing if file was not found or path is a directory
-                            pass
 
                 if product_photos_match_add:
                     ProductPhoto.objects.bulk_create(
@@ -555,21 +535,8 @@ class BrandUpdateSerializer(
 
                 # handle gallery photos removal
                 if gallery_remove:
-                    # if gallery_remove is not None and not empty list
-                    # get images paths
-                    # need to call list() on queryset to instantly evaluate it, because next operation deletes instances
-                    paths = list(instance.gallery_photos.filter(pk__in=gallery_remove).values_list('image', flat=True))
-
                     # delete instances from db
                     instance.gallery_photos.filter(pk__in=gallery_remove).delete()
-
-                    # remove files from server
-                    for path in paths:
-                        try:
-                            os.remove(os.path.join(settings.MEDIA_ROOT, path))
-                        except (FileNotFoundError, OSError):
-                            # do nothing if file was not found or path is a directory
-                            pass
 
                 # handle gallery photos addition
                 if gallery_add:
@@ -635,25 +602,6 @@ class BrandUpdateSerializer(
                 new_common_objs_names.append(obj['name'])
 
         return new_common_objs_names, new_other_objs_names
-
-    def update_single_photo(
-            self,
-            instance: Brand,
-            new_photo: TemporaryUploadedFile | InMemoryUploadedFile,
-            field: str
-    ):
-        # -----delete old file-----
-        files = glob.glob(os.path.join(settings.MEDIA_ROOT, f'user_{instance.user.id}', f'{field}.*'))
-        # loop over files in case there is more than one file, somehow
-        for file in files:
-            try:
-                os.remove(file)
-            except (FileNotFoundError, OSError):
-                pass
-        # -------------------------
-
-        setattr(instance, field, new_photo)
-        instance.save()
 
     def update_o2m(
             self,
