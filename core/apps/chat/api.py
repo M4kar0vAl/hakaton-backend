@@ -1,13 +1,18 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Subquery, OuterRef, Prefetch, Q, Max, F
-from rest_framework import viewsets, mixins
+from rest_framework import viewsets, mixins, generics
 from rest_framework.permissions import IsAuthenticated
 
 from core.apps.brand.pagination import StandardResultsSetPagination
+from core.apps.brand.permissions import IsBrand
 from core.apps.chat.models import Message
 from core.apps.chat.permissions import IsOwnerOfRoomFavorite
-from core.apps.chat.serializers import RoomFavoritesListSerializer, RoomFavoritesCreateSerializer
-
+from core.apps.chat.serializers import (
+    RoomFavoritesListSerializer,
+    RoomFavoritesCreateSerializer,
+    MessageAttachmentCreateSerializer
+)
+from core.apps.payments.permissions import HasActiveSub
 
 User = get_user_model()
 
@@ -60,3 +65,17 @@ class RoomFavoritesViewSet(
             return RoomFavoritesCreateSerializer
 
         return super().get_serializer_class()
+
+
+class MessageAttachmentCreateView(generics.CreateAPIView):
+    serializer_class = MessageAttachmentCreateSerializer
+    permission_classes = [IsAuthenticated, IsBrand, HasActiveSub]
+
+    def get_permissions(self):
+        permission_classes = self.permission_classes
+        user = self.request.user
+
+        if user.is_staff or user.is_superuser:
+            permission_classes = [IsAuthenticated]
+
+        return [permission() for permission in permission_classes]

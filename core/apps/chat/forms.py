@@ -1,6 +1,7 @@
 from django import forms
 
 from core.apps.chat.models import RoomFavorites
+from core.apps.chat.utils import is_attachment_file_size_valid
 
 
 class MessageAdminForm(forms.ModelForm):
@@ -14,6 +15,19 @@ class MessageAdminForm(forms.ModelForm):
 
         if not user.is_superuser and not user.is_staff and not user.rooms.filter(pk=room.pk).exists():
             raise forms.ValidationError(f'Selected user is not a participant of {room}')
+
+
+class MessageAttachmentAdminForm(forms.ModelForm):
+
+    def clean_file(self):
+        file = self.cleaned_data.get('file')
+
+        is_valid, max_size_mb = is_attachment_file_size_valid(file)
+
+        if not is_valid:
+            raise forms.ValidationError(f'Uploaded file is too big! Max size is {max_size_mb} Mb.')
+
+        return file
 
 
 class RoomFavoritesAdminForm(forms.ModelForm):

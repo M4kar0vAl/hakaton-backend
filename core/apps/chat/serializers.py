@@ -7,7 +7,8 @@ from rest_framework import serializers
 from core.apps.accounts.serializers import UserSerializer
 from core.apps.brand.serializers import GetShortBrandSerializer
 from core.apps.chat.exceptions import ServerError
-from core.apps.chat.models import Room, Message, RoomFavorites
+from core.apps.chat.models import Room, Message, RoomFavorites, MessageAttachment
+from core.apps.chat.utils import is_attachment_file_size_valid
 
 User = get_user_model()
 
@@ -127,5 +128,26 @@ class RoomFavoritesCreateSerializer(serializers.ModelSerializer):
                 self.context['room_with_prefetched'] = room_with_prefetched
         except DatabaseError:
             raise ServerError('Failed to perform action. Please, try again.')
+
+        return instance
+
+
+class MessageAttachmentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MessageAttachment
+        exclude = ['message', 'created_at']
+
+    def validate_file(self, file):
+        is_valid, max_size_mb = is_attachment_file_size_valid(file)
+
+        if not is_valid:
+            raise serializers.ValidationError(f'Uploaded file is too big! Max size is {max_size_mb} Mb.')
+
+        return file
+
+    def create(self, validated_data):
+        file = validated_data.get('file')
+
+        instance = MessageAttachment.objects.create(file=file)
 
         return instance

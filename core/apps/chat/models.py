@@ -1,5 +1,18 @@
+import os
+import uuid
+
 from django.conf import settings
 from django.db import models
+
+from core.apps.brand.utils import get_file_extension
+
+
+def room_directory_path(instance, filename):
+    extension = get_file_extension(filename)
+    new_filename = f'{uuid.uuid4()}{extension}'
+    # room_id = instance.message.room_id
+
+    return os.path.join('message_attachments', new_filename)
 
 
 class Room(models.Model):
@@ -46,6 +59,31 @@ class Message(models.Model):
 
     def __repr__(self):
         return f'{self.__class__.__name__}(text="{self.text}", user_id={self.user_id}, room_id={self.user_id})'
+
+
+class MessageAttachment(models.Model):
+    message = models.ForeignKey(
+        to=Message,
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        default=None,
+        related_name='attachments',
+        verbose_name='Сообщение'
+    )
+
+    file = models.FileField(upload_to=room_directory_path, verbose_name='Прикрепленный файл')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
+
+    class Meta:
+        verbose_name = 'Message Attachment'
+        verbose_name_plural = 'Message Attachments'
+
+    def __str__(self):
+        return f'Attachment {self.pk} for message {self.message_id}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__} {self.pk}'
 
 
 class RoomFavorites(models.Model):

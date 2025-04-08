@@ -118,3 +118,9 @@ async def reply_to_groups(
         status=status,
         request_id=request_id
     )
+
+def is_attachment_file_size_valid(file):
+    MAX_SIZE_MB = 5
+    MAX_SIZE = 1024 * 1024 * MAX_SIZE_MB
+
+    return file.size <= MAX_SIZE, MAX_SIZE_MB
