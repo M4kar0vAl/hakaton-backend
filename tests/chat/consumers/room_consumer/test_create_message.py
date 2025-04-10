@@ -1,3 +1,5 @@
+from importlib.metadata import always_iterable
+
 from cities_light.models import Country, City
 from dateutil.relativedelta import relativedelta
 from django.contrib.auth import get_user_model
@@ -8,7 +10,7 @@ from rest_framework import status
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Category, Brand, Match
 from core.apps.chat.consumers import RoomConsumer, AdminRoomConsumer
-from core.apps.chat.models import Room, Message
+from core.apps.chat.models import Room, Message, MessageAttachment
 from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import RoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user, join_room_communal, join_room
@@ -418,3 +420,56 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
             self.assertTrue(response['errors'])
 
         await communicator.disconnect()
+
+    async def test_create_message_with_attachments(self):
+        room = await Room.objects.acreate(type=Room.MATCH)
+        await room.participants.aset([self.user1, self.user2])
+
+        attachments = await MessageAttachment.objects.abulk_create([
+            MessageAttachment(file='file1'),
+            MessageAttachment(file='file2'),
+        ])
+        attachments_ids = [a.id for a in attachments]
+
+        communicator1 = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user1
+        )
+
+        communicator2 = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user2
+        )
+
+        connected1, _ = await communicator1.connect()
+        connected2, _ = await communicator2.connect()
+
+        self.assertTrue(connected1)
+        self.assertTrue(connected2)
+
+        async with join_room_communal([communicator1, communicator2], room.pk):
+            response1 = await self.create_message(communicator1, 'any text', attachments_ids)
+            response2 = await communicator2.receive_json_from()
+
+            for response in [response1, response2]:
+                response_attachments_ids = [a['id'] for a in response['data']['attachments']]
+
+                self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
+                self.assertEqual(attachments_ids, response_attachments_ids)
+
+            msg_id = response1['data']['id']
+
+            # check that attachments were connected to the message
+            self.assertEqual(
+                await MessageAttachment.objects.filter(id__in=attachments_ids, message_id=msg_id).acount(),
+                2
+            )
+
+        await communicator1.disconnect()
+        await communicator2.disconnect()

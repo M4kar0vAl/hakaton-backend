@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.chat.models import Room, RoomFavorites
+from core.apps.chat.models import Room, RoomFavorites, MessageAttachment, Message
 
 User = get_user_model()
 
@@ -59,3 +59,26 @@ class RoomFavoritesCreateTestCase(APITestCase):
         response = self.auth_client.post(self.url, {'room': self.room.id})  # try to add the same room again
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_room_favorites_create_includes_last_message_attachments(self):
+        message = Message.objects.create(
+            text='asdaw',
+            user=self.user,
+            room=self.room
+        )
+
+        attachments = MessageAttachment.objects.bulk_create([
+            MessageAttachment(file='file1', message=message),
+            MessageAttachment(file='file2', message=message),
+        ])
+        attachments_ids = [a.id for a in attachments]
+
+        response = self.auth_client.post(self.url, {'room': self.room.id})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        last_message = response.data['room']['last_message']
+        self.assertTrue('attachments' in last_message)
+
+        response_attachments_ids = [a['id'] for a in last_message['attachments']]
+        self.assertEqual(response_attachments_ids, attachments_ids)

@@ -1,6 +1,7 @@
 import json
 import unittest
 from contextlib import contextmanager
+from typing import Optional, List
 
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
@@ -70,13 +71,22 @@ class BaseConsumerActionsMixin:
 
         return response
 
-    async def create_message(self, communicator: WebsocketCommunicator, text: str):
+    async def create_message(
+            self,
+            communicator: WebsocketCommunicator,
+            text: str,
+            attachments_ids: Optional[List[int]] = None
+    ):
+        if attachments_ids is None:
+            attachments_ids = []
+
         response = await self._send_json_to_consumer(
             communicator=communicator,
             json_={
                 'action': 'create_message',
                 'text': text,
-                'request_id': 1500000
+                'attachments_ids': attachments_ids,
+                'request_id': 1500000,
             }
         )
 

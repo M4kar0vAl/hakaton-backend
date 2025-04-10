@@ -17,10 +17,22 @@ class UserWithShortBrandSerializer(UserSerializer):
     brand = GetShortBrandSerializer(read_only=True)
 
 
+class MessageAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MessageAttachment
+        exclude = ['message', 'created_at']
+
+
 class MessageSerializer(serializers.ModelSerializer):
+    attachments = serializers.SerializerMethodField()
+
     class Meta:
         model = Message
         exclude = []
+
+    @extend_schema_field(MessageAttachmentSerializer(many=True))
+    def get_attachments(self, message):
+        return MessageAttachmentSerializer(message.attachments_objs, many=True).data
 
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -104,6 +116,12 @@ class RoomFavoritesCreateSerializer(serializers.ModelSerializer):
 
                 last_message_in_room = Message.objects.filter(
                     pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+                ).prefetch_related(
+                    Prefetch(
+                        'attachments',
+                        queryset=MessageAttachment.objects.all(),
+                        to_attr='attachments_objs'
+                    )
                 )
 
                 # get instance's room with prefetched interlocutor and last message for to_representation method

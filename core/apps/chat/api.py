@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from core.apps.brand.pagination import StandardResultsSetPagination
 from core.apps.brand.permissions import IsBrand
-from core.apps.chat.models import Message
+from core.apps.chat.models import Message, MessageAttachment
 from core.apps.chat.permissions import IsOwnerOfRoomFavorite
 from core.apps.chat.serializers import (
     RoomFavoritesListSerializer,
@@ -31,6 +31,12 @@ class RoomFavoritesViewSet(
         if self.action == 'list':
             last_message_in_room = Message.objects.filter(
                 pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+            ).prefetch_related(
+                Prefetch(
+                    'attachments',
+                    queryset=MessageAttachment.objects.all(),
+                    to_attr='attachments_objs'
+                )
             )
 
             return self.request.user.room_favorites.select_related('room').prefetch_related(

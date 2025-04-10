@@ -9,7 +9,7 @@ from django.db.models import Model, QuerySet, Prefetch, OuterRef, Subquery
 from djangochannelsrestframework.observer import model_observer
 
 from core.apps.chat.exceptions import ServerError, BadRequest
-from core.apps.chat.models import Message, Room
+from core.apps.chat.models import Message, Room, MessageAttachment
 from core.apps.chat.utils import _reply_to_groups
 
 User = get_user_model()
@@ -82,6 +82,12 @@ class ConsumerUtilitiesMixin:
 
         last_message_in_room = Message.objects.filter(
             pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+        ).prefetch_related(
+            Prefetch(
+                'attachments',
+                queryset=MessageAttachment.objects.all(),
+                to_attr='attachments_objs'
+            )
         )
 
         # expects a queryset with a single support room or an empty one

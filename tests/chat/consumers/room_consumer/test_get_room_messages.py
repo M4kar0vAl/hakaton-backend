@@ -7,7 +7,7 @@ from rest_framework import status
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
-from core.apps.chat.models import Room, Message
+from core.apps.chat.models import Room, Message, MessageAttachment
 from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import RoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user, join_room_communal, join_room
@@ -271,21 +271,8 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
         await room.participants.aset([self.user1, self.user2])
 
         messages = await Message.objects.abulk_create(
-            [
-                Message(
-                    text=f'msg_{i}',
-                    user=self.user1,
-                    room=room
-                )
-                for i in range(109)
-            ] + [
-                Message(
-                    text=f'msg_{i}',
-                    user=self.user2,
-                    room=room
-                )
-                for i in range(109, 220)
-            ]
+            [Message(text=f'msg_{i}', user=self.user1, room=room) for i in range(109)] +
+            [Message(text=f'msg_{i}', user=self.user2, room=room) for i in range(109, 220)]
         )
 
         communicator = get_websocket_communicator_for_user(
@@ -339,5 +326,46 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
             self.assertEqual(response['response_status'], status.HTTP_400_BAD_REQUEST)
             self.assertTrue(response['errors'])
             self.assertIsNone(response['data'])
+
+        await communicator.disconnect()
+
+    async def test_get_room_messages_include_attachments(self):
+        room = await Room.objects.acreate(type=Room.MATCH)
+        await room.participants.aset([self.user1, self.user2])
+
+        message = await Message.objects.acreate(
+            text=f'asgueagn',
+            user=self.user1,
+            room=room
+        )
+
+        attachments = await MessageAttachment.objects.abulk_create([
+            MessageAttachment(file='file1', message=message),
+            MessageAttachment(file='file2', message=message),
+        ])
+        attachments_ids = [a.id for a in attachments]
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user1
+        )
+
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            response = await self.get_room_messages(communicator, 1)
+
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+            results = response['data']['results']
+            self.assertEqual(len(results), 1)
+            self.assertTrue('attachments' in results[0])
+
+            response_attachments_ids = [a['id'] for a in results[0]['attachments']]
+            self.assertEqual(response_attachments_ids, attachments_ids)
 
         await communicator.disconnect()

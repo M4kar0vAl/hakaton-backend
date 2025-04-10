@@ -1,4 +1,4 @@
-from typing import Type, Tuple
+from typing import Type, Tuple, Optional, List
 
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
@@ -17,7 +17,7 @@ from core.apps.chat.mixins import (
     ConsumerPaginationMixin,
     ConsumerObserveAdminActivityMixin, ConsumerReplyToGroupsMixin
 )
-from core.apps.chat.models import Room, Message
+from core.apps.chat.models import Room, Message, MessageAttachment
 from core.apps.chat.permissions import (
     IsAuthenticatedConnect,
     IsAdminUser,
@@ -107,12 +107,27 @@ class BaseRoomConsumer(
         return data, status.HTTP_200_OK
 
     @action()
-    async def create_message(self, text: str, **kwargs):
-        message = await Message.objects.acreate(
+    async def create_message(self, text: str, attachments_ids: Optional[List[int]]=None, **kwargs):
+        message_obj = await Message.objects.acreate(
             room=self.room,
             user=self.scope['user'],
             text=text
         )
+
+        if attachments_ids:
+            # link attachments to newly created message
+            await MessageAttachment.objects.filter(
+                id__in=attachments_ids,
+                message__isnull=True  # filter out already linked attachments (where message is not null)
+            ).aupdate(message=message_obj)
+
+        message = await Message.objects.prefetch_related(
+            Prefetch(
+                'attachments',
+                queryset=MessageAttachment.objects.all(),
+                to_attr='attachments_objs'
+            )
+        ).aget(id=message_obj.id)
 
         message_data = await self.get_serialized_data(message, **kwargs)
 
@@ -229,10 +244,22 @@ class RoomConsumer(BaseRoomConsumer):
         if 'action' in kwargs:
             action_ = kwargs['action']
             if action_ == 'get_room_messages':
-                return self.room.messages.order_by('-created_at', 'id')
+                return self.room.messages.prefetch_related(
+                    Prefetch(
+                        'attachments',
+                        queryset=MessageAttachment.objects.all(),
+                        to_attr='attachments_objs'
+                    )
+                ).order_by('-created_at', 'id')
             elif action_ == 'get_rooms':
                 last_message_in_room = Message.objects.filter(
                     pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+                ).prefetch_related(
+                    Prefetch(
+                        'attachments',
+                        queryset=MessageAttachment.objects.all(),
+                        to_attr='attachments_objs'
+                    )
                 )
 
                 return self.scope['user'].rooms.prefetch_related(
@@ -312,10 +339,22 @@ class AdminRoomConsumer(BaseRoomConsumer):
         if 'action' in kwargs:
             action_ = kwargs['action']
             if action_ == 'get_room_messages':
-                return self.room.messages.order_by('-created_at', 'id')
+                return self.room.messages.order_by('-created_at', 'id').prefetch_related(
+                    Prefetch(
+                        'attachments',
+                        queryset=MessageAttachment.objects.all(),
+                        to_attr='attachments_objs'
+                    )
+                )
             elif action_ == 'get_rooms':
                 last_message_in_room = Message.objects.filter(
                     pk=Subquery(Message.objects.filter(room=OuterRef('room')).order_by('-created_at').values('pk')[:1])
+                ).prefetch_related(
+                    Prefetch(
+                        'attachments',
+                        queryset=MessageAttachment.objects.all(),
+                        to_attr='attachments_objs'
+                    )
                 )
 
                 return Room.objects.prefetch_related(
