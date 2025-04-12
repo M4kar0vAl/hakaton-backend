@@ -1,7 +1,7 @@
 from django import forms
 
 from core.apps.chat.models import RoomFavorites
-from core.apps.chat.utils import is_attachment_file_size_valid
+from core.apps.chat.utils import is_attachment_file_size_valid, is_attachment_file_type_valid
 
 
 class MessageAdminForm(forms.ModelForm):
@@ -26,6 +26,9 @@ class MessageAttachmentAdminForm(forms.ModelForm):
 
         if not is_valid:
             raise forms.ValidationError(f'Uploaded file is too big! Max size is {max_size_mb} Mb.')
+
+        if not is_attachment_file_type_valid(file):
+            raise forms.ValidationError(f'Uploaded file is of unsupported type!')
 
         return file
 

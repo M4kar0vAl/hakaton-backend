@@ -24,6 +24,7 @@ whitenoise = {extras = ["brotli"], version = "^6.8.2"}
 django-cities-light = "^3.10.1"
 python-dateutil = "^2.9.0.post0"
 django-cleanup = "^9.0.0"
+python-magic = "^0.4.27"
 
 
 [tool.poetry.group.prod.dependencies]
@@ -31,7 +32,12 @@ psycopg2 = "^2.9.9"
 
 [tool.poetry.group.dev.dependencies]
 psycopg2-binary = "^2.9.9"
+python-magic-bin = "^0.4.14"
 
+
+
+[tool.poetry.group.win.dependencies]
+python-magic-bin = "^0.4.14"
 
 [build-system]
 requires = ["poetry-core"]

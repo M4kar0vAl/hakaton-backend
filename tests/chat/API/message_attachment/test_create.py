@@ -181,3 +181,14 @@ class MessageAttachmentTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         mock_file_complete.assert_called_once()
+
+    def test_message_attachment_create_unsupported_file_type(self):
+        unsupported_file_mime_type = 'text/plain'
+
+        unsupported_file = SimpleUploadedFile(
+            'unsupported', b'file content', content_type=unsupported_file_mime_type
+        )
+
+        response = self.auth_client.post(self.url, {'file': unsupported_file}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -8,7 +8,7 @@ from core.apps.accounts.serializers import UserSerializer
 from core.apps.brand.serializers import GetShortBrandSerializer
 from core.apps.chat.exceptions import ServerError
 from core.apps.chat.models import Room, Message, RoomFavorites, MessageAttachment
-from core.apps.chat.utils import is_attachment_file_size_valid
+from core.apps.chat.utils import is_attachment_file_size_valid, is_attachment_file_type_valid
 
 User = get_user_model()
 
@@ -160,6 +160,9 @@ class MessageAttachmentCreateSerializer(serializers.ModelSerializer):
 
         if not is_valid:
             raise serializers.ValidationError(f'Uploaded file is too big! Max size is {max_size_mb} Mb.')
+
+        if not is_attachment_file_type_valid(file):
+            raise serializers.ValidationError(f'Uploaded file is of unsupported type!')
 
         return file
 
