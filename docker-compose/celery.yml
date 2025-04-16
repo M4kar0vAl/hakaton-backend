@@ -1,0 +1,46 @@
+services:
+  celery_worker:
+    container_name: celery_worker
+    image: w2w_django
+    pull_policy: never
+    env_file:
+      - ../example.env
+    restart: on-failure
+    networks:
+      - dev-net
+    volumes:
+      - ../core:/app/core
+    entrypoint:
+      - celery
+      - -A
+      - core.config
+      - worker
+      - -l
+      - INFO
+
+  celery_beat:
+    container_name: celery_beat
+    image: w2w_django
+    pull_policy: never
+    env_file:
+      - ../example.env
+    depends_on:
+      - celery_worker
+    restart: on-failure
+    networks:
+      - dev-net
+    volumes:
+      - ../core:/app/core
+    entrypoint:
+      - celery
+      - -A
+      - core.config
+      - beat
+      - -l
+      - INFO
+
+
+networks:
+  dev-net:
+    name: dev-net
+    driver: bridge

@@ -224,3 +224,15 @@ EMAIL_PORT = os.getenv('EMAIL_PORT')
 CITIES_LIGHT_TRANSLATION_LANGUAGES = []
 CITIES_LIGHT_INCLUDE_COUNTRIES = ['RU']
 CITIES_LIGHT_INCLUDE_CITY_TYPES = ['PPL', 'PPLA', 'PPLA2', 'PPLA3', 'PPLA4', 'PPLC', 'PPLF', 'PPLL', 'PPLS', ]
+
+# rabbitmq
+RABBITMQ_USER = os.getenv('RABBITMQ_DEFAULT_USER')
+RABBITMQ_PASS = os.getenv('RABBITMQ_DEFAULT_PASS')
+RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
+
+# celery
+CELERY_BROKER_URL = f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}:5672'
+
+# chat app
+# how much time an unlinked (message=None) attachment should stay on the server
+MESSAGE_ATTACHMENT_DANGLING_LIFE_TIME = timedelta(minutes=10)

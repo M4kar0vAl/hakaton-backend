@@ -25,6 +25,7 @@ django-cities-light = "^3.10.1"
 python-dateutil = "^2.9.0.post0"
 django-cleanup = "^9.0.0"
 python-magic = "^0.4.27"
+celery = "^5.5.1"
 
 
 [tool.poetry.group.prod.dependencies]
