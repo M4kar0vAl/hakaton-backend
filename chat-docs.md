@@ -105,22 +105,24 @@ _**Получить список всех комнат, в которых сос
             }
           ]
         },
-        "interlocutors": {
-          "id": 0,
-          "fullname": "string",
-          "email": "user@example.com",
-          "phone": "string",
-          "brand": {
+        "interlocutors": [
+          {
             "id": 0,
-            "name": "string",
-            "logo": "string",
-            "photo": "string",
-            "category": {
+            "fullname": "string",
+            "email": "user@example.com",
+            "phone": "string",
+            "brand": {
               "id": 0,
-              "name": "string"
+              "name": "string",
+              "logo": "string",
+              "photo": "string",
+              "category": {
+                "id": 0,
+                "name": "string"
+              }
             }
           }
-        },
+        ],
         "type": "M"
       }
     ],
@@ -593,22 +595,24 @@ _**Удалить одно или больше сообщений**_
   "errors": [],
   "data": {
     "id": 1,
-    "interlocutors": {
-      "id": 0,
-      "fullname": "string",
-      "email": "user@example.com",
-      "phone": "string",
-      "brand": {
+    "interlocutors": [
+      {
         "id": 0,
-        "name": "string",
-        "logo": "string",
-        "photo": "string",
-        "category": {
+        "fullname": "string",
+        "email": "user@example.com",
+        "phone": "string",
+        "brand": {
           "id": 0,
-          "name": "string"
+          "name": "string",
+          "logo": "string",
+          "photo": "string",
+          "category": {
+            "id": 0,
+            "name": "string"
+          }
         }
       }
-    },
+    ],
     "last_message": {
       "id": 0,
       "text": "string",

@@ -44,7 +44,7 @@ class RoomSerializer(serializers.ModelSerializer):
 class RoomInterlocutorsMixin(serializers.Serializer):
     interlocutors = serializers.SerializerMethodField()
 
-    @extend_schema_field(UserWithShortBrandSerializer)
+    @extend_schema_field(UserWithShortBrandSerializer(many=True))
     def get_interlocutors(self, room):
         # if room.type == Room.SUPPORT and not room.interlocutor_users:
         #     return W2W agency
