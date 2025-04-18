@@ -47,3 +47,25 @@ class Fix1(OpenApiViewExtension):
                 return super().destroy(request, *args, **kwargs)
 
         return Fixed
+
+
+class Fix2(OpenApiViewExtension):
+    target_class = 'core.apps.chat.api.MessageAttachmentCreateView'
+
+    def view_replacement(self):
+        @extend_schema(tags=['Chat'])
+        class Fixed(self.target_class):
+            """
+            Upload message attachment.
+
+            In response, you will be given an id and a url. Use them to create a message using websocket.
+
+            Authenticated brand with active subscription
+
+            OR
+
+            Authenticated staff user or authenticated superuser.
+            """
+            pass
+
+        return Fixed

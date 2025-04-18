@@ -6,7 +6,7 @@ from rest_framework import status
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
-from core.apps.chat.models import Room, Message
+from core.apps.chat.models import Room, Message, MessageAttachment
 from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import join_room, get_websocket_communicator_for_user, join_room_communal
@@ -423,5 +423,43 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
             self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
+
+        await communicator.disconnect()
+
+    async def test_delete_messages_with_attachments(self):
+        room = await Room.objects.acreate(type=Room.SUPPORT)
+
+        message = await Message.objects.acreate(
+            text='fahnj',
+            user=self.admin_user,
+            room=room
+        )
+
+        attachments = await MessageAttachment.objects.abulk_create([
+            MessageAttachment(file='file1', message=message),
+            MessageAttachment(file='file2', message=message)
+        ])
+        attachments_ids = [a.id for a in attachments]
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.admin_user
+        )
+
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            response = await self.delete_messages(communicator, [message.id])
+
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+            # check that attachments were deleted
+            self.assertFalse(
+                await MessageAttachment.objects.filter(id__in=attachments_ids).aexists()
+            )
 
         await communicator.disconnect()

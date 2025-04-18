@@ -8,7 +8,7 @@ from rest_framework import status
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.models import Category, Brand, Match
 from core.apps.chat.consumers import RoomConsumer, AdminRoomConsumer
-from core.apps.chat.models import Room, Message
+from core.apps.chat.models import Room, Message, MessageAttachment
 from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import RoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user, join_room_communal, join_room
@@ -616,3 +616,42 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
         await communicator1.disconnect()
         await communicator2.disconnect()
+
+    async def test_delete_messages_with_attachments(self):
+        room = await Room.objects.acreate(type=Room.MATCH)
+        await room.participants.aset([self.user1, self.user2])
+
+        message = await Message.objects.acreate(
+            text='fahnj',
+            user=self.user1,
+            room=room
+        )
+
+        attachments = await MessageAttachment.objects.abulk_create([
+            MessageAttachment(file='file1', message=message),
+            MessageAttachment(file='file2', message=message)
+        ])
+        attachments_ids = [a.id for a in attachments]
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user1
+        )
+
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            response = await self.delete_messages(communicator, [message.id])
+
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+            # check that attachments were deleted
+            self.assertFalse(
+                await MessageAttachment.objects.filter(id__in=attachments_ids).aexists()
+            )
+
+        await communicator.disconnect()

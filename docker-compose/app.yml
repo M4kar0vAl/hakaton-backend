@@ -1,9 +1,9 @@
 services:
   django:
     container_name: django
-    build:
-      context: ../
-      dockerfile: Dockerfile
+    image: w2w_django
+    build: ../
+    pull_policy: build
     env_file:
       - ../example.env
     tty: true

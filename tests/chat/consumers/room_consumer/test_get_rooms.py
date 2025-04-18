@@ -7,10 +7,10 @@ from rest_framework import status
 
 from core.apps.brand.models import Category, Brand
 from core.apps.chat.consumers import RoomConsumer
-from core.apps.chat.models import Room, Message
+from core.apps.chat.models import Room, Message, MessageAttachment
 from core.apps.payments.models import Tariff, Subscription
 from tests.mixins import RoomConsumerActionsMixin
-from tests.utils import get_websocket_communicator_for_user
+from tests.utils import get_websocket_communicator_for_user, join_room
 
 User = get_user_model()
 
@@ -323,5 +323,47 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         self.assertEqual(len(results), 20)
         self.assertIsNone(next_)
+
+        await communicator.disconnect()
+
+    async def test_get_rooms_last_message_includes_attachments(self):
+        room = await Room.objects.acreate(type=Room.MATCH)
+        await room.participants.aset([self.user1, self.user2])
+
+        message = await Message.objects.acreate(
+            text='afasf',
+            user=self.user1,
+            room=room
+        )
+
+        attachments = await MessageAttachment.objects.abulk_create([
+            MessageAttachment(file='file1', message=message),
+            MessageAttachment(file='file2', message=message),
+        ])
+        attachments_ids = [a.id for a in attachments]
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user1
+        )
+
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        response = await self.get_rooms(communicator, 1)
+
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+        results = response['data']['results']
+        self.assertEqual(len(results), 1)
+
+        last_message = results[0]['last_message']
+        self.assertTrue('attachments' in last_message)
+
+        response_attachments_ids = [a['id'] for a in last_message['attachments']]
+        self.assertEqual(response_attachments_ids, attachments_ids)
 
         await communicator.disconnect()

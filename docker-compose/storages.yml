@@ -13,7 +13,6 @@ services:
     volumes:
       - w2w_db_data:/var/lib/postgresql/data/
 
-
   redis:
     container_name: redis
     image: public.ecr.aws/docker/library/redis:7.2.4
@@ -21,6 +20,18 @@ services:
       - "6379:6379"
     networks:
       - dev-net
+
+  rabbitmq:
+    container_name: rabbitmq
+    hostname: rabbitmq
+    image: rabbitmq
+    ports:
+      - "5672:5672"
+    networks:
+      - dev-net
+    restart: on-failure
+    env_file:
+      - ../example.env
 
 
 volumes:
