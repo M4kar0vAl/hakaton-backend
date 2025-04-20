@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from celery import Celery
 from django.conf import settings
@@ -21,5 +22,9 @@ app.conf.beat_schedule = {
     'message_attachments_cleanup': {
         'task': 'core.apps.chat.tasks.message_attachments_cleanup',
         'schedule': settings.MESSAGE_ATTACHMENT_DANGLING_LIFE_TIME
+    },
+    'deactivate_expired_subscriptions': {
+        'task': 'core.apps.payments.tasks.deactivate_expired_subscriptions',
+        'schedule': timedelta(hours=1)
     }
 }
