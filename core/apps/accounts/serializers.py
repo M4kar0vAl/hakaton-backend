@@ -4,6 +4,7 @@ from django.db import IntegrityError, transaction, DatabaseError
 from rest_framework import serializers, exceptions
 
 from core.apps.accounts.models import PasswordRecoveryToken
+from core.apps.accounts.tasks import send_password_recovery_email
 from core.apps.accounts.utils import get_recovery_token, get_recovery_token_hash
 
 User = get_user_model()
@@ -113,7 +114,7 @@ class PasswordRecoverySerializer(serializers.Serializer):
         try:
             with transaction.atomic():
                 instance = PasswordRecoveryToken.objects.create(user=user, token=hashed_token)
-                # TODO send email on transaction commit
+                send_password_recovery_email.delay_on_commit(user.email, token)
         except DatabaseError:
             raise serializers.ValidationError('Failed to perform action! Please, try again later!')
 
