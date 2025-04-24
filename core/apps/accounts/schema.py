@@ -1,7 +1,8 @@
 from drf_spectacular.extensions import OpenApiViewExtension
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
+from rest_framework import serializers
 
-from core.apps.accounts import serializers
+from core.apps.accounts.serializers import CreateUserSerializer, UserSerializer
 
 
 class Fix1(OpenApiViewExtension):
@@ -13,13 +14,13 @@ class Fix1(OpenApiViewExtension):
     def view_replacement(self):
         class Fixed(self.target_class):
             @extend_schema(description='Создать пользователя',
-                           responses=serializers.CreateUserSerializer,
+                           responses=CreateUserSerializer,
                            )
             def create(self, request, *args, **kwargs):
                 return super().create(request, *args, **kwargs)
 
             @extend_schema(description='Смена пароля пользователя',
-                           responses=serializers.UserSerializer,
+                           responses=UserSerializer,
                            )
             def password_reset(self, request, *args, **kwargs):
                 return super().password_reset(request, *args, **kwargs)
@@ -60,29 +61,39 @@ class Fix3(OpenApiViewExtension):
 
 
 class Fix4(OpenApiViewExtension):
-    """
-    Описание к запросу на восстановление пароля.
-    """
-    target_class = 'core.apps.accounts.api.RequestPasswordRecoveryViewSet'
+    target_class = 'core.apps.accounts.api.PasswordRecoveryViewSet'
 
     def view_replacement(self):
         class Fixed(self.target_class):
-            """Запрос на восстановление пароля. Принимается email."""
-            pass
+            @extend_schema(
+                description="Request password recovery.\n\n"
+                            "\temail: user's email where token will be sent\n\n"
+                            "Code 200 will be regardless of whether the user with the given email exists.",
+                responses={200: None}
+            )
+            def create(self, request, *args, **kwargs):
+                return super().create(request, *args, **kwargs)
 
-        return Fixed
-
-
-class Fix4(OpenApiViewExtension):
-    """
-    Описание к восстановлению пароля.
-    """
-    target_class = 'core.apps.accounts.api.RecoveryPasswordViewSet'
-
-    def view_replacement(self):
-        class Fixed(self.target_class):
-            """Восстановление пароля. Принимается новый пароль и его подтверждение."""
-            pass
+            @extend_schema(
+                description="Confirm password recovery.\n\n"
+                            "\ttoken: token that was sent to the user by email\n\n"
+                            "\tnew_password: password to set as the user new password\n\n",
+                responses={
+                    200: inline_serializer(
+                        name='password_recovery_confirm_200',
+                        fields={'response': serializers.CharField(default='Password successfully reset!')}
+                    ),
+                    400: inline_serializer(
+                        name='password_recovery_confirm_400',
+                        fields={
+                            'token': serializers.ListField(child=serializers.CharField()),
+                            'new_password': serializers.ListField(child=serializers.CharField())
+                        }
+                    ),
+                }
+            )
+            def confirm(self, request, *args, **kwargs):
+                return super().confirm(request, *args, **kwargs)
 
         return Fixed
 

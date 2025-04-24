@@ -1,0 +1,80 @@
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from core.apps.accounts.models import PasswordRecoveryToken
+
+User = get_user_model()
+
+
+class PasswordRecoveryCreateTestCase(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.email = 'user1@example.com'
+        cls.non_existent_email = 'non-existent@example.com'
+
+        cls.user = User.objects.create_user(
+            email=cls.email,
+            phone='+79993332211',
+            fullname='Юзеров Юзер Юзерович',
+            password='Pass!234',
+            is_active=True
+        )
+
+        cls.url = reverse('password_recovery-list')
+
+    def test_password_recovery_create_user_does_not_exist(self):
+        response = self.client.post(self.url, {'email': self.non_existent_email})
+
+        # must return 200 to prevent information leakage
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # check that token was not created in db
+        self.assertFalse(PasswordRecoveryToken.objects.filter(user__email=self.non_existent_email).exists())
+
+    def test_password_recovery_create(self):
+        response = self.client.post(self.url, {'email': self.email})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data)
+
+        # check that token was created in db
+        self.assertTrue(PasswordRecoveryToken.objects.filter(user=self.user).exists())
+
+    def test_password_recovery_create_token_for_user_already_exists(self):
+        recovery_token = PasswordRecoveryToken.objects.create(
+            user=self.user,
+            token='token'
+        )
+
+        response = self.client.post(self.url, {'email': self.email})
+
+        # must return 200 to prevent information leakage
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # check that another token was not created in db
+        self.assertEqual(PasswordRecoveryToken.objects.filter(user=self.user).count(), 1)
+
+        # check that token hasn't changed
+        self.assertTrue(PasswordRecoveryToken.objects.filter(
+            user=recovery_token.user,
+            token=recovery_token.token,
+            created=recovery_token.created
+        ).exists())
+
+    def test_password_recovery_create_returns_200_no_matter_what(self):
+        # created
+        response = self.client.post(self.url, {'email': self.email})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # already exists for the user with this email
+        response1 = self.client.post(self.url, {'email': self.email})
+
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+
+        # user with the given email does not exist
+        response2 = self.client.post(self.url, {'email': self.non_existent_email})
+
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
