@@ -1,6 +1,11 @@
+from datetime import timedelta
+
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
+from django.utils import timezone
+
+from core.apps.accounts.models import PasswordRecoveryToken
 
 
 @shared_task
@@ -17,3 +22,9 @@ def send_password_recovery_email(email: str, token: str):
         [email],
         fail_silently=False
     )
+
+
+@shared_task
+def password_recovery_tokens_cleanup():
+    life_time_ago = timezone.now() - timedelta(seconds=settings.PASSWORD_RESET_TIMEOUT)
+    PasswordRecoveryToken.objects.filter(created__lte=life_time_ago).delete()
