@@ -26,5 +26,9 @@ app.conf.beat_schedule = {
     'deactivate_expired_subscriptions': {
         'task': 'core.apps.payments.tasks.deactivate_expired_subscriptions',
         'schedule': timedelta(hours=1)
+    },
+    'password_recovery_tokens_cleanup': {
+        'task': 'core.apps.accounts.tasks.password_recovery_tokens_cleanup',
+        'schedule': timedelta(seconds=settings.PASSWORD_RESET_TIMEOUT)
     }
 }

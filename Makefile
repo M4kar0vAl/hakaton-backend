@@ -15,6 +15,7 @@ run:
 	${DC} -f ${STORAGE_FILE} up --build -d
 	${DC} -f ${APP_FILE} up --build -d
 	${EXEC} ${APP_CONTAINER} ${MANAGE} migrate
+	${DC} -f ${CELERY_FILE} up --build -d celery_worker
 
 .PHONY: app
 app:

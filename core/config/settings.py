@@ -98,6 +98,8 @@ if 'test' in sys.argv:
         'django.contrib.auth.hashers.MD5PasswordHasher',
     ]
 
+PASSWORD_RESET_TIMEOUT = 86400  # 1 day in seconds
+
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
