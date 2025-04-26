@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from core.apps.accounts.forms import UserChangeForm, UserCreateForm
-from core.utils.admin import SearchByIdMixin
+from core.common.admin import SearchByIdMixin
 
 User = get_user_model()
 

@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from core.apps.blacklist.forms import BlackListAdminForm
 from core.apps.blacklist.models import BlackList
-from core.utils.admin import SearchByIdMixin, custom_title_filter_factory
+from core.common.admin import SearchByIdMixin, custom_title_filter_factory
 
 initiator_category_filter = custom_title_filter_factory(admin.RelatedFieldListFilter, 'Initiator category')
 blocked_category_filter = custom_title_filter_factory(admin.RelatedFieldListFilter, 'Blocked category')

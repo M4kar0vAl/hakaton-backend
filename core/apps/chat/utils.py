@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 from channels.layers import get_channel_layer
 
-from core.utils.validators import is_valid_file_type
+from core.common.validators import is_valid_file_type
 
 
 async def get_payload(

@@ -8,7 +8,7 @@ from django.db import transaction, DatabaseError
 from django.db.models import Model, QuerySet, Prefetch, OuterRef, Subquery
 from djangochannelsrestframework.observer import model_observer
 
-from core.apps.chat.exceptions import ServerError, BadRequest
+from core.common.exceptions import ServerError, BadRequest
 from core.apps.chat.models import Message, Room, MessageAttachment
 from core.apps.chat.utils import _reply_to_groups
 

@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from core.apps.accounts.serializers import UserSerializer
 from core.apps.brand.serializers import GetShortBrandSerializer
-from core.apps.chat.exceptions import ServerError
+from core.common.exceptions import ServerError
 from core.apps.chat.models import Room, Message, RoomFavorites, MessageAttachment
 from core.apps.chat.utils import is_attachment_file_size_valid, is_attachment_file_type_valid
 

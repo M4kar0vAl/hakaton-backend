@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from core.apps.payments.forms import GiftPromoCodeAdminForm, SubscriptionAdminForm
 from core.apps.payments.models import Tariff, PromoCode, GiftPromoCode, Subscription
-from core.utils.admin import SearchByIdMixin
+from core.common.admin import SearchByIdMixin
 
 
 @admin.register(Tariff)

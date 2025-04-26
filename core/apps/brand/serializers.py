@@ -36,6 +36,7 @@ from core.apps.brand.models import (
 from core.apps.chat.models import Room
 from core.apps.cities.serializers import CitySerializer
 from core.apps.payments.serializers import SubscriptionSerializer
+from core.common.exceptions import ServerError
 
 User = get_user_model()
 
@@ -241,7 +242,7 @@ class BrandCreateSerializer(
                 shutil.rmtree(os.path.join(settings.MEDIA_ROOT, f"user_{self.context['request'].user.id}"))
             except FileNotFoundError:
                 pass
-            raise serializers.ValidationError("Failed to perform action. Please, try again.")
+            raise ServerError("Failed to perform action. Please, try again.")
 
         return brand
 
@@ -546,7 +547,7 @@ class BrandUpdateSerializer(
 
                 instance.save()
         except DatabaseError:
-            raise serializers.ValidationError('Failed to perform action! Please, try again.')
+            raise ServerError('Failed to perform action! Please, try again.')
 
         return instance
 
@@ -888,7 +889,7 @@ class MatchSerializer(serializers.ModelSerializer):
                 else:
                     match = Match.objects.create(initiator=initiator, target=target)
         except DatabaseError:
-            raise serializers.ValidationError("Failed to perform action!")
+            raise ServerError("Failed to perform action!")
 
         return match
 
@@ -946,7 +947,7 @@ class InstantCoopSerializer(serializers.ModelSerializer):
                     is_match=False
                 ).update(room=room)
         except DatabaseError:
-            raise serializers.ValidationError('Failed to perform action. Please, try again!')
+            raise ServerError('Failed to perform action. Please, try again!')
 
         return room
 
@@ -1005,7 +1006,7 @@ class CollaborationSerializer(serializers.ModelSerializer):
                 collab = Collaboration.objects.create(reporter=reporter, collab_with=collab_with, **validated_data)
                 # TODO add points to reported brand
         except DatabaseError:
-            raise exceptions.ValidationError("Failed to perform action!")
+            raise ServerError("Failed to perform action!")
 
         return collab
 

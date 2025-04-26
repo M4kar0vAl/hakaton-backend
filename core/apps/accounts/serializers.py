@@ -6,6 +6,7 @@ from rest_framework import serializers, exceptions
 from core.apps.accounts.models import PasswordRecoveryToken
 from core.apps.accounts.tasks import send_password_recovery_email
 from core.apps.accounts.utils import get_recovery_token, get_recovery_token_hash
+from core.common.exceptions import ServerError
 
 User = get_user_model()
 
@@ -116,7 +117,7 @@ class PasswordRecoverySerializer(serializers.Serializer):
                 instance = PasswordRecoveryToken.objects.create(user=user, token=hashed_token)
                 send_password_recovery_email.delay_on_commit(user.email, token)
         except DatabaseError:
-            raise serializers.ValidationError('Failed to perform action! Please, try again later!')
+            raise ServerError('Failed to perform action! Please, try again later!')
 
         return instance
 
@@ -165,6 +166,6 @@ class PasswordRecoveryConfirmSerializer(serializers.Serializer):
                 user.save()
                 recovery_token.delete()
         except DatabaseError:
-            serializers.ValidationError('Failed to perform action. Please, try again later!')
+            raise ServerError('Failed to perform action. Please, try again later!')
 
         return instance

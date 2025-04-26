@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from core.apps.payments.models import Tariff, PromoCode, Subscription, GiftPromoCode
+from core.common.exceptions import ServerError
 
 
 class TariffSerializer(serializers.ModelSerializer):
@@ -80,7 +81,7 @@ class TariffSubscribeSerializer(serializers.ModelSerializer):
                         is_active=True
                     )
         except DatabaseError:
-            raise serializers.ValidationError("Failed to perform action! Please, try again.")
+            raise ServerError("Failed to perform action! Please, try again.")
 
         return subscription
 
@@ -241,6 +242,6 @@ class GiftPromoCodeActivateSerializer(serializers.ModelSerializer):
                 gift_promocode.is_used = True
                 gift_promocode.save()
         except DatabaseError:
-            raise serializers.ValidationError("Failed to perform action! Please, try again.")
+            raise ServerError("Failed to perform action! Please, try again.")
 
         return subscription

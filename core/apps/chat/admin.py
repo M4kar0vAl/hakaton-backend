@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from core.apps.chat.forms import MessageAdminForm, RoomFavoritesAdminForm, MessageAttachmentAdminForm
 from core.apps.chat.models import Room, Message, RoomFavorites, MessageAttachment
-from core.utils.admin import SearchByIdMixin, custom_title_filter_factory
+from core.common.admin import SearchByIdMixin, custom_title_filter_factory
 
 
 @admin.register(Room)

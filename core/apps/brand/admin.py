@@ -17,7 +17,7 @@ from core.apps.brand.models import (
     GEO,
     ProductPhoto, GalleryPhoto, BusinessGroup, Match, Collaboration
 )
-from core.utils.admin import SearchByIdMixin
+from core.common.admin import SearchByIdMixin
 
 
 class ProductPhotoInline(admin.TabularInline):
