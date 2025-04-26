@@ -127,8 +127,8 @@ class PasswordRecoveryConfirmSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         # 'validate' method runs AFTER field validation e.g. 'validate_token'.
-        # So at this point self.context is already populated with 'user'
-        user = self.context.get('user')
+        # So at this point self.context is already populated with 'recovery_token'
+        user = self.context.get('recovery_token').user
         new_password = attrs.get('new_password')
 
         # validating password here, because it uses 'user' object to perform validation
