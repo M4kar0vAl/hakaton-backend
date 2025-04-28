@@ -420,6 +420,8 @@ class BrandViewSet(
                 return Response({'detail': 'Unexpected database error. Please, try again!'})
             return Response(status=status.HTTP_204_NO_CONTENT)
 
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
     @action(detail=False, methods=['post'])
     def like(self, request):
         serializer = self.get_serializer(data=request.data)

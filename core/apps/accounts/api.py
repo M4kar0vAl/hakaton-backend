@@ -55,6 +55,8 @@ class UserViewSet(
             serializer.save()
             return Response(data=serializer.data, status=200)
 
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
     @action(['post'], detail=False, url_name='password_reset')
     def password_reset(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
