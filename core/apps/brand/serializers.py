@@ -769,11 +769,7 @@ class BrandMeSerializer(BrandGetSerializer):
 
     @extend_schema_field(SubscriptionSerializer())
     def get_subscription(self, brand):
-        # get current active subscription
-        # if brand has several active subscriptions, then get subscription that was created last (has the largest id)
-        sub = brand.subscriptions.filter(
-            is_active=True, end_date__gt=timezone.now()
-        ).order_by('-id').select_related('tariff').first()
+        sub = brand.get_active_subscription(True)
 
         return sub and SubscriptionSerializer(sub).data  # if sub is None return None, otherwise return sub data
 

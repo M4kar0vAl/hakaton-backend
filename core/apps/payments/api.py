@@ -53,9 +53,7 @@ class TariffViewSet(
 
     @action(detail=False, methods=['patch'], url_name='upgrade')
     def upgrade(self, request, *args, **kwargs):
-        current_sub = request.user.brand.subscriptions.filter(
-            is_active=True, end_date__gt=timezone.now()
-        ).order_by('-id').first()
+        current_sub = request.user.brand.get_active_subscription()
 
         serializer = self.get_serializer(current_sub, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

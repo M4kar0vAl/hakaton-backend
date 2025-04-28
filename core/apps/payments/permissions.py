@@ -7,9 +7,7 @@ User = get_user_model()
 
 class CanUpgradeTariff(permissions.BasePermission):
     def has_permission(self, request, view):
-        current_sub = request.user.brand.subscriptions.filter(
-            is_active=True, end_date__gt=timezone.now()
-        ).order_by('-id').select_related('tariff').first()
+        current_sub = request.user.brand.get_active_subscription(True)
 
         if current_sub is None:
             return False
@@ -24,9 +22,7 @@ class HasActiveSub(permissions.BasePermission):
     Allow access only to brands that have an active subscription.
     """
     def has_permission(self, request, view):
-        return request.user.brand.subscriptions.filter(
-            is_active=True, end_date__gt=timezone.now()
-        ).exists()
+        return request.user.brand.get_active_subscription() is not None
 
 
 class IsBusinessSub(permissions.BasePermission):

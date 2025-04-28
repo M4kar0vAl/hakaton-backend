@@ -5,6 +5,7 @@ from cities_light.models import City
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.deconstruct import deconstructible
 
 
@@ -131,6 +132,22 @@ class Brand(models.Model):
             f'mission_statement="{self.mission_statement}", offline_space="{self.offline_space}", '
             f'problem_solving="{self.problem_solving}")'
         )
+
+    def get_active_subscription(self, prefetch_tariff: bool = False):
+        """
+        Get current active subscription.
+
+        Args:
+            prefetch_tariff: if True, then subscription's tariff will be prefetched using select_related
+        """
+        initial_queryset = self.subscriptions.filter(
+            is_active=True, end_date__gt=timezone.now()
+        ).order_by('-id')
+
+        if prefetch_tariff:
+            initial_queryset = initial_queryset.select_related('tariff')
+
+        return initial_queryset.first()
 
 
 class Blog(models.Model):
