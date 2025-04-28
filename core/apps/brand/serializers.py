@@ -1,13 +1,13 @@
-import glob
 import os
 import shutil
 from functools import reduce
+from typing import Optional, Dict, List, Any
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import TemporaryUploadedFile, InMemoryUploadedFile
 from django.db import transaction, DatabaseError
-from django.db.models import Q, QuerySet
+from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers, exceptions
@@ -187,10 +187,10 @@ class BrandCreateSerializer(
         """
         Метод для создания бренда. Здесь обрабатываются поля-внешние ключи
         """
-        # o2o
+        # ---------------o2o---------------
         user = self.context['request'].user
 
-        # FK
+        # ---------------fk----------------
         # optional
         blogs = validated_data.pop('blogs_list', None)
 
@@ -202,9 +202,6 @@ class BrandCreateSerializer(
         # ---------------m2m---------------
         tags = validated_data.pop('tags')
 
-        tags_query, tags_for_bulk_create = self.get_query_and_list_for_bulk_create(tags, Tag)
-        # ---------------------------------
-
         # Создаем объект бренда и связанных моделей в БД
         try:
             with transaction.atomic():
@@ -212,28 +209,17 @@ class BrandCreateSerializer(
                     user=user, category=category, **validated_data
                 )
 
+                # set created brand as an instance attribute to have access to it in other methods
+                self.brand_instance = brand
+
                 if blogs is not None:
-                    Blog.objects.bulk_create([
-                        Blog(blog=blog, brand=brand) for blog in blogs
-                    ])
+                    self.create_blogs(blogs)
 
                 # -----handle m2m relations-----
-                tag_list = self.get_list_for_m2m_relation(tags_query, tags_for_bulk_create, Tag)
-                brand.tags.set(tag_list)
-                # ------------------------------
+                self.create_and_set_tags(tags)
 
                 # ----------photos----------
-                # create lists of ProductPhoto objects
-                product_photos_match_obj_list = [
-                    ProductPhoto(image=photo, format=ProductPhoto.MATCH, brand=brand) for photo in product_photos_match
-                ]
-                product_photos_card_obj_list = [
-                    ProductPhoto(image=photo, format=ProductPhoto.CARD, brand=brand) for photo in product_photos_card
-                ]
-
-                # create photos in db in 1 query per db table
-                ProductPhoto.objects.bulk_create([*product_photos_match_obj_list, *product_photos_card_obj_list])
-                # --------------------------
+                self.create_product_photos(product_photos_card, product_photos_match)
 
                 log_brand_activity(brand=brand, action=BrandActivity.REGISTRATION)
         except DatabaseError:
@@ -246,9 +232,60 @@ class BrandCreateSerializer(
 
         return brand
 
-    def get_query_and_list_for_bulk_create(
+    def create_blogs(self, blogs: List[str]):
+        Blog.objects.bulk_create([
+            Blog(blog=blog, brand=self.brand_instance) for blog in blogs
+        ])
+
+    def create_and_set_tags(self, tags: List[Dict[str, Any]]):
+        """
+        Create tags that don't exist (with 'is_other' key).
+        Set them to a brand
+        """
+        tag_list = self._get_list_for_m2m_relation(tags, Tag)
+        self.brand_instance.tags.set(tag_list)
+
+    def create_product_photos(
+            self,
+            card_photos: List[InMemoryUploadedFile | TemporaryUploadedFile],
+            match_photos: List[InMemoryUploadedFile | TemporaryUploadedFile]
+    ):
+        product_photos_match_obj_list = [
+            ProductPhoto(image=photo, format=ProductPhoto.MATCH, brand=self.brand_instance) for photo in match_photos
+        ]
+        product_photos_card_obj_list = [
+            ProductPhoto(image=photo, format=ProductPhoto.CARD, brand=self.brand_instance) for photo in card_photos
+        ]
+
+        ProductPhoto.objects.bulk_create([*product_photos_match_obj_list, *product_photos_card_obj_list])
+
+    def _get_list_for_m2m_relation(
+            self,
+            lst: list[dict],
+            model: type[Tag] | type[Format] | type[Goal] | type[Category],
+    ) -> list[Tag | Format | Goal | Category]:
+        """
+        Get list to use in model.<related_name>.set()
+        Gets "given" objects from db and creates "other" objects
+        """
+        query, lst_for_bulk_create = self._get_query_and_list_for_bulk_create(lst, model)
+
+        # objs = self._get_given_objects_from_db(query, model)
+        objs = model.objects.filter(query)
+        other_objs = []
+
+        if lst_for_bulk_create:
+            other_objs = model.objects.bulk_create(lst_for_bulk_create)
+
+        return list(objs) + other_objs
+
+    def _get_query_and_list_for_bulk_create(
             self, lst: list[dict], model: type[Tag] | type[Format] | type[Goal] | type[Category]
     ) -> (Q, list[Tag | Format | Goal | Category]):
+        """
+        Get query to get existing objects from db and get a list of objects to create.
+        """
+
         obj_list_for_query = [
             {**obj, 'is_other': False}
             for obj in lst if 'is_other' not in obj or not obj['is_other']
@@ -263,41 +300,6 @@ class BrandCreateSerializer(
         query = reduce(lambda x, y: x | Q(**y), obj_list_for_query[1:], Q(**obj_list_for_query[0]))
 
         return query, obj_list_for_bulk_create
-
-    def get_given_objects_from_db(
-            self, query: Q, model: type[Tag] | type[Format] | type[Goal] | type[Category]
-    ) -> QuerySet:
-        """
-        Get "given" objects from db
-        """
-        return model.objects.filter(query)
-
-    def create_other_objects_in_db(
-            self,
-            other_list: list[Tag | Format | Goal | Category],
-            model: type[Tag] | type[Format] | type[Goal] | type[Category]
-    ) -> list[Tag | Format | Goal | Category]:
-        """
-        Create "other" objects in db in 1 query
-        """
-        return model.objects.bulk_create(other_list)
-
-    def get_list_for_m2m_relation(
-            self,
-            query: Q,
-            lst_for_bulk_create: list[Tag | Format | Goal | Category],
-            model: type[Tag] | type[Format] | type[Goal] | type[Category],
-    ) -> list[Tag | Format | Goal | Category]:
-        """
-        Get list to use in model.<related_name>.set()
-        Gets "given" objects from db and creates "other" objects
-        """
-        objs = self.get_given_objects_from_db(query, model)
-        other_objs = []
-        if lst_for_bulk_create:
-            other_objs = self.create_other_objects_in_db(lst_for_bulk_create, model)
-
-        return list(objs) + other_objs
 
 
 class BrandCreateResponseSerializer(serializers.ModelSerializer):
@@ -381,50 +383,30 @@ class BrandUpdateSerializer(
         return attrs
 
     def update(self, instance, validated_data):
-        new_blogs = validated_data.pop('new_blogs', None)
+        # ----------o2o----------
+        target_audience = validated_data.pop('target_audience', None)
+
+        # ----------fk-----------
         category = validated_data.pop('category', None)
         city = validated_data.pop('city', None)
 
+        # ----------m2m----------
         new_tags = validated_data.pop('tags', None)
-
-        if new_tags is not None:
-            new_common_tags_names, new_other_tags_names = self.split_common_other(new_tags)
-
         new_formats = validated_data.pop('formats', None)
-
-        if new_formats is not None:
-            new_common_formats_names, new_other_formats_names = self.split_common_other(new_formats)
-
         new_goals = validated_data.pop('goals', None)
-
-        if new_goals is not None:
-            new_common_goals_names, new_other_goals_names = self.split_common_other(new_goals)
-
         new_cats = validated_data.pop('categories_of_interest', None)
 
-        if new_cats is not None:
-            new_common_cats_names, new_other_cats_names = self.split_common_other(new_cats)
-
+        # ----------o2m----------
+        new_blogs = validated_data.pop('new_blogs', None)
         new_business_groups = validated_data.pop('new_business_groups', None)
 
-        logo = validated_data.pop('logo', None)
-        photo = validated_data.pop('photo', None)
-
-        target_audience = validated_data.pop('target_audience', None)
-
+        # ----------o2m photos----------
         gallery_add = validated_data.pop('gallery_add', None)
         gallery_remove = validated_data.pop('gallery_remove', None)
-
         product_photos_match_add = validated_data.pop('product_photos_match_add', None)
         product_photos_match_remove = validated_data.pop('product_photos_match_remove', None)
         product_photos_card_add = validated_data.pop('product_photos_card_add', None)
         product_photos_card_remove = validated_data.pop('product_photos_card_remove', None)
-
-        if target_audience is not None:
-            age = target_audience.get('age')
-            gender = target_audience.get('gender')
-            geos = target_audience.get('geos')
-            income = target_audience.get('income', -1)
 
         try:
             with transaction.atomic():
@@ -444,106 +426,53 @@ class BrandUpdateSerializer(
                     'uniqueness',
                     'mission_statement',
                     'offline_space',
-                    'problem_solving'
+                    'problem_solving',
+                    'logo',
+                    'photo',
                 ]:
                     if field in validated_data:
                         setattr(instance, field, validated_data[field])
-
-                instance.save()
                 # -----------------------------------
 
                 if city is not None:
                     instance.city = city
-                    instance.save()
 
                 if category is not None:
-                    current_category = instance.category  # remember current category
-
-                    # update category
-                    instance.category = category
-                    instance.save()
-
-                    # delete old category if it is 'other'
-                    if current_category.is_other:
-                        Category.objects.filter(pk=current_category.id).delete()
-
-                if logo is not None:
-                    instance.logo = logo
-                    instance.save()
-
-                if photo is not None:
-                    instance.photo = photo
-                    instance.save()
+                    self.update_category(category)
 
                 if new_blogs is not None:
-                    self.update_o2m(
-                        instance, new_blogs, 'blog', Blog, 'blogs'
-                    )
+                    self.update_blogs(new_blogs)
 
                 if new_business_groups is not None:
-                    self.update_o2m(
-                        instance, new_business_groups, 'name', BusinessGroup, 'business_groups'
-                    )
+                    self.update_business_groups(new_business_groups)
 
                 if new_tags is not None:
-                    self.update_m2m(
-                        instance, new_common_tags_names, new_other_tags_names, Tag, 'tags'
-                    )
+                    self.update_tags(new_tags)
 
                 if new_formats is not None:
-                    self.update_m2m(
-                        instance, new_common_formats_names, new_other_formats_names, Format, 'formats'
-                    )
+                    self.update_formats(new_formats)
 
                 if new_goals is not None:
-                    self.update_m2m(
-                        instance, new_common_goals_names, new_other_goals_names, Goal, 'goals'
-                    )
+                    self.update_goals(new_goals)
 
                 if new_cats is not None:
-                    self.update_m2m(
-                        instance, new_common_cats_names, new_other_cats_names, Category, 'categories_of_interest'
-                    )
+                    self.update_categories_of_interset(new_cats)
 
                 if target_audience is not None:
-                    self._create_or_update_target_audience(
-                        instance=instance, age=age, gender=gender, income=income, geos=geos
+                    self.create_or_update_target_audience(target_audience)
+
+                if product_photos_card_add or product_photos_card_remove:
+                    self.update_product_photos(
+                        product_photos_card_remove, product_photos_card_add, ProductPhoto.CARD
                     )
 
-                if product_photos_match_remove:
-                    instance.product_photos.filter(
-                        pk__in=product_photos_match_remove, format=ProductPhoto.MATCH
-                    ).delete()
-
-                if product_photos_card_remove:
-                    instance.product_photos.filter(pk__in=product_photos_card_remove, format=ProductPhoto.CARD).delete()
-
-                if product_photos_match_add:
-                    ProductPhoto.objects.bulk_create(
-                        [
-                            ProductPhoto(image=image, format=ProductPhoto.MATCH, brand=instance)
-                            for image in product_photos_match_add
-                        ]
+                if product_photos_match_add or product_photos_match_remove:
+                    self.update_product_photos(
+                        product_photos_match_remove, product_photos_match_add, ProductPhoto.MATCH
                     )
 
-                if product_photos_card_add:
-                    ProductPhoto.objects.bulk_create(
-                        [
-                            ProductPhoto(image=image, format=ProductPhoto.CARD, brand=instance)
-                            for image in product_photos_card_add
-                        ]
-                    )
-
-                # handle gallery photos removal
-                if gallery_remove:
-                    # delete instances from db
-                    instance.gallery_photos.filter(pk__in=gallery_remove).delete()
-
-                # handle gallery photos addition
-                if gallery_add:
-                    # if gallery_add is not None and not empty list
-                    to_add = [GalleryPhoto(image=image, brand=instance) for image in gallery_add]
-                    GalleryPhoto.objects.bulk_create(to_add)
+                if gallery_add or gallery_remove:
+                    self.update_gallery_photos(gallery_remove, gallery_add)
 
                 instance.save()
         except DatabaseError:
@@ -551,48 +480,123 @@ class BrandUpdateSerializer(
 
         return instance
 
-    def validate_target_audience(self, target_audience):
-        if 'age' in target_audience:
-            age = target_audience['age']
-
-            if age and ('men' not in age or 'women' not in age):
-                raise serializers.ValidationError(
-                    '"age" must be either an object with "men" and "women" keys or an empty object'
-                )
-
-        if 'gender' in target_audience:
-            gender = target_audience['gender']
-
-            if gender and ('men' not in gender or 'women' not in gender):
-                raise serializers.ValidationError(
-                    '"gender" must be either an object with "men" and "women" keys or an empty object'
-                )
-
-        if 'geos' in target_audience:
-            geos = target_audience['geos']
-            for geo in geos:
-                if 'city' not in geo or 'people_percentage' not in geo:
-                    raise serializers.ValidationError(
-                        'Every object in list must have "city" and "people_percentage" keys'
-                    )
-
-        return target_audience
-
     def validate_gallery_remove(self, ids):
-        to_remove_num = GalleryPhoto.objects.filter(pk__in=ids, brand=self.instance).count()
+        self._validate_o2m_photos_remove(ids, GalleryPhoto)
+        return ids
 
+    def validate_product_photos_card_remove(self, ids):
+        self._validate_o2m_photos_remove(ids, ProductPhoto, ProductPhoto.CARD)
+        return ids
+
+    def validate_product_photos_match_remove(self, ids):
+        self._validate_o2m_photos_remove(ids, ProductPhoto, ProductPhoto.MATCH)
+        return ids
+
+    def _validate_o2m_photos_remove(self, ids, model: type[GalleryPhoto | ProductPhoto], format_=None):
+        format_kwarg = {'format': format_} if format_ is not None else {}
+        to_remove_num = model.objects.filter(pk__in=ids, brand=self.instance, **format_kwarg).count()
         requested_to_remove = len(ids)
+
         if to_remove_num != requested_to_remove:
             raise serializers.ValidationError(
                 "Number of files and objects selected for removal do not match! "
                 f"Requested: {requested_to_remove}, found: {to_remove_num}"
             )
 
-        return ids
+    def update_category(self, category):
+        current_category = self.instance.category  # remember current category
 
-    def split_common_other(self, obj_list: list[dict]) -> tuple[list[str], list[str]]:
+        # update category
+        self.instance.category = category
+        self.instance.save()
+
+        # delete old category if it is 'other'
+        if current_category.is_other:
+            current_category.delete()
+
+    def update_blogs(self, new_blogs):
+        self._update_o2m(new_blogs, 'blog', Blog, 'blogs')
+
+    def update_business_groups(self, new_business_groups):
+        self._update_o2m(new_business_groups, 'name', BusinessGroup, 'business_groups')
+
+    def _update_o2m(
+            self,
+            new_objs: list[str],
+            lookup_field: str,
+            model: type[Blog] | type[BusinessGroup],
+            related_name: str
+    ) -> None:
+        if not new_objs:
+            getattr(self.instance, related_name).all().delete()
+            return
+
+        # delete unnecessary objs
+        getattr(self.instance, related_name).filter(~Q(**{f'{lookup_field}__in': new_objs})).delete()
+        # create added objs
+        current_objs_names = getattr(self.instance, related_name).values_list(lookup_field, flat=True)
+        to_add = [
+            model(**{lookup_field: obj_value}, brand=self.instance)
+            for obj_value in new_objs if obj_value not in current_objs_names
+        ]
+        if to_add:
+            model.objects.bulk_create(to_add)
+
+    def update_tags(self, new_tags):
+        self._update_m2m(new_tags, Tag, 'tags')
+
+    def update_formats(self, new_formats):
+        self._update_m2m(new_formats, Format, 'formats')
+
+    def update_goals(self, new_goals):
+        self._update_m2m(new_goals, Goal, 'goals')
+
+    def update_categories_of_interset(self, new_cats):
+        self._update_m2m(new_cats, Category, 'categories_of_interest')
+
+    def _update_m2m(
+            self,
+            obj_list: list[dict],
+            model: type[Tag] | type[Format] | type[Goal] | type[Category],
+            related_name: str
+    ) -> None:
+        # TODO try to optimize somehow
+        new_common_objs_names, new_other_objs_names = self._split_common_other(obj_list)
+
+        if not new_common_objs_names and not new_other_objs_names:
+            # if empty list passed in request, then delete current brand 'other' obj and unset all associated objects
+            getattr(self.instance, related_name).filter(is_other=True).delete()
+            getattr(self.instance, related_name).clear()
+            return
+
+        # other obj may be only one, checked in validate
+        other = []
+        if new_other_objs_names:
+            # if there is 'other' in request
+            try:
+                # check if 'other' in new objs list already exists and if so assign it to 'other' variable
+                existing_other = getattr(self.instance, related_name).get(is_other=True, name=new_other_objs_names[0])
+                other = [existing_other]
+            except model.DoesNotExist:
+                # if 'other' from request does not exist, then delete current and create a new one
+                # delete current 'other' obj
+                getattr(self.instance, related_name).filter(is_other=True).delete()
+
+                # create new 'other' obj
+                other = [model.objects.create(name=new_other_objs_names[0], is_other=True)]
+        else:
+            # if 'other' wasn't passed in request, then delete current 'other'
+            getattr(self.instance, related_name).filter(is_other=True).delete()
+
+        common = model.objects.filter(name__in=new_common_objs_names, is_other=False)  # new common objs
+
+        # will remove objs that are not in new list, will add only objs that are not already set
+        getattr(self.instance, related_name).set(list(common) + other)
+
+    def _split_common_other(self, obj_list: list[dict]) -> tuple[list[str], list[str]]:
         new_common_objs_names = []
         new_other_objs_names = []
+
         for obj in obj_list:
             if 'is_other' in obj:
                 if obj['is_other']:
@@ -604,83 +608,50 @@ class BrandUpdateSerializer(
 
         return new_common_objs_names, new_other_objs_names
 
-    def update_o2m(
+    def update_product_photos(
             self,
-            instance: Brand,
-            new_objs: list[str],
-            lookup_field: str,
-            model: type[Blog] | type[BusinessGroup],
-            related_name: str
-    ) -> None:
-        if not new_objs:
-            getattr(instance, related_name).all().delete()
-            return
+            to_remove: List[int],
+            to_add: List[InMemoryUploadedFile | TemporaryUploadedFile],
+            format_: str
+    ):
+        self._update_o2m_photos(ProductPhoto, 'product_photos', to_remove, to_add, format_)
 
-        # delete unnecessary objs
-        getattr(instance, related_name).filter(~Q(**{f'{lookup_field}__in': new_objs})).delete()
-        # create added objs
-        current_objs_names = getattr(instance, related_name).values_list(lookup_field, flat=True)
-        to_add = [
-            model(**{lookup_field: obj_value}, brand=instance)
-            for obj_value in new_objs if obj_value not in current_objs_names
-        ]
+    def update_gallery_photos(
+            self,
+            to_remove: List[int],
+            to_add: List[InMemoryUploadedFile | TemporaryUploadedFile]
+    ):
+        self._update_o2m_photos(GalleryPhoto, 'gallery_photos', to_remove, to_add)
+
+    def _update_o2m_photos(
+            self,
+            model,
+            related_name: str,
+            to_remove: List[int] = None,
+            to_add: List[InMemoryUploadedFile | TemporaryUploadedFile] = None,
+            format_: str = None
+    ):
+        format_kwarg = {'format': format_} if format_ is not None else {}
+
+        if to_remove:
+            getattr(self.instance, related_name).filter(pk__in=to_remove, **format_kwarg).delete()
+
         if to_add:
-            model.objects.bulk_create(to_add)
+            model.objects.bulk_create([
+                model(brand=self.instance, image=image, **format_kwarg)
+                for image in to_add
+            ])
 
-    def update_m2m(
-            self,
-            instance: Brand,
-            new_common_objs_names: list[str],
-            new_other_objs_names: list[str],
-            model: type[Tag] | type[Format] | type[Goal] | type[Category],
-            related_name: str
-    ) -> None:
-        # TODO try to optimize somehow
-        if not new_common_objs_names and not new_other_objs_names:
-            # if empty list passed in request, then delete current brand 'other' obj and unset all associated objects
-            getattr(instance, related_name).filter(is_other=True).delete()
-            getattr(instance, related_name).clear()
-            return
-
-        # other obj may be only one, checked in validate
-        other = []
-        if new_other_objs_names:
-            # if there is 'other' in request
-            try:
-                # check if 'other' in new objs list already exists and if so assign it to 'other' variable
-                existing_other = getattr(instance, related_name).get(is_other=True, name=new_other_objs_names[0])
-                other = [existing_other]
-            except model.DoesNotExist:
-                # if 'other' from request does not exist, then delete current and create a new one
-                # delete current 'other' obj
-                getattr(instance, related_name).filter(is_other=True).delete()
-
-                # create new 'other' obj
-                other = [model.objects.create(name=new_other_objs_names[0], is_other=True)]
-        else:
-            # if 'other' wasn't passed in request, then delete current 'other'
-            getattr(instance, related_name).filter(is_other=True).delete()
-
-        common = model.objects.filter(name__in=new_common_objs_names, is_other=False)  # new common objs
-
-        # will remove objs that are not in new list, will add only objs that are not already set
-        getattr(instance, related_name).set(list(common) + other)
-
-    def _create_or_update_target_audience(
-            self,
-            instance: Brand,
-            age: dict | None,
-            gender: dict | None,
-            income: int | None,
-            geos: list[dict] | None
-    ) -> None:
-        current_target_audience = instance.target_audience  # get current audience
+    def create_or_update_target_audience(self, new_target_audience: Dict[str, Any]) -> None:
+        current_target_audience = self.instance.target_audience  # get current audience
 
         if current_target_audience is None:
             # if no target audience yet, then create it
             current_target_audience = TargetAudience.objects.create()
-            instance.target_audience = current_target_audience
-            instance.save()
+            self.instance.target_audience = current_target_audience
+            self.instance.save()
+
+        age: Optional[Dict[str, int]] = new_target_audience.get('age')
 
         # update target audience fields or populate them
         if age is not None:
@@ -702,6 +673,8 @@ class BrandUpdateSerializer(
                     current_target_audience.age.women = age.get('women', current_target_audience.age.women)
                     current_target_audience.age.save()
 
+        gender: Optional[Dict[str, int]] = new_target_audience.get('gender')
+
         if gender is not None:
             if not gender:
                 if current_target_audience.gender is not None:
@@ -720,6 +693,8 @@ class BrandUpdateSerializer(
                     )
                     current_target_audience.gender.save()
 
+        income: Optional[int] = new_target_audience.get('income', -1)
+
         if income != -1:
             # if income is in request data
             if income is None:
@@ -728,6 +703,8 @@ class BrandUpdateSerializer(
             else:
                 # otherwise update it
                 current_target_audience.income = income
+
+        geos: Optional[List[Dict[str, Any]]] = new_target_audience.get('geos')
 
         if geos is not None:
             if not geos:
