@@ -93,3 +93,30 @@ class BrandValidateMixin:
                     raise serializers.ValidationError('You can only specify no more than 1 "other" category')
 
         return categories
+
+    def validate_target_audience(self, target_audience):
+        if 'age' in target_audience:
+            age = target_audience['age']
+
+            if age and ('men' not in age or 'women' not in age):
+                raise serializers.ValidationError(
+                    '"age" must be either an object with "men" and "women" keys or an empty object'
+                )
+
+        if 'gender' in target_audience:
+            gender = target_audience['gender']
+
+            if gender and ('men' not in gender or 'women' not in gender):
+                raise serializers.ValidationError(
+                    '"gender" must be either an object with "men" and "women" keys or an empty object'
+                )
+
+        if 'geos' in target_audience:
+            geos = target_audience['geos']
+            for geo in geos:
+                if 'city' not in geo or 'people_percentage' not in geo:
+                    raise serializers.ValidationError(
+                        'Every object in list must have "city" and "people_percentage" keys'
+                    )
+
+        return target_audience
