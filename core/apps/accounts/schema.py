@@ -1,5 +1,5 @@
 from drf_spectacular.extensions import OpenApiViewExtension
-from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
+from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers
 
 from core.apps.accounts.serializers import CreateUserSerializer, UserSerializer
@@ -12,16 +12,21 @@ class Fix1(OpenApiViewExtension):
     target_class = 'core.apps.accounts.api.UserViewSet'
 
     def view_replacement(self):
+        @extend_schema(tags=['Authentication'])
         class Fixed(self.target_class):
-            @extend_schema(description='Создать пользователя',
-                           responses=CreateUserSerializer,
-                           )
+            @extend_schema(
+                tags=['Authentication'],
+                description='Создать пользователя',
+                responses=CreateUserSerializer,
+            )
             def create(self, request, *args, **kwargs):
                 return super().create(request, *args, **kwargs)
 
-            @extend_schema(description='Смена пароля пользователя',
-                           responses=UserSerializer,
-                           )
+            @extend_schema(
+                tags=['Authentication'],
+                description='Смена пароля пользователя',
+                responses=UserSerializer,
+            )
             def password_reset(self, request, *args, **kwargs):
                 return super().password_reset(request, *args, **kwargs)
 
@@ -35,6 +40,7 @@ class Fix2(OpenApiViewExtension):
     target_class = 'rest_framework_simplejwt.views.TokenObtainPairView'
 
     def view_replacement(self):
+        @extend_schema(tags=['Authentication'])
         class Fixed(self.target_class):
             """
             Создает пару JWT токенов: access_token и refresh_token.\n\n
@@ -53,6 +59,7 @@ class Fix3(OpenApiViewExtension):
     target_class = 'rest_framework_simplejwt.views.TokenRefreshView'
 
     def view_replacement(self):
+        @extend_schema(tags=['Authentication'])
         class Fixed(self.target_class):
             """Получение новой пары токенов по refresh токену"""
             pass
@@ -64,8 +71,10 @@ class Fix4(OpenApiViewExtension):
     target_class = 'core.apps.accounts.api.PasswordRecoveryViewSet'
 
     def view_replacement(self):
+        @extend_schema(tags=['Authentication'])
         class Fixed(self.target_class):
             @extend_schema(
+                tags=['Authentication'],
                 description="Request password recovery.\n\n"
                             "\temail: user's email where token will be sent\n\n"
                             "Code 200 will be regardless of whether the user with the given email exists.",
@@ -75,6 +84,7 @@ class Fix4(OpenApiViewExtension):
                 return super().create(request, *args, **kwargs)
 
             @extend_schema(
+                tags=['Authentication'],
                 description="Confirm password recovery.\n\n"
                             "\ttoken: token that was sent to the user by email\n\n"
                             "\tnew_password: password to set as the user new password\n\n",
