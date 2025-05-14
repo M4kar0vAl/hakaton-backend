@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'core.apps.analytics.apps.AnalyticsConfig',
     'core.apps.cities.apps.CitiesConfig',
     'core.apps.blacklist.apps.BlacklistConfig',
+    'core.apps.articles.apps.ArticlesConfig',
 
     # should be last
     'django_cleanup.apps.CleanupConfig',
@@ -245,6 +246,7 @@ TINYMCE_EXTRA_MEDIA = {
     'js': [
         "tinymce/js/filePicker.js",
         "tinymce/js/editorSetupCallback.js",
+        "tinymce/js/imageUploadHandler.js",
     ],
 }
 
@@ -297,6 +299,8 @@ TINYMCE_DEFAULT_CONFIG = {
     "insertdatetime_formats": [ '%H:%M:%S', "%d.%m.%Y" ],
     "skin": "oxide-dark",
     "file_picker_callback": 'filePicker',  # see core/static/tinymce/js/filePicker.js for code
+    "images_upload_url": "/api/v1/tinymce/upload",
+    "images_upload_handler": "imageUploadHandler",
     "relative_urls": False,
     "automatic_uploads": False,
     "media_alt_source": False,
