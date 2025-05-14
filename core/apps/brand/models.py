@@ -25,7 +25,7 @@ class UserDirectoryPath:
         self.field = field
 
     def __call__(self, instance, filename):
-        from core.apps.brand.utils import get_file_extension
+        from core.common.utils import get_file_extension
 
         # file will be uploaded to MEDIA_ROOT/user_<id>/<field>.<extension>
         extension = get_file_extension(filename)
@@ -34,7 +34,7 @@ class UserDirectoryPath:
 
 
 def product_photo_path(instance, filename):
-    from core.apps.brand.utils import get_file_extension
+    from core.common.utils import get_file_extension
 
     # file will be uploaded to MEDIA_ROOT/user_<id>/product_photos/<format>/<uuid4>.<ext>
     format_ = None
@@ -54,7 +54,7 @@ def product_photo_path(instance, filename):
 
 
 def gallery_path(instance, filename):
-    from core.apps.brand.utils import get_file_extension
+    from core.common.utils import get_file_extension
 
     # file will be uploaded to MEDIA_ROOT/user_<id>/gallery/<uuid4>.<ext>
     extension = get_file_extension(filename)

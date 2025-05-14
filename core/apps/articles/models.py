@@ -4,7 +4,7 @@ import uuid
 from django.db import models
 from tinymce.models import HTMLField
 
-from core.apps.brand.utils import get_file_extension
+from core.common.utils import get_file_extension
 
 
 def article_file_upload_path(instance, filename):

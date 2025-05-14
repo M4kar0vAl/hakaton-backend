@@ -4,7 +4,7 @@ import uuid
 from django.conf import settings
 from django.db import models
 
-from core.apps.brand.utils import get_file_extension
+from core.common.utils import get_file_extension
 
 
 def room_directory_path(instance, filename):
