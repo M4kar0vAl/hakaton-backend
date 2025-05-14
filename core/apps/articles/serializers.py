@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 
 from core.apps.articles.models import ArticleFile
@@ -10,11 +11,7 @@ class ArticleFileCreateSerializer(serializers.ModelSerializer):
         exclude = ['article']
 
     def validate_file(self, file):
-        ALLOWED_IMAGE_MIME_TYPES = [
-            'image/gif', 'image/jpeg', 'image/pjpeg', 'image/png', 'image/webp', 'image/heic', 'image/avif'
-        ]
-
-        if not is_valid_file_type(ALLOWED_IMAGE_MIME_TYPES, file):
+        if not is_valid_file_type(settings.ALLOWED_IMAGE_MIME_TYPES, file):
             raise serializers.ValidationError('Unsupported file type!')
 
         return file

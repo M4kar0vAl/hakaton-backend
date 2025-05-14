@@ -307,6 +307,18 @@ TINYMCE_DEFAULT_CONFIG = {
     "setup": 'editorSetupCallback',  # see core/static/tinymce/js/editorSetupCallback.js for code
 }
 
+# common
+ALLOWED_IMAGE_MIME_TYPES = [
+    'image/gif', 'image/jpeg', 'image/pjpeg', 'image/png', 'image/webp', 'image/heic', 'image/avif'
+]
+ALLOWED_VIDEO_MIME_TYPES = [
+    'video/mpeg', 'video/mp4', 'video/ogg', 'video/quicktime', 'video/webm', 'video/3gpp', 'video/3gpp2',
+]
+ALLOWED_AUDIO_MIME_TYPES = [
+    'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/webm', 'audio/flac', 'audio/x-flac', 'audio/3gpp', 'audio/3gpp2',
+    'audio/x-ogg', 'audio/opus'
+]
+
 # chat app
 # how much time an unlinked (message=None) attachment should stay on the server
 MESSAGE_ATTACHMENT_DANGLING_LIFE_TIME = timedelta(minutes=10)
