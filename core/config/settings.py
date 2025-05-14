@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'cities_light',
+    'tinymce',
 
     # apps
     'core.apps.accounts.apps.AccountsConfig',
@@ -110,6 +111,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 
 STORAGES = {
     "default": {
@@ -123,6 +127,7 @@ STORAGES = {
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
 
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760 # 10Mb
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5Mb
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -234,6 +239,69 @@ RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
 
 # celery
 CELERY_BROKER_URL = f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}:5672'
+
+# TinyMCE
+TINYMCE_EXTRA_MEDIA = {
+    'js': [
+        "tinymce/js/filePicker.js",
+        "tinymce/js/editorSetupCallback.js",
+    ],
+}
+
+TINYMCE_DEFAULT_CONFIG = {
+    "theme": "silver",
+    "promotion": False,
+    "height": 500,
+    "menu": {
+        "file": {
+            "title": 'File',
+            "items": 'newdocument restoredraft | preview | print'
+        },
+        "edit": {
+            "title": 'Edit',
+            "items": 'undo redo | cut copy paste pastetext | selectall | searchreplace'
+        },
+        "view": {
+            "title": 'View',
+            "items": 'code | visualaid visualblocks | preview fullscreen'
+        },
+        "insert": {
+            "title": 'Insert',
+            "items": 'image media link inserttable accordion | charmap emoticons hr | '
+                     'pagebreak nonbreaking anchor | insertdatetime'
+        },
+        "format": {
+            "title": 'Format',
+            "items": 'bold italic underline strikethrough superscript subscript codeformat | '
+                     'styles blocks fontfamily fontsize align lineheight | forecolor backcolor | removeformat'
+        },
+        "tools": {
+            "title": 'Tools',
+            "items": 'code wordcount'
+        },
+        "table": {
+            "title": 'Table',
+            "items": 'inserttable | cell row column | tableprops deletetable'
+        },
+        "help": {
+            "title": 'Help',
+            "items": 'help'
+        }
+    },
+    "plugins":  "advlist,autolink,lists,link,image,charmap,preview,anchor,"
+                "searchreplace,visualblocks,code,fullscreen,insertdatetime,media,table,"
+                "code,help,wordcount,emoticons,pagebreak,nonbreaking,accordion,autosave",
+    "toolbar_mode": "sliding",
+    "toolbar":  "undo redo | fontfamily fontsize lineheight | bold italic underline backcolor forecolor | "
+                "styles | bullist numlist outdent indent | removeformat | preview fullscreen",
+    "insertdatetime_formats": [ '%H:%M:%S', "%d.%m.%Y" ],
+    "skin": "oxide-dark",
+    "file_picker_callback": 'filePicker',  # see core/static/tinymce/js/filePicker.js for code
+    "relative_urls": False,
+    "automatic_uploads": False,
+    "media_alt_source": False,
+    "setup": 'editorSetupCallback',  # see core/static/tinymce/js/editorSetupCallback.js for code
+}
 
 # chat app
 # how much time an unlinked (message=None) attachment should stay on the server
