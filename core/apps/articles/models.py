@@ -35,3 +35,16 @@ class ArticleFile(models.Model):
 
     def __repr__(self):
         return f'{self.__class__.__name__} {self.pk}'
+
+
+class Tutorial(models.Model):
+    title = models.CharField(max_length=255, verbose_name='Заголовок')
+    excerpt = models.CharField(max_length=255, verbose_name='Выдержка')
+    preview_video = models.FileField(upload_to='tutorials/preview_videos/', verbose_name='Превью видео')
+    body = models.OneToOneField(to=Article, on_delete=models.CASCADE, verbose_name='Контент')
+
+    def __str__(self):
+        return f'Tutorial: {self.title}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__} {self.pk}'
