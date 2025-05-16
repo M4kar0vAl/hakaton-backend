@@ -6,4 +6,5 @@ class ArticlesConfig(AppConfig):
     name = 'core.apps.articles'
 
     def ready(self):
+        import core.apps.articles.schema
         from . import signals
