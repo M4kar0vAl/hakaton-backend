@@ -5,6 +5,7 @@ from django.db import models
 from tinymce.models import HTMLField
 
 from core.common.utils import get_file_extension
+from core.common.validators import is_valid_video
 
 
 def article_file_upload_path(instance, filename):
@@ -40,8 +41,11 @@ class ArticleFile(models.Model):
 class Tutorial(models.Model):
     title = models.CharField(max_length=255, verbose_name='Заголовок')
     excerpt = models.CharField(max_length=255, verbose_name='Выдержка')
-    preview_video = models.FileField(upload_to='tutorials/preview_videos/', verbose_name='Превью видео')
+    preview_video = models.FileField(
+        upload_to='tutorials/preview_videos/', validators=[is_valid_video], verbose_name='Превью видео'
+    )
     body = models.OneToOneField(to=Article, on_delete=models.CASCADE, verbose_name='Контент')
+    is_published = models.BooleanField(default=False, verbose_name='Опубликовано')
 
     def __str__(self):
         return f'Tutorial: {self.title}'
