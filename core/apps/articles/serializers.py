@@ -1,7 +1,7 @@
 from django.conf import settings
 from rest_framework import serializers
 
-from core.apps.articles.models import ArticleFile, Tutorial, Article
+from core.apps.articles.models import ArticleFile, Tutorial, Article, AbstractBaseArticle, CommunityArticle
 from core.common.validators import is_valid_file_type
 
 
@@ -35,3 +35,27 @@ class TutorialRetrieveSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tutorial
         fields = ['body']
+
+
+class BaseArticleListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AbstractBaseArticle
+        exclude = ['body', 'is_published']
+
+
+class BaseArticleRetrieveSerializer(serializers.ModelSerializer):
+    body = ArticleSerializer(read_only=True)
+
+    class Meta:
+        model = AbstractBaseArticle
+        fields = ['body']
+
+
+class CommunityArticleListSerializer(BaseArticleListSerializer):
+    class Meta(BaseArticleListSerializer.Meta):
+        model = CommunityArticle
+
+
+class CommunityArticleRetrieveSerializer(BaseArticleRetrieveSerializer):
+    class Meta(BaseArticleRetrieveSerializer.Meta):
+        model = CommunityArticle
