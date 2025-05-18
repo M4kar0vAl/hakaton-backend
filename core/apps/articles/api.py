@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status, viewsets, mixins
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -13,6 +14,7 @@ from core.apps.brand.permissions import IsBrand
 from core.apps.payments.permissions import HasActiveSub
 
 
+@extend_schema(exclude=True)
 class ArticleFileUploadView(generics.CreateAPIView):
     serializer_class = ArticleFileCreateSerializer
     permission_classes = [IsStaff]
