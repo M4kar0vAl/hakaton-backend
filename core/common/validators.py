@@ -13,3 +13,8 @@ def is_valid_file_type(allowed_mime_types, file):
 def is_valid_video(file):
     if not is_valid_file_type(settings.ALLOWED_VIDEO_MIME_TYPES, file):
         raise ValidationError('Unsupported video type!')
+
+
+def is_valid_image(file):
+    if not is_valid_file_type(settings.ALLOWED_IMAGE_MIME_TYPES, file):
+        raise ValidationError('Unsupported image type!')
