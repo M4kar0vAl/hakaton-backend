@@ -60,14 +60,14 @@ class TutorialRetrieveTestCase(APITestCase):
             Tutorial(
                 title='asfa',
                 excerpt='asfaegk',
-                preview_video='path/to/file',
+                preview='path/to/file',
                 body=articles[0],
                 is_published=True  # must be returned
             ),
             Tutorial(
                 title='asfa',
                 excerpt='asfaegk',
-                preview_video='path/to/file',
+                preview='path/to/file',
                 body=articles[1],
                 is_published=False  # must not be returned
             ),

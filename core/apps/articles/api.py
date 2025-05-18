@@ -29,28 +29,23 @@ class ArticleFileUploadView(generics.CreateAPIView):
         return Response(data={'location': serializer.data['file']}, status=status.HTTP_201_CREATED)
 
 
-class TutorialViewSet(
-    viewsets.GenericViewSet,
-    mixins.ListModelMixin,
-    mixins.RetrieveModelMixin
-):
-    queryset = Tutorial.objects.filter(is_published=True)
-    serializer_class = TutorialListSerializer
-    permission_classes = [IsAuthenticated, IsBrand, HasActiveSub]
-
-    def get_serializer_class(self):
-        if self.action == 'retrieve':
-            return TutorialRetrieveSerializer
-
-        return super().get_serializer_class()
-
-
 class BaseArticleViewSet(
     viewsets.GenericViewSet,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin
 ):
     permission_classes = [IsAuthenticated, IsBrand, HasActiveSub]
+
+
+class TutorialViewSet(BaseArticleViewSet):
+    queryset = Tutorial.objects.filter(is_published=True)
+    serializer_class = TutorialListSerializer
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return TutorialRetrieveSerializer
+
+        return super().get_serializer_class()
 
 
 class CommunityArticleViewSet(BaseArticleViewSet):

@@ -22,6 +22,8 @@ def article_preview_upload_path(instance, filename):
     match instance:
         case CommunityArticle():
             subfolder = 'community_articles'
+        case Tutorial():
+            subfolder = 'tutorials'
         case _:
             subfolder = ''
 
@@ -51,22 +53,6 @@ class ArticleFile(models.Model):
         return f'{self.__class__.__name__} {self.pk}'
 
 
-class Tutorial(models.Model):
-    title = models.CharField(max_length=255, verbose_name='Заголовок')
-    excerpt = models.CharField(max_length=255, verbose_name='Выдержка')
-    preview_video = models.FileField(
-        upload_to='tutorials/preview_videos/', validators=[is_valid_video], verbose_name='Превью видео'
-    )
-    body = models.OneToOneField(to=Article, on_delete=models.CASCADE, verbose_name='Контент')
-    is_published = models.BooleanField(default=False, verbose_name='Опубликовано')
-
-    def __str__(self):
-        return f'Tutorial: {self.title}'
-
-    def __repr__(self):
-        return f'{self.__class__.__name__} {self.pk}'
-
-
 class AbstractBaseArticle(models.Model):
     title = models.CharField(max_length=255, verbose_name='Заголовок')
     excerpt = models.CharField(max_length=255, verbose_name='Выдержка')
@@ -84,6 +70,12 @@ class AbstractBaseArticle(models.Model):
 
     def __repr__(self):
         return f'{self.__class__.__name__} {self.pk}'
+
+
+class Tutorial(AbstractBaseArticle):
+    preview = models.FileField(
+        upload_to=article_preview_upload_path, validators=[is_valid_video], verbose_name='Превью видео'
+    )
 
 
 class CommunityArticle(AbstractBaseArticle):

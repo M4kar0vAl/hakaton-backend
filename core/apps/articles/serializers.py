@@ -23,20 +23,6 @@ class ArticleSerializer(serializers.ModelSerializer):
         exclude = ['id']
 
 
-class TutorialListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Tutorial
-        exclude = ['body', 'is_published']
-
-
-class TutorialRetrieveSerializer(serializers.ModelSerializer):
-    body = ArticleSerializer(read_only=True)
-
-    class Meta:
-        model = Tutorial
-        fields = ['body']
-
-
 class BaseArticleListSerializer(serializers.ModelSerializer):
     class Meta:
         model = AbstractBaseArticle
@@ -49,6 +35,16 @@ class BaseArticleRetrieveSerializer(serializers.ModelSerializer):
     class Meta:
         model = AbstractBaseArticle
         fields = ['body']
+
+
+class TutorialListSerializer(BaseArticleListSerializer):
+    class Meta(BaseArticleListSerializer.Meta):
+        model = Tutorial
+
+
+class TutorialRetrieveSerializer(BaseArticleRetrieveSerializer):
+    class Meta(BaseArticleRetrieveSerializer.Meta):
+        model = Tutorial
 
 
 class CommunityArticleListSerializer(BaseArticleListSerializer):
