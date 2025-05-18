@@ -26,6 +26,9 @@ python-dateutil = "^2.9.0.post0"
 django-cleanup = "^9.0.0"
 python-magic = "^0.4.27"
 celery = "^5.5.1"
+django-tinymce = "^4.1.0"
+beautifulsoup4 = "^4.13.4"
+lxml = "^5.4.0"
 
 
 [tool.poetry.group.prod.dependencies]

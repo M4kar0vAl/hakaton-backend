@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from typing import Any, Optional
 
 from channels.layers import get_channel_layer
+from django.conf import settings
 
 from core.common.validators import is_valid_file_type
 
@@ -129,19 +130,11 @@ def is_attachment_file_size_valid(file):
     return file.size <= MAX_SIZE, MAX_SIZE_MB
 
 
-ALLOWED_IMAGE_MIME_TYPES = [
-    'image/gif', 'image/jpeg', 'image/pjpeg', 'image/png', 'image/webp', 'image/heic', 'image/avif'
-]
-ALLOWED_VIDEO_MIME_TYPES = [
-    'video/mpeg', 'video/mp4', 'video/ogg', 'video/quicktime', 'video/webm', 'video/3gpp', 'video/3gpp2',
-]
-ALLOWED_AUDIO_MIME_TYPES = [
-    'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/webm', 'audio/flac', 'audio/x-flac', 'audio/3gpp', 'audio/3gpp2',
-    'audio/x-ogg', 'audio/opus'
-]
-
-
 def is_attachment_file_type_valid(file):
-    ALLOWED_MIME_TYPES = ALLOWED_IMAGE_MIME_TYPES + ALLOWED_VIDEO_MIME_TYPES + ALLOWED_AUDIO_MIME_TYPES
+    ALLOWED_MIME_TYPES = (
+            settings.ALLOWED_IMAGE_MIME_TYPES
+            + settings.ALLOWED_VIDEO_MIME_TYPES
+            + settings.ALLOWED_AUDIO_MIME_TYPES
+    )
 
     return is_valid_file_type(ALLOWED_MIME_TYPES, file)

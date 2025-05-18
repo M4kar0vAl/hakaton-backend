@@ -7,6 +7,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('tinymce/', include('tinymce.urls')),
 
     # api doc urls:
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
@@ -21,6 +22,7 @@ urlpatterns = [
     path('api/v1/', include('core.apps.blacklist.urls')),
     path('api/v1/', include('core.apps.chat.urls')),
     path('api/v1/', include('core.apps.analytics.urls')),
+    path('api/v1/', include('core.apps.articles.urls')),
 ]
 
 # Нужно чтобы изображения загруженные пользователями корректно отображались при DEBUG = True

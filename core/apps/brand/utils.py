@@ -13,13 +13,6 @@ from core.apps.brand.models import Match, Collaboration, Brand, ProductPhoto
 from core.apps.brand.pagination import StandardResultsSetPagination
 
 
-def get_file_extension(filename):
-    """
-    Get extension of a file in .ext format
-    """
-    return '.' + filename.split('.')[-1]
-
-
 def get_schema_standard_pagination_parameters() -> list[OpenApiParameter]:
     """
     Get standard pagination query parameters for use in OpenAPI schema generation.
