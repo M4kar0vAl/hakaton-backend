@@ -1,17 +1,14 @@
-from django.conf.urls.static import static
-from django.urls import path, include
+from django.urls import path
 from rest_framework import routers
 
-from core.apps.brand.api import BrandViewSet
-from core.config import settings
+from core.apps.brand.api import BrandViewSet, QuestionnaireChoicesListView, CollaborationCreateView
 
 router = routers.DefaultRouter()
-router.register('brands', BrandViewSet)
+router.register('brand', BrandViewSet, basename='brand')
 
 urlpatterns = [
-    path('api/', include(router.urls)),
+    path('questionnaire_choices/', QuestionnaireChoicesListView.as_view(), name='questionnaire_choices'),
+    path('collaboration/', CollaborationCreateView.as_view(), name='collaboration')
 ]
 
-# Нужно чтобы изображения загруженные пользователями корректно отображались при DEBUG = True
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += router.urls

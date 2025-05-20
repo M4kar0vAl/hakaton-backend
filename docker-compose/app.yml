@@ -1,19 +1,18 @@
 services:
   django:
     container_name: django
-    build:
-      context: ../
-      dockerfile: Dockerfile
+    image: w2w_django
+    build: ../
+    pull_policy: build
     env_file:
       - ../example.env
     tty: true
     ports:
-      - "8000:8000"
+      - "80:8000"
     networks:
       - dev-net
     volumes:
       - ../core:/app/core
-
 
 networks:
   dev-net:

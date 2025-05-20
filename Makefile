@@ -1,9 +1,10 @@
 DC = docker compose
 EXEC = docker exec -it
 LOGS = docker logs
-ENV = --env-file example.env
+ENV = --env-file .env
 APP_FILE = ./docker-compose/app.yml
 STORAGE_FILE = ./docker-compose/storages.yml
+CELERY_FILE = ./docker-compose/celery.yml
 APP_CONTAINER = django
 DB_CONTAINER = w2w_db
 MANAGE = python manage.py
@@ -11,13 +12,14 @@ MANAGE = python manage.py
 
 .PHONY: run
 run:
-	${DC} -f ${STORAGE_FILE} ${env} up --build -d
-	${DC} -f ${APP_FILE} ${env} up --build -d
+	${DC} -f ${STORAGE_FILE} up --build -d
+	${DC} -f ${APP_FILE} up --build -d
 	${EXEC} ${APP_CONTAINER} ${MANAGE} migrate
+	${DC} -f ${CELERY_FILE} up --build -d celery_worker
 
 .PHONY: app
 app:
-	${DC} -f ${APP_FILE} ${env} up --build -d
+	${DC} -f ${APP_FILE} up --build -d
 
 .PHONY: debug
 debug:
@@ -41,8 +43,9 @@ app-down:
 
 .PHONY: down
 down:
-	${DC} -f ${STORAGE_FILE} down
+	${DC} -f ${CELERY_FILE} down
 	${DC} -f ${APP_FILE} down
+	${DC} -f ${STORAGE_FILE} down
 
 .PHONY: migrate
 migrate:
@@ -63,3 +66,15 @@ app-shell:
 .PHONY: test
 test:
 	${EXEC} ${APP_CONTAINER} bash -c "${MANAGE} test"
+
+.PHONY: cities
+cities:
+	${EXEC} ${APP_CONTAINER} ${MANAGE} cities_light --progress
+
+.PHONY: celery
+celery:
+	${DC} -f ${CELERY_FILE} up --build -d
+
+.PHONY: worker
+worker:
+	${DC} -f ${CELERY_FILE} up --build -d celery_worker

@@ -1,13 +1,13 @@
 import os
 
+import dj_database_url
+from dotenv import load_dotenv
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASS'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
-    },
-}
+load_dotenv()
+
+DEBUG = os.getenv('DEBUG') == 'True'
+
+if not DEBUG:
+    DATABASES = {
+        'default': dj_database_url.parse(os.getenv('DATABASE_URL'))
+    }
