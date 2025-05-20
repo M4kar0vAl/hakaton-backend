@@ -1,7 +1,14 @@
 from django.conf import settings
 from rest_framework import serializers
 
-from core.apps.articles.models import ArticleFile, Tutorial, Article, AbstractBaseArticle, CommunityArticle
+from core.apps.articles.models import (
+    ArticleFile,
+    Tutorial,
+    Article,
+    AbstractBaseArticle,
+    CommunityArticle,
+    MediaArticle
+)
 from core.common.validators import is_valid_file_type
 
 
@@ -55,3 +62,13 @@ class CommunityArticleListSerializer(BaseArticleListSerializer):
 class CommunityArticleRetrieveSerializer(BaseArticleRetrieveSerializer):
     class Meta(BaseArticleRetrieveSerializer.Meta):
         model = CommunityArticle
+
+
+class MediaArticleListSerializer(BaseArticleListSerializer):
+    class Meta(BaseArticleListSerializer.Meta):
+        model = MediaArticle
+
+
+class MediaArticleRetrieveSerializer(BaseArticleRetrieveSerializer):
+    class Meta(BaseArticleRetrieveSerializer.Meta):
+        model = MediaArticle

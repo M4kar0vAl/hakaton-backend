@@ -48,3 +48,27 @@ class Fix2(OpenApiViewExtension):
                 return super().retrieve(request, *args, **kwargs)
 
         return Fixed
+
+
+class Fix2(OpenApiViewExtension):
+    target_class = 'core.apps.articles.api.MediaArticleViewSet'
+
+    def view_replacement(self):
+        @extend_schema(tags=['Media Articles'])
+        class Fixed(self.target_class):
+            @extend_schema(
+                description="Get media articles list.\n\n"
+                            "Authenticated brand with active subscription only."
+            )
+            def list(self, request, *args, **kwargs):
+                return super().list(request, *args, **kwargs)
+
+            @extend_schema(
+                description="Get media article body by ID.\n\n"
+                            "\tcontent: HTML-string\n\n"
+                            "Authenticated brand with active subscription only."
+            )
+            def retrieve(self, request, *args, **kwargs):
+                return super().retrieve(request, *args, **kwargs)
+
+        return Fixed
