@@ -3,7 +3,7 @@ from rest_framework import generics, status, viewsets, mixins
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from core.apps.articles.models import Tutorial, CommunityArticle, MediaArticle
+from core.apps.articles.models import Tutorial, CommunityArticle, MediaArticle, NewsArticle
 from core.apps.articles.permissions import IsStaff
 from core.apps.articles.serializers import (
     ArticleFileCreateSerializer,
@@ -12,7 +12,9 @@ from core.apps.articles.serializers import (
     CommunityArticleListSerializer,
     CommunityArticleRetrieveSerializer,
     MediaArticleListSerializer,
-    MediaArticleRetrieveSerializer
+    MediaArticleRetrieveSerializer,
+    NewsArticleListSerializer,
+    NewsArticleRetrieveSerializer
 )
 from core.apps.brand.permissions import IsBrand
 from core.apps.payments.permissions import HasActiveSub
@@ -68,5 +70,16 @@ class MediaArticleViewSet(BaseArticleViewSet):
     def get_serializer_class(self):
         if self.action == 'retrieve':
             return MediaArticleRetrieveSerializer
+
+        return super().get_serializer_class()
+
+
+class NewsArticleViewSet(BaseArticleViewSet):
+    queryset = NewsArticle.objects.filter(is_published=True)
+    serializer_class = NewsArticleListSerializer
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return NewsArticleRetrieveSerializer
 
         return super().get_serializer_class()

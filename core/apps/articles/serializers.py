@@ -7,7 +7,8 @@ from core.apps.articles.models import (
     Article,
     AbstractBaseArticle,
     CommunityArticle,
-    MediaArticle
+    MediaArticle,
+    NewsArticle
 )
 from core.common.validators import is_valid_file_type
 
@@ -72,3 +73,13 @@ class MediaArticleListSerializer(BaseArticleListSerializer):
 class MediaArticleRetrieveSerializer(BaseArticleRetrieveSerializer):
     class Meta(BaseArticleRetrieveSerializer.Meta):
         model = MediaArticle
+
+
+class NewsArticleListSerializer(BaseArticleListSerializer):
+    class Meta(BaseArticleListSerializer.Meta):
+        model = NewsArticle
+
+
+class NewsArticleRetrieveSerializer(BaseArticleRetrieveSerializer):
+    class Meta(BaseArticleRetrieveSerializer.Meta):
+        model = NewsArticle

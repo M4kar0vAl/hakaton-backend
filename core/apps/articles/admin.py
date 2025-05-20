@@ -1,6 +1,12 @@
 from django.contrib import admin, messages
 
-from core.apps.articles.models import Article, Tutorial, CommunityArticle, MediaArticle
+from core.apps.articles.models import (
+    Article,
+    Tutorial,
+    CommunityArticle,
+    MediaArticle,
+    NewsArticle
+)
 from core.common.admin import SearchByIdMixin
 
 admin.site.register(Article)
@@ -53,4 +59,9 @@ class CommunityArticleAdmin(BaseArticleAdmin):
 
 @admin.register(MediaArticle)
 class MediaArticleAdmin(BaseArticleAdmin):
+    pass
+
+
+@admin.register(NewsArticle)
+class NewsArticleAdmin(BaseArticleAdmin):
     pass
