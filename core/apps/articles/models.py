@@ -19,6 +19,8 @@ def article_preview_upload_path(instance, filename):
     match instance:
         case CommunityArticle():
             subfolder = 'community_articles'
+        case MediaArticle():
+            subfolder = 'media_articles'
         case Tutorial():
             subfolder = 'tutorials'
         case _:
@@ -79,3 +81,9 @@ class CommunityArticle(AbstractBaseArticle):
     class Meta:
         verbose_name = 'Community Article'
         verbose_name_plural = 'Community Articles'
+
+
+class MediaArticle(AbstractBaseArticle):
+    class Meta:
+        verbose_name = 'Media Article'
+        verbose_name_plural = 'Media Articles'
