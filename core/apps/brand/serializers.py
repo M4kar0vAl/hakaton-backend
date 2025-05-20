@@ -269,8 +269,6 @@ class BrandCreateSerializer(
         Gets "given" objects from db and creates "other" objects
         """
         query, lst_for_bulk_create = self._get_query_and_list_for_bulk_create(lst, model)
-
-        # objs = self._get_given_objects_from_db(query, model)
         objs = model.objects.filter(query)
         other_objs = []
 
