@@ -1,5 +1,4 @@
 import os
-import uuid
 
 from cities_light.models import City
 from django.conf import settings
@@ -7,6 +6,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.deconstruct import deconstructible
+
+from core.common.utils import get_random_filename_with_extension
 
 
 @deconstructible
@@ -34,8 +35,6 @@ class UserDirectoryPath:
 
 
 def product_photo_path(instance, filename):
-    from core.common.utils import get_file_extension
-
     # file will be uploaded to MEDIA_ROOT/user_<id>/product_photos/<format>/<uuid4>.<ext>
     format_ = None
     instance_class = instance.__class__
@@ -47,18 +46,14 @@ def product_photo_path(instance, filename):
         case _:
             pass
 
-    extension = get_file_extension(filename)
-    new_filename = f'{uuid.uuid4()}{extension}'
+    new_filename = get_random_filename_with_extension(filename)
 
     return f'user_{instance.brand.user.id}/product_photos/{format_}/{new_filename}'
 
 
 def gallery_path(instance, filename):
-    from core.common.utils import get_file_extension
-
     # file will be uploaded to MEDIA_ROOT/user_<id>/gallery/<uuid4>.<ext>
-    extension = get_file_extension(filename)
-    new_filename = f'{uuid.uuid4()}{extension}'
+    new_filename = get_random_filename_with_extension(filename)
     return f'user_{instance.brand.user.id}/gallery/{new_filename}'
 
 

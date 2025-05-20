@@ -1,16 +1,13 @@
 import os
-import uuid
 
 from django.conf import settings
 from django.db import models
 
-from core.common.utils import get_file_extension
+from core.common.utils import get_random_filename_with_extension
 
 
 def room_directory_path(instance, filename):
-    extension = get_file_extension(filename)
-    new_filename = f'{uuid.uuid4()}{extension}'
-    # room_id = instance.message.room_id
+    new_filename = get_random_filename_with_extension(filename)
 
     return os.path.join('message_attachments', new_filename)
 

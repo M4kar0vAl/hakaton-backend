@@ -1,23 +1,20 @@
 import os
-import uuid
 
 from django.db import models
 from tinymce.models import HTMLField
 
-from core.common.utils import get_file_extension
+from core.common.utils import get_random_filename_with_extension
 from core.common.validators import is_valid_video, is_valid_image
 
 
 def article_file_upload_path(instance, filename):
-    extension = get_file_extension(filename)
-    new_filename = f'{uuid.uuid4()}{extension}'
+    new_filename = get_random_filename_with_extension(filename)
 
     return os.path.join('articles', new_filename)
 
 
 def article_preview_upload_path(instance, filename):
-    extension = get_file_extension(filename)
-    new_filename = f'{uuid.uuid4()}{extension}'
+    new_filename = get_random_filename_with_extension(filename)
 
     match instance:
         case CommunityArticle():
