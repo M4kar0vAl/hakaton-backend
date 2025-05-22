@@ -3,6 +3,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from core.apps.accounts.factories import UserFactory
+
 User = get_user_model()
 
 
@@ -49,7 +51,7 @@ class UserCreateTestCase(APITestCase):
         self.assertFalse(User.objects.filter(email=self.valid_data['email'], phone=bad_phone).exists())
 
     def test_user_create_email_is_not_unique(self):
-        existing_user = User.objects.create_user(**self.valid_data)
+        existing_user = UserFactory()
 
         # uses the same email
         response = self.client.post(self.url, {

@@ -3,25 +3,20 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from core.apps.accounts.factories import UserFactory
+
 User = get_user_model()
 
 
 class UserLoginTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user_data = {
-            'email': 'user1@example.com',
-            'phone': '+79993332211',
-            'fullname': 'Юзеров Юзер Юзерович',
-            'password': 'Pass!234',
-            'is_active': True
-        }
-
-        cls.user = User.objects.create_user(**cls.user_data)
+        password = 'Pass!234'
+        cls.user = UserFactory(password=password)
 
         cls.login_data = {
-            'email': cls.user_data['email'],
-            'password': cls.user_data['password']
+            'email': cls.user.email,
+            'password': password
         }
 
         cls.url = reverse('jwt_create')
