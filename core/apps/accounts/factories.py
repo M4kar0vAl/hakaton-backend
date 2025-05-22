@@ -8,18 +8,13 @@ User = get_user_model()
 class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
+        django_get_or_create = ('email',)
 
     email = factory.Sequence(lambda n: f'user{n}@example.com')
     phone = '+79993332211'
     fullname = 'Юзеров Юзер Юзерович'
-    password = 'Pass!234'
+    password = factory.django.Password('Pass!234')
     is_active = True
-
-    @classmethod
-    def _create(cls, model_class, *args, **kwargs):
-        manager = cls._get_manager(model_class)
-
-        return manager.create_user(*args, **kwargs)
 
 
 class StaffUserFactory(UserFactory):
@@ -28,12 +23,7 @@ class StaffUserFactory(UserFactory):
     is_staff = True
 
 
-class AdminUserFactory(UserFactory):
+class AdminUserFactory(StaffUserFactory):
     email = factory.Sequence(lambda n: f'admin{n}@example.com')
     fullname = 'Админов Админ Админович'
-
-    @classmethod
-    def _create(cls, model_class, *args, **kwargs):
-        manager = cls._get_manager(model_class)
-
-        return manager.create_superuser(*args, **kwargs)
+    is_superuser = True
