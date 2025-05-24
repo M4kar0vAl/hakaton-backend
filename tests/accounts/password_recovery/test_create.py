@@ -5,6 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from core.apps.accounts.factories import UserFactory, PasswordRecoveryTokenFactory
 from core.apps.accounts.models import PasswordRecoveryToken
 
 User = get_user_model()
@@ -17,16 +18,8 @@ User = get_user_model()
 class PasswordRecoveryCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.email = 'user1@example.com'
         cls.non_existent_email = 'non-existent@example.com'
-
-        cls.user = User.objects.create_user(
-            email=cls.email,
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
+        cls.user = UserFactory()
 
         cls.url = reverse('password_recovery-list')
 
@@ -46,7 +39,7 @@ class PasswordRecoveryCreateTestCase(APITestCase):
     def test_password_recovery_create(self):
         # used to emulate sending email via celery task which is called using .delay_on_commit()
         with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(self.url, {'email': self.email})
+            response = self.client.post(self.url, {'email': self.user.email})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNone(response.data)
@@ -61,16 +54,13 @@ class PasswordRecoveryCreateTestCase(APITestCase):
 
         # check that email was sent to only one person and to the correct email address
         self.assertEqual(len(email_message.to), 1)
-        self.assertEqual(email_message.to[0], self.email)
+        self.assertEqual(email_message.to[0], self.user.email)
 
     def test_password_recovery_create_token_for_user_already_exists(self):
-        recovery_token = PasswordRecoveryToken.objects.create(
-            user=self.user,
-            token='token'
-        )
+        recovery_token = PasswordRecoveryTokenFactory(user=self.user)
 
         with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(self.url, {'email': self.email})
+            response = self.client.post(self.url, {'email': self.user.email})
 
         # must return 200 to prevent information leakage
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -90,12 +80,12 @@ class PasswordRecoveryCreateTestCase(APITestCase):
 
     def test_password_recovery_create_returns_200_no_matter_what(self):
         # created
-        response = self.client.post(self.url, {'email': self.email})
+        response = self.client.post(self.url, {'email': self.user.email})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # already exists for the user with this email
-        response1 = self.client.post(self.url, {'email': self.email})
+        response1 = self.client.post(self.url, {'email': self.user.email})
 
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
 
