@@ -1,6 +1,5 @@
 import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
@@ -8,7 +7,7 @@ from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.factories import BrandShortFactory
-from core.apps.payments.models import Tariff, Subscription
+from core.apps.payments.factories import SubscriptionFactory
 
 
 class BlacklistCreateTestCase(APITestCase):
@@ -21,20 +20,7 @@ class BlacklistCreateTestCase(APITestCase):
 
         cls.brand1, cls.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([cls.user1, cls.user2]))
 
-        cls.tariff = Tariff.objects.get(name='Business Match')
-        cls.tariff_relativedelta = cls.tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.bulk_create([
-            Subscription(
-                brand=brand,
-                tariff=cls.tariff,
-                start_date=now,
-                end_date=now + cls.tariff_relativedelta,
-                is_active=True
-            )
-            for brand in [cls.brand1, cls.brand2]
-        ])
+        SubscriptionFactory.create_batch(2, brand=factory.Iterator([cls.brand1, cls.brand2]))
 
         cls.blacklist = BlackListFactory(initiator=cls.brand1, blocked=cls.brand2)
 
