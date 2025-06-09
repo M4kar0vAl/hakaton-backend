@@ -12,7 +12,6 @@ class UserDeleteTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = UserFactory()
-
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
 

@@ -12,7 +12,6 @@ class UserUpdateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = UserFactory()
-
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
 
@@ -39,10 +38,7 @@ class UserUpdateTestCase(APITestCase):
         self.assertEqual(user.fullname, self.update_data['fullname'])
 
     def test_user_update_bad_phone(self):
-        response = self.auth_client.patch(self.url, {
-            **self.update_data,
-            'phone': '+71928'
-        })
+        response = self.auth_client.patch(self.url, {**self.update_data, 'phone': '+71928'})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
