@@ -5,17 +5,17 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.test import override_settings, tag
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITransactionTestCase
 
 from core.apps.accounts.factories import UserFactory
+from core.apps.blacklist.factories import BlackListFactory
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.factories import BrandFactory, BrandShortFactory
 from core.apps.brand.models import Brand
 from core.apps.chat.factories import RoomFavoritesFactory
 from core.apps.chat.models import RoomFavorites
-from core.apps.payments.models import Tariff, Subscription
+from core.apps.payments.factories import SubscriptionFactory
 
 
 @override_settings(MEDIA_ROOT=os.path.join(settings.BASE_DIR, 'media', 'TEST'))
@@ -27,21 +27,9 @@ class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires Tr
         self.user = UserFactory()
         self.auth_client = APIClient()
         self.auth_client.force_authenticate(self.user)
-
         self.brand = BrandFactory(user=self.user)
 
-        # add subscription to brand
-        self.tariff = Tariff.objects.get(name='Lite Match')
-        self.tariff_relativedelta = self.tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.create(
-            brand=self.brand,
-            tariff=self.tariff,
-            start_date=now,
-            end_date=now + self.tariff_relativedelta,
-            is_active=True
-        )
+        SubscriptionFactory(brand=self.brand)
 
         self.url = reverse('brand-me')
 
@@ -66,10 +54,8 @@ class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires Tr
         another_brand = BrandShortFactory()
 
         # initial brand and another brand block each other
-        bl1, bl2 = BlackList.objects.bulk_create([
-            BlackList(initiator=self.brand, blocked=another_brand),
-            BlackList(initiator=another_brand, blocked=self.brand),
-        ])
+        bl1 = BlackListFactory(initiator=self.brand, blocked=another_brand)
+        bl2 = BlackListFactory(initiator=another_brand, blocked=self.brand)
 
         fav1, fav2, fav3 = RoomFavoritesFactory.create_batch(3, user=self.user)
 

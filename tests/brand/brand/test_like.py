@@ -1,14 +1,14 @@
+import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.blacklist.models import BlackList
+from core.apps.blacklist.factories import BlackListFactory
 from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory, InstantCoopFactory
 from core.apps.brand.models import Match
 from core.apps.chat.models import Room
-from core.apps.payments.models import Subscription, Tariff
+from core.apps.payments.factories import SubscriptionFactory
 
 
 class BrandLikeTestCase(APITestCase):
@@ -18,29 +18,9 @@ class BrandLikeTestCase(APITestCase):
         cls.auth_client1, cls.auth_client2 = APIClient(), APIClient()
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
+        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([cls.user1, cls.user2]))
 
-        cls.brand1 = BrandShortFactory(user=cls.user1)
-        cls.brand2 = BrandShortFactory(user=cls.user2)
-
-        cls.tariff = Tariff.objects.get(name='Business Match')
-        cls.tariff_relativedelta = cls.tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.create(
-            brand=cls.brand1,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
-        )
-
-        Subscription.objects.create(
-            brand=cls.brand2,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
-        )
+        SubscriptionFactory.create_batch(2, brand=factory.Iterator([cls.brand1, cls.brand2]))
 
         cls.url = reverse('brand-like')
 
@@ -70,14 +50,14 @@ class BrandLikeTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_like_if_in_blacklist_of_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
+        BlackListFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
 
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 tries to like brand2
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_like_if_blocked_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
+        BlackListFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
 
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 tries to like brand2
 
@@ -92,7 +72,6 @@ class BrandLikeTestCase(APITestCase):
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
         self.assertTrue(Match.objects.filter(initiator=self.brand1, target=self.brand2, is_match=False).exists())
 
     def test_cannot_like_twice_same_brand(self):

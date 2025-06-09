@@ -1,108 +1,39 @@
-from django.contrib.auth import get_user_model
+import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.brand.models import Brand, Category, Collaboration, Match
-from core.apps.payments.models import Subscription, Tariff
-
-User = get_user_model()
+from core.apps.accounts.factories import UserFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory, CollaborationFactory, LikeFactory
+from core.apps.brand.models import Collaboration
+from core.apps.payments.factories import SubscriptionFactory
 
 
 class CollaborationCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user1 = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.user2 = User.objects.create_user(
-            email='user2@example.com',
-            phone='+79993332212',
-            fullname='Юзеров Юзер1 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.auth_client1 = APIClient()
-        cls.auth_client2 = APIClient()
+        cls.user1, cls.user2 = UserFactory.create_batch(2)
+        cls.auth_client1, cls.auth_client2 = APIClient(), APIClient()
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
+        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([cls.user1, cls.user2]))
 
-        cls.brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(pk=1),
-            'inst_url': 'https://example.com',
-            'vk_url': 'https://example.com',
-            'tg_url': 'https://example.com',
-            'wb_url': 'https://example.com',
-            'lamoda_url': 'https://example.com',
-            'site_url': 'https://example.com',
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
+        SubscriptionFactory.create_batch(2, brand=factory.Iterator([cls.brand1, cls.brand2]))
 
-        cls.brand1 = Brand.objects.create(user=cls.user1, **cls.brand_data)
-        cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
-
-        cls.business_tariff = Tariff.objects.get(name='Business Match')
-        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.bulk_create([
-            Subscription(
-                brand=brand,
-                tariff=cls.business_tariff,
-                start_date=now,
-                end_date=now + cls.business_tariff_relativedelta,
-                is_active=True
-            )
-            for brand in [cls.brand1, cls.brand2]
-        ])
-
-        cls.match = Match.objects.create(
-            initiator=cls.brand1,
-            target=cls.brand2,
-            is_match=True,
-            match_at=timezone.now()
-        )
-
+        cls.match = MatchFactory(initiator=cls.brand1, target=cls.brand2)
         cls.collaboration_data = {
-            "match": cls.match.id,
-            "success_assessment": 10,
-            "success_reason": "string",
-            "to_improve": "string",
-            "subs_received": 2147483647,
-            "leads_received": 2147483647,
-            "sales_growth": "string",
-            "audience_reach": 2147483647,
-            "bill_change": "string",
-            "new_offers": True,
-            "new_offers_comment": "string",
-            "perception_change": True,
-            "brand_compliance": 10,
-            "platform_help": 5,
-            "difficulties": True,
-            "difficulties_comment": "string"
+            **factory.build(dict, FACTORY_CLASS=CollaborationFactory, reporter=None, collab_with=None, match=None),
+            'match': cls.match.pk,
         }
+        del cls.collaboration_data['reporter']
+        del cls.collaboration_data['collab_with']
 
         cls.url = reverse('collaboration')
 
     def test_cannot_collaborate_with_yourself(self):
         # it's not possible to make match with yourself using API,
         # but this is in the case of a random creation of such thing
-        match_with_self = Match.objects.create(initiator=self.brand1, target=self.brand1, is_match=True)
-
+        match_with_self = MatchFactory(initiator=self.brand1, target=self.brand1)
         collaboration_data = {**self.collaboration_data, 'match': match_with_self.id}
 
         response = self.auth_client1.post(self.url, collaboration_data)
@@ -117,17 +48,7 @@ class CollaborationCreateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_collaboration_create_with_brand_without_match(self):
-        user_wo_match = User.objects.create_user(
-            email='user3@example.com',
-            phone='+79993332212',
-            fullname='Юзеров Юзер1 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        brand_wo_match = Brand.objects.create(**self.brand_data, user=user_wo_match)
-
-        like = Match.objects.create(initiator=self.brand1, target=brand_wo_match, is_match=False)
+        like = LikeFactory(initiator=self.brand1)
 
         collaboration_data = {**self.collaboration_data, 'match': like.id}
 
@@ -153,19 +74,16 @@ class CollaborationCreateTestCase(APITestCase):
             self.assertEqual(getattr(collab, key), value)
 
     def test_collaboration_create_already_reported(self):
-        # first collab
-        self.auth_client1.post(self.url, self.collaboration_data)
+        CollaborationFactory(reporter=self.brand1, collab_with=self.brand2)  # first collab
 
         response = self.auth_client1.post(self.url, self.collaboration_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_collaboration_create_participant_can_report(self):
-        # collab of the initiator
-        self.auth_client1.post(self.url, self.collaboration_data)
+        CollaborationFactory(reporter=self.brand1, collab_with=self.brand2)  # collab of the initiator
 
-        # collab of the participant
-        response = self.auth_client2.post(self.url, self.collaboration_data)
+        response = self.auth_client2.post(self.url, self.collaboration_data)  # collab of the participant
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -187,14 +105,7 @@ class CollaborationCreateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_collaboration_create_wo_brand_not_allowed(self):
-        user = User.objects.create_user(
-            email='user3@example.com',
-            phone='+79993332213',
-            fullname='Юзеров Юзер2 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        user = UserFactory()
         no_brand_auth_client = APIClient()
         no_brand_auth_client.force_authenticate(user)
 
@@ -203,18 +114,11 @@ class CollaborationCreateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_collaboration_create_wo_active_sub_not_allowed(self):
-        user_wo_active_sub = User.objects.create_user(
-            email='user_wo_active_sub@example.com',
-            phone='+79993332214',
-            fullname='Юзеров Юзер3 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        user_wo_active_sub = UserFactory()
         client_wo_active_sub = APIClient()
         client_wo_active_sub.force_authenticate(user_wo_active_sub)
 
-        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+        BrandShortFactory(user=user_wo_active_sub)
 
         response = client_wo_active_sub.post(self.url, self.collaboration_data)
 

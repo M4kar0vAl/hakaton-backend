@@ -12,7 +12,6 @@ class BrandMeGetTestCase(APITestCase):
         cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
-
         cls.brand = BrandShortFactory(user=cls.user)
 
         cls.url = reverse('brand-me')

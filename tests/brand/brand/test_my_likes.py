@@ -1,15 +1,14 @@
 import factory
 from django.test import tag
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.blacklist.models import BlackList
+from core.apps.blacklist.factories import BlackListFactory
 from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory, InstantCoopFactory
 from core.apps.brand.models import Brand
-from core.apps.payments.models import Subscription, Tariff
+from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 
@@ -25,29 +24,11 @@ class BrandMyLikesTestCase(
         cls.auth_client2.force_authenticate(cls.user2)
         cls.auth_client3.force_authenticate(cls.user3)
 
-        cls.business_tariff = Tariff.objects.get(name='Business Match')
-        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        cls.brand1 = BrandShortFactory(user=cls.user1)
-        Subscription.objects.create(
-            brand=cls.brand1,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
+        cls.brand1, cls.brand2, cls.brand3 = BrandShortFactory.create_batch(
+            3, user=factory.Iterator([cls.user1, cls.user2, cls.user3])
         )
 
-        cls.brand2 = BrandShortFactory(user=cls.user2)
-
-        cls.brand3 = BrandShortFactory(user=cls.user3)
-        Subscription.objects.create(
-            brand=cls.brand3,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
-        )
+        SubscriptionFactory.create_batch(2, brand=factory.Iterator([cls.brand1, cls.brand2]))
 
         cls.url = reverse('brand-my_likes')
 
@@ -86,7 +67,7 @@ class BrandMyLikesTestCase(
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_my_likes_wo_active_sub_not_allowed(self):
-        response = self.auth_client2.get(self.url)
+        response = self.auth_client3.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -124,7 +105,7 @@ class BrandMyLikesTestCase(
 
     def test_my_likes_includes_only_likes_of_current_brand(self):
         LikeFactory(initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
-        LikeFactory(initiator=self.brand3, target=self.brand1)  # brand3 likes brand1
+        LikeFactory(initiator=self.brand2, target=self.brand1)  # brand2 likes brand1
 
         response = self.auth_client1.get(self.url)
 
@@ -144,13 +125,11 @@ class BrandMyLikesTestCase(
         self.assertFalse(response.data['results'])
 
     def test_my_likes_exclude_blacklist(self):
-        LikeFactory(initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
-        LikeFactory(initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
+        # brand1 likes brand2 and brand3
+        LikeFactory.create_batch(2, initiator=self.brand1, target=factory.Iterator([self.brand2, self.brand3]))
 
-        BlackList.objects.bulk_create([
-            BlackList(initiator=self.brand1, blocked=self.brand2),  # brand1 blocks brand2
-            BlackList(initiator=self.brand3, blocked=self.brand1),  # brand3 block brand1
-        ])
+        BlackListFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocks brand2
+        BlackListFactory(initiator=self.brand3, blocked=self.brand1)  # brand3 blocks brand1
 
         response = self.auth_client1.get(self.url)
 
@@ -176,23 +155,16 @@ class BrandMyLikesTestCase(
         brand = self.create_n_likes(50)
         client = APIClient()
         client.force_authenticate(brand.user)
-        now = timezone.now()
 
-        Subscription.objects.create(
-            brand=brand,
-            tariff=self.business_tariff,
-            start_date=now,
-            end_date=now + self.business_tariff_relativedelta,
-            is_active=True
-        )
+        SubscriptionFactory(brand=brand)
 
         with self.assertNumQueriesLessThan(6, verbose=True):
             response = client.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_my_likes_ordering(self):
-        LikeFactory(initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
-        LikeFactory(initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
+        # brand1 likes brand2 and brand1 likes brand3
+        LikeFactory.create_batch(2, initiator=self.brand1, target=factory.Iterator([self.brand2, self.brand3]))
 
         response = self.auth_client1.get(self.url)
 

@@ -1,13 +1,13 @@
+import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.blacklist.models import BlackList
-from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory
+from core.apps.blacklist.factories import BlackListFactory
+from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory, InstantCoopFactory
 from core.apps.chat.models import Room
-from core.apps.payments.models import Subscription, Tariff
+from core.apps.payments.factories import SubscriptionFactory, TariffFactory
 
 
 class BrandInstantCooperationTestCase(APITestCase):
@@ -19,42 +19,18 @@ class BrandInstantCooperationTestCase(APITestCase):
         cls.auth_client2.force_authenticate(cls.user2)
         cls.auth_client3.force_authenticate(cls.user3)
 
-        cls.business_tariff = Tariff.objects.get(name='Business Match')
-        cls.lite_tariff = Tariff.objects.get(name='Lite Match')
+        brands = BrandShortFactory.create_batch(3, user=factory.Iterator([cls.user1, cls.user2, cls.user3]))
+        (
+            cls.brand1,  # business sub and liked brand2
+            cls.brand2,  # without business sub, liked brand3
+            cls.brand3  # business sub, without like
+        ) = brands
 
-        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
-        cls.lite_tariff_relativedelta = cls.lite_tariff.get_duration_as_relativedelta()
-
-        now = timezone.now()
-
-        # business sub and liked brand2
-        cls.brand1 = BrandShortFactory(user=cls.user1)
-        Subscription.objects.create(
-            brand=cls.brand1,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
-        )
-
-        # without business sub, liked brand3
-        cls.brand2 = BrandShortFactory(user=cls.user2)
-        Subscription.objects.create(
-            brand=cls.brand2,
-            tariff=cls.lite_tariff,
-            start_date=now,
-            end_date=now + cls.lite_tariff_relativedelta,
-            is_active=True
-        )
-
-        # business sub, without like
-        cls.brand3 = BrandShortFactory(user=cls.user3)
-        Subscription.objects.create(
-            brand=cls.brand3,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
+        business_tariff = TariffFactory(business=True)
+        SubscriptionFactory.create_batch(
+            3,
+            brand=factory.Iterator(brands),
+            tariff=factory.Iterator([business_tariff, TariffFactory(lite=True), business_tariff])
         )
 
         cls.like1_2 = LikeFactory(initiator=cls.brand1, target=cls.brand2)
@@ -87,7 +63,7 @@ class BrandInstantCooperationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_instant_coop_if_in_blacklist_of_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
+        BlackListFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
 
         # brand1 tries to instant coop brand2
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})
@@ -95,7 +71,7 @@ class BrandInstantCooperationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_instant_coop_if_blocked_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
+        BlackListFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
 
         # brand1 tries to instant coop brand2
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})
@@ -124,8 +100,9 @@ class BrandInstantCooperationTestCase(APITestCase):
         self.assertEqual(room.match.id, self.like1_2.pk)
 
     def test_cannot_coop_with_the_same_brand(self):
-        self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 instant coop brand2
-        response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 instant coop brand2 AGAIN
+        InstantCoopFactory(initiator=self.brand1, target=self.brand3)  # brand1 instant coop brand3
+
+        response = self.auth_client1.post(self.url, {'target': self.brand3.id})  # brand1 instant coop brand3 AGAIN
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

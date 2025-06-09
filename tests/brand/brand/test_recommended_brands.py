@@ -1,11 +1,10 @@
 import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.blacklist.models import BlackList
+from core.apps.blacklist.factories import BlackListFactory
 from core.apps.brand.factories import (
     BrandShortFactory,
     TagFactory,
@@ -14,7 +13,7 @@ from core.apps.brand.factories import (
     CategoryFactory, LikeFactory, MatchFactory
 )
 from core.apps.cities.factories import CityFactory
-from core.apps.payments.models import Subscription, Tariff
+from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 
@@ -139,17 +138,7 @@ class BrandRecommendedBrandsTestCase(
             lambda brand: brand.category in cls.initial_categories_of_interest, cls.recommended_brands
         )))
 
-        cls.business_tariff = Tariff.objects.get(name='Business Match')
-        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.create(
-            brand=cls.initial_brand,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
-        )
+        SubscriptionFactory(brand=cls.initial_brand)
 
         cls.url = reverse('brand-recommended_brands')
 
@@ -311,10 +300,8 @@ class BrandRecommendedBrandsTestCase(
         self.assertFalse(any(brand['id'] == self.initial_brand.id for brand in response.data['results']))
 
     def test_recommended_brands_exclude_blacklist(self):
-        BlackList.objects.bulk_create([
-            BlackList(initiator=self.initial_brand, blocked=self.brand1),  # initial brand blocks brand1
-            BlackList(initiator=self.brand2, blocked=self.initial_brand),  # brand2 blocks initial brand
-        ])
+        BlackListFactory(initiator=self.initial_brand, blocked=self.brand1)  # initial brand blocks brand1
+        BlackListFactory(initiator=self.brand2, blocked=self.initial_brand)  # brand2 blocks initial brand
 
         response = self.auth_client1.get(self.url)
 
