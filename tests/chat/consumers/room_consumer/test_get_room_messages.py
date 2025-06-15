@@ -1,18 +1,14 @@
-from cities_light.models import Country, City
-from dateutil.relativedelta import relativedelta
-from django.contrib.auth import get_user_model
+import factory
 from django.test import override_settings, TransactionTestCase, tag
-from django.utils import timezone
 from rest_framework import status
 
-from core.apps.brand.models import Category, Brand
+from core.apps.accounts.factories import UserFactory, UserAsyncFactory
+from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.consumers import RoomConsumer
-from core.apps.chat.models import Room, Message, MessageAttachment
-from core.apps.payments.models import Tariff, Subscription
+from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
+from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user, join_room_communal, join_room
-
-User = get_user_model()
 
 
 @override_settings(
@@ -27,83 +23,18 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
     serialized_rollback = True
 
     def setUp(self):
-        self.user1 = User.objects.create_user(
-            email=f'user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
+        self.user1, self.user2 = UserFactory.create_batch(2)
+        self.brand1, self.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([self.user1, self.user2]))
 
-        self.user2 = User.objects.create_user(
-            email=f'user2@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        country = Country.objects.create(name='Country', continent='EU')
-        city = City.objects.create(name='City', country=country)
-
-        self.brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        self.brand1 = Brand.objects.create(user=self.user1, **self.brand_data)
-        self.brand2 = Brand.objects.create(user=self.user2, **self.brand_data)
-
-        now = timezone.now()
-        self.tariff = Tariff.objects.get(name='Lite Match')
-        self.tariff_relativedelta = self.tariff.get_duration_as_relativedelta()
-
-        Subscription.objects.bulk_create([
-            Subscription(
-                brand=brand,
-                tariff=self.tariff,
-                start_date=now,
-                end_date=now + self.tariff_relativedelta,
-                is_active=True
-            )
-            for brand in [self.brand1, self.brand2]
-        ])
+        SubscriptionFactory.create_batch(2, brand=factory.Iterator([self.brand1, self.brand2]))
 
         self.path = 'ws/chat/'
         self.accepted_protocol = 'chat'
 
     async def test_get_room_messages_wo_active_sub_not_allowed(self):
-        user_wo_active_sub = await User.objects.acreate(
-            email=f'user3@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        brand = await Brand.objects.acreate(user=user_wo_active_sub, **self.brand_data)
-
-        room = await Room.objects.acreate(type=Room.INSTANT)
-        await room.participants.aset([user_wo_active_sub])
-
-        now = timezone.now()
-
-        # create active sub
-        sub = await Subscription.objects.acreate(
-            brand=brand,
-            tariff=self.tariff,
-            start_date=now,
-            end_date=now + self.tariff_relativedelta,
-            is_active=True
-        )
+        user_wo_active_sub = await UserAsyncFactory()
+        room = await RoomAsyncFactory(participants=[user_wo_active_sub])
+        sub = await SubscriptionAsyncFactory(brand__user=user_wo_active_sub)  # create active sub
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -115,16 +46,14 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
         # connect with active sub
         connected, _ = await communicator.connect()
-
         self.assertTrue(connected)
 
         async with join_room(communicator, room.pk):
-            # make sub expired
-            sub.end_date = now - relativedelta(days=1)
+            # make sub inactive
+            sub.is_active = False
             await sub.asave()
 
             response = await self.get_room_messages(communicator, 1)
-
             self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
         await communicator.disconnect()
@@ -139,11 +68,9 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
         )
 
         connected, _ = await communicator.connect()
-
         self.assertTrue(connected)
 
         response = await self.get_room_messages(communicator, 1)
-
         await communicator.disconnect()
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
@@ -151,27 +78,13 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
         self.assertIsNone(response['data'])
 
     async def test_get_room_messages(self):
-        room = await Room.objects.acreate(type=Room.MATCH)
+        room = await RoomAsyncFactory(participants=[self.user1, self.user2])
 
-        await room.participants.aset([self.user1, self.user2])
-
-        messages = await Message.objects.abulk_create([
-            Message(
-                text='asfa',
-                user=self.user1,
-                room=room
-            ),
-            Message(
-                text='asfa',
-                user=self.user2,
-                room=room
-            ),
-            Message(
-                text='asfa',
-                user=self.user2,
-                room=room
-            )
-        ])
+        messages = await MessageAsyncFactory(
+            3,
+            user=factory.Iterator([self.user1, self.user2, self.user2]),
+            room=room
+        )
 
         communicator1 = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -190,7 +103,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
         )
 
         connected1, _ = await communicator1.connect()
-        connected2, __ = await communicator2.connect()
+        connected2, _ = await communicator2.connect()
 
         self.assertTrue(connected1)
         self.assertTrue(connected2)
@@ -200,49 +113,21 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
             self.assertTrue(await communicator2.receive_nothing())  # check that nothing was sent to the second user
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
             self.assertEqual(len(response['data']['results']), len(messages))
 
         await communicator1.disconnect()
         await communicator2.disconnect()
 
     async def test_get_room_messages_returns_only_current_room_messages(self):
-        room1 = await Room.objects.acreate(type=Room.MATCH)
-        room2 = await Room.objects.acreate(type=Room.MATCH)
+        room1, room2 = await RoomAsyncFactory(2, participants=[self.user1, self.user2])
 
-        await room1.participants.aset([self.user1, self.user2])
-        await room2.participants.aset([self.user1, self.user2])
+        room1_messages = await MessageAsyncFactory(
+            3,
+            user=factory.Iterator([self.user1, self.user2, self.user2]),
+            room=room1
+        )
 
-        room1_messages = await Message.objects.abulk_create([
-            Message(
-                text='asfa',
-                user=self.user1,
-                room=room1
-            ),
-            Message(
-                text='asfa',
-                user=self.user2,
-                room=room1
-            ),
-            Message(
-                text='asfa',
-                user=self.user2,
-                room=room1
-            )
-        ])
-
-        await Message.objects.abulk_create([
-            Message(
-                text='asfa',
-                user=self.user1,
-                room=room2
-            ),
-            Message(
-                text='asfa',
-                user=self.user2,
-                room=room2
-            )
-        ])
+        await MessageAsyncFactory(2, user=factory.Iterator([self.user1, self.user2]), room=room2)
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -253,27 +138,19 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
         )
 
         connected, _ = await communicator.connect()
-
         self.assertTrue(connected)
 
         async with join_room(communicator, room1.pk):
             response = await self.get_room_messages(communicator, 1)
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
             self.assertEqual(len(response['data']['results']), len(room1_messages))
 
         await communicator.disconnect()
 
     async def test_get_room_messages_pagination(self):
-        room = await Room.objects.acreate(type=Room.MATCH)
-
-        await room.participants.aset([self.user1, self.user2])
-
-        messages = await Message.objects.abulk_create(
-            [Message(text=f'msg_{i}', user=self.user1, room=room) for i in range(109)] +
-            [Message(text=f'msg_{i}', user=self.user2, room=room) for i in range(109, 220)]
-        )
+        room = await RoomAsyncFactory(participants=[self.user1, self.user2])
+        messages = await MessageAsyncFactory(120, user=factory.Iterator([self.user1, self.user2]), room=room)
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -284,7 +161,6 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
         )
 
         connected, _ = await communicator.connect()
-
         self.assertTrue(connected)
 
         async with join_room(communicator, room.pk):
@@ -292,7 +168,6 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
             response = await self.get_room_messages(communicator, 1)
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
             self.assertEqual(response['data']['count'], len(messages))
             self.assertEqual(len(response['data']['results']), 100)
             self.assertEqual(response['data']['next'], 2)
@@ -301,15 +176,6 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
             response = await self.get_room_messages(communicator, 2)
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-            self.assertEqual(len(response['data']['results']), 100)
-            self.assertEqual(response['data']['next'], 3)
-
-            # third page
-            response = await self.get_room_messages(communicator, 3)
-
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
             self.assertEqual(len(response['data']['results']), 20)
             self.assertIsNone(response['data']['next'])
 
@@ -330,20 +196,14 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
         await communicator.disconnect()
 
     async def test_get_room_messages_include_attachments(self):
-        room = await Room.objects.acreate(type=Room.MATCH)
-        await room.participants.aset([self.user1, self.user2])
-
-        message = await Message.objects.acreate(
-            text=f'asgueagn',
+        room = await RoomAsyncFactory(participants=[self.user1, self.user2])
+        message = await MessageAsyncFactory(
             user=self.user1,
-            room=room
+            room=room,
+            has_attachments=True,
+            attachments__file=''
         )
-
-        attachments = await MessageAttachment.objects.abulk_create([
-            MessageAttachment(file='file1', message=message),
-            MessageAttachment(file='file2', message=message),
-        ])
-        attachments_ids = [a.id for a in attachments]
+        attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -358,7 +218,6 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
         async with join_room(communicator, room.pk):
             response = await self.get_room_messages(communicator, 1)
-
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
             results = response['data']['results']

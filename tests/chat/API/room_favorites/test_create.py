@@ -1,28 +1,19 @@
-from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.chat.models import Room, RoomFavorites, MessageAttachment, Message
-
-User = get_user_model()
+from core.apps.accounts.factories import UserFactory
+from core.apps.chat.factories import RoomFactory, MessageFactory
+from core.apps.chat.models import RoomFavorites
 
 
 class RoomFavoritesCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
-
-        cls.room = Room.objects.create(type=Room.MATCH)
+        cls.room = RoomFactory()
 
         cls.url = reverse('chat_favorites-list')
 
@@ -61,17 +52,8 @@ class RoomFavoritesCreateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_room_favorites_create_includes_last_message_attachments(self):
-        message = Message.objects.create(
-            text='asdaw',
-            user=self.user,
-            room=self.room
-        )
-
-        attachments = MessageAttachment.objects.bulk_create([
-            MessageAttachment(file='file1', message=message),
-            MessageAttachment(file='file2', message=message),
-        ])
-        attachments_ids = [a.id for a in attachments]
+        message = MessageFactory(user=self.user, room=self.room, has_attachments=True, attachments__file='')
+        attachments_ids = [a.pk for a in message.attachments.all()]
 
         response = self.auth_client.post(self.url, {'room': self.room.id})
 

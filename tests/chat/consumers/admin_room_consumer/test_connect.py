@@ -1,10 +1,8 @@
-from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
 
+from core.apps.accounts.factories import AdminUserFactory, UserAsyncFactory
 from core.apps.chat.consumers import AdminRoomConsumer
 from tests.utils import get_websocket_communicator, get_websocket_communicator_for_user
-
-User = get_user_model()
 
 
 # IMPORTANT
@@ -28,13 +26,7 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
 
     # TransactionTestCase does not support setUpTestData method
     def setUp(self):
-        self.admin_user = User.objects.create_superuser(
-            email=f'admin_user@example.com',
-            phone='+79993332211',
-            fullname='Админов Админ Админович',
-            password='Pass!234',
-            is_active=True
-        )
+        self.admin_user = AdminUserFactory()
 
         self.path = 'ws/admin-chat/'
         self.accepted_protocol = 'admin-chat'
@@ -48,7 +40,6 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         )
 
         connected, _ = await communicator.connect()
-
         self.assertFalse(connected)
 
         self.assertTrue(communicator.scope['user'].is_anonymous)
@@ -56,13 +47,7 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_non_admin_user_not_allowed(self):
-        non_admin_user = await User.objects.acreate(
-            email=f'non_admin_user@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
+        non_admin_user = await UserAsyncFactory()
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -73,10 +58,9 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         )
 
         connected, _ = await communicator.connect()
-
         self.assertFalse(connected)
 
-        self.assertEqual(communicator.scope['user'].id, non_admin_user.id)
+        self.assertEqual(communicator.scope['user'].pk, non_admin_user.pk)
 
         await communicator.disconnect()
 
@@ -90,7 +74,6 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         )
 
         connected, _ = await communicator.connect()
-
         self.assertFalse(connected)
 
         self.assertEqual(communicator.scope['subprotocols'], ['unsupported'])
@@ -107,8 +90,8 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         )
 
         connected, subprotocol = await communicator.connect()
-
         self.assertTrue(connected)
+
         self.assertEqual(subprotocol, self.accepted_protocol)
 
         await communicator.disconnect()
@@ -123,10 +106,9 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
         )
 
         connected, subprotocol = await communicator.connect()
-
         self.assertTrue(connected)
-        self.assertEqual(subprotocol, self.accepted_protocol)
 
-        self.assertEqual(communicator.scope['user'].id, self.admin_user.id)
+        self.assertEqual(subprotocol, self.accepted_protocol)
+        self.assertEqual(communicator.scope['user'].pk, self.admin_user.pk)
 
         await communicator.disconnect()

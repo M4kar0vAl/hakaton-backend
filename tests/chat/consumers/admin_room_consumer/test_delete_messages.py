@@ -1,17 +1,14 @@
-from cities_light.models import Country, City
-from django.contrib.auth import get_user_model
+import factory
 from django.test import tag, TransactionTestCase, override_settings
-from django.utils import timezone
 from rest_framework import status
 
-from core.apps.brand.models import Category, Brand
+from core.apps.accounts.factories import AdminUserFactory, UserAsyncFactory, AdminUserAsyncFactory
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
+from core.apps.chat.factories import RoomSupportAsyncFactory, MessageAsyncFactory, RoomAsyncFactory
 from core.apps.chat.models import Room, Message, MessageAttachment
-from core.apps.payments.models import Tariff, Subscription
+from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import join_room, get_websocket_communicator_for_user, join_room_communal
-
-User = get_user_model()
 
 
 @override_settings(
@@ -26,13 +23,7 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
     serialized_rollback = True
 
     def setUp(self):
-        self.admin_user = User.objects.create_superuser(
-            email=f'admin_user@example.com',
-            phone='+79993332211',
-            fullname='Админов Админ Админович',
-            password='Pass!234',
-            is_active=True
-        )
+        self.admin_user = AdminUserFactory()
 
         self.path = 'ws/admin-chat/'
         self.accepted_protocol = 'admin-chat'
@@ -41,15 +32,8 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         self.user_accepted_protocol = 'chat'
 
     async def test_delete_messages_not_in_room_not_allowed(self):
-        room = await Room.objects.acreate(type=Room.SUPPORT)
-
-        await room.participants.aset([self.admin_user])
-
-        msg = await Message.objects.acreate(
-            text='test',
-            user=self.admin_user,
-            room=room
-        )
+        room = await RoomSupportAsyncFactory(participants=[self.admin_user])
+        msg = await MessageAsyncFactory(user=self.admin_user, room=room)
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -60,10 +44,9 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         )
 
         connected, _ = await communicator.connect()
-
         self.assertTrue(connected)
 
-        response = await self.delete_messages(communicator, [msg.id])
+        response = await self.delete_messages(communicator, [msg.pk])
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertIsNone(response['data'])
@@ -72,73 +55,18 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         await communicator.disconnect()
 
     async def test_delete_messages(self):
-        user = await User.objects.acreate(
-            email=f'user@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
+        user = await UserAsyncFactory()
+        await SubscriptionAsyncFactory(brand__user=user)
+
+        support_room, own_support_room = await RoomSupportAsyncFactory(
+            2, participants=factory.Iterator([[user], [self.admin_user]])
         )
 
-        country = await Country.objects.acreate(name='Country', continent='EU')
-        city = await City.objects.acreate(name='City', country=country)
-
-        brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': await Category.objects.aget(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        brand = await Brand.objects.acreate(user=user, **brand_data)
-
-        now = timezone.now()
-        tariff = await Tariff.objects.aget(name='Lite Match')
-        tariff_relativedelta = tariff.get_duration_as_relativedelta()
-
-        await Subscription.objects.acreate(
-            brand=brand,
-            tariff=tariff,
-            start_date=now,
-            end_date=now + tariff_relativedelta,
-            is_active=True
+        support_room_msg, *own_support_room_msgs = await MessageAsyncFactory(
+            3,
+            user=self.admin_user,
+            room=factory.Iterator([support_room, own_support_room, own_support_room])
         )
-
-        rooms = await Room.objects.abulk_create([
-            Room(type=Room.SUPPORT),
-            Room(type=Room.SUPPORT)
-        ])
-
-        support_room, own_support_room = rooms
-
-        await support_room.participants.aset([user])
-        await own_support_room.participants.aset([self.admin_user])
-
-        messages = await Message.objects.abulk_create([
-            Message(
-                text='test',
-                user=self.admin_user,
-                room=support_room
-            ),
-            Message(
-                text='test',
-                user=self.admin_user,
-                room=own_support_room
-            ),
-            Message(
-                text='test',
-                user=self.admin_user,
-                room=own_support_room
-            )
-        ])
-
-        support_room_msg, *own_support_room_msgs = messages
 
         admin_communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -157,21 +85,14 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         )
 
         admin_connected, _ = await admin_communicator.connect()
-        user_connected, __ = await user_communicator.connect()
+        user_connected, _ = await user_communicator.connect()
 
         self.assertTrue(admin_connected)
         self.assertTrue(user_connected)
 
         # create another admin when current one is already connected
         # another_admin must be added to the list of groups to which the message is sent
-        another_admin = await User.objects.acreate(
-            email=f'admin_unique@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True,
-            is_staff=True
-        )
+        another_admin = await AdminUserAsyncFactory()
 
         another_admin_communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -182,11 +103,10 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         )
 
         another_admin_connected, _ = await another_admin_communicator.connect()
-
         self.assertTrue(another_admin_connected)
 
-        async with join_room_communal([admin_communicator, user_communicator], support_room.id):
-            admin_response = await self.delete_messages(admin_communicator, [support_room_msg.id])
+        async with join_room_communal([admin_communicator, user_communicator], support_room.pk):
+            admin_response = await self.delete_messages(admin_communicator, [support_room_msg.pk])
             user_response = await user_communicator.receive_json_from()
             another_admin_response = await another_admin_communicator.receive_json_from()
 
@@ -198,15 +118,15 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
             # check that user and both admins were notified
             for response in [admin_response, user_response, another_admin_response]:
                 self.assertEqual(response['response_status'], status.HTTP_200_OK)
-                self.assertEqual(response['data']['messages_ids'], [support_room_msg.id])
+                self.assertEqual(response['data']['messages_ids'], [support_room_msg.pk])
 
             # check that messages were deleted from db
-            self.assertFalse(await Message.objects.filter(id__in=[support_room_msg.id]).aexists())
+            self.assertFalse(await Message.objects.filter(id__in=[support_room_msg.pk]).aexists())
 
         await user_communicator.disconnect()
 
-        async with join_room(admin_communicator, own_support_room.id):
-            own_support_room_msgs_ids = [msg.id for msg in own_support_room_msgs]
+        async with join_room(admin_communicator, own_support_room.pk):
+            own_support_room_msgs_ids = [msg.pk for msg in own_support_room_msgs]
             admin_response = await self.delete_messages(admin_communicator, own_support_room_msgs_ids)
             another_admin_response = await another_admin_communicator.receive_json_from()
 
@@ -226,220 +146,7 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         await another_admin_communicator.disconnect()
 
     async def test_delete_messages_all_not_found(self):
-        room = await Room.objects.acreate(type=Room.SUPPORT)
-
-        await room.participants.aset([self.admin_user])
-
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
-
-        connected, _ = await communicator.connect()
-
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.id):
-            response = await self.delete_messages(communicator, [0, -1])
-
-            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator.disconnect()
-
-    async def test_delete_messages_some_not_found(self):
-        room = await Room.objects.acreate(type=Room.SUPPORT)
-
-        await room.participants.aset([self.admin_user])
-
-        msg = await Message.objects.acreate(
-            text='test',
-            user=self.admin_user,
-            room=room
-        )
-
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
-
-        connected, _ = await communicator.connect()
-
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.id):
-            response = await self.delete_messages(communicator, [msg.id, -1])
-
-            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-            # check that existing message was not deleted
-            self.assertTrue(await Message.objects.filter(id=msg.id).aexists())
-
-        await communicator.disconnect()
-
-    async def test_delete_messages_of_another_user_not_allowed(self):
-        user = await User.objects.acreate(
-            email=f'user@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        country = await Country.objects.acreate(name='Country', continent='EU')
-        city = await City.objects.acreate(name='City', country=country)
-
-        brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': await Category.objects.aget(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        await Brand.objects.acreate(user=user, **brand_data)
-
-        room = await Room.objects.acreate(type=Room.SUPPORT)
-
-        await room.participants.aset([user])
-
-        msg = await Message.objects.acreate(
-            text='test',
-            user=user,
-            room=room
-        )
-
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
-
-        connected, _ = await communicator.connect()
-
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.id):
-            response = await self.delete_messages(communicator, [msg.id])
-
-            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-            self.assertTrue(await Message.objects.filter(id=msg.id).aexists())
-
-        await communicator.disconnect()
-
-    async def test_delete_messages_not_in_support_room_not_allowed(self):
-        user = await User.objects.acreate(
-            email=f'user@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        country = await Country.objects.acreate(name='Country', continent='EU')
-        city = await City.objects.acreate(name='City', country=country)
-
-        brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': await Category.objects.aget(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        await Brand.objects.acreate(user=user, **brand_data)
-
-        rooms = await Room.objects.abulk_create([
-            Room(type=Room.MATCH),
-            Room(type=Room.INSTANT)
-        ])
-
-        match_room, instant_room = rooms
-
-        await match_room.participants.aset([user])
-        await instant_room.participants.aset([user])
-
-        messages = await Message.objects.abulk_create([
-            Message(
-                text='test',
-                user=user,
-                room=match_room
-            ),
-            Message(
-                text='test',
-                user=user,
-                room=instant_room
-            )
-        ])
-
-        match_room_msg, instant_room_msg = messages
-
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
-
-        connected, _ = await communicator.connect()
-
-        self.assertTrue(connected)
-
-        async with join_room(communicator, match_room.pk):
-            response = await self.delete_messages(communicator, [match_room_msg.id])
-
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        async with join_room(communicator, instant_room.pk):
-            response = await self.delete_messages(communicator, [instant_room_msg.id])
-
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator.disconnect()
-
-    async def test_delete_messages_with_attachments(self):
-        room = await Room.objects.acreate(type=Room.SUPPORT)
-
-        message = await Message.objects.acreate(
-            text='fahnj',
-            user=self.admin_user,
-            room=room
-        )
-
-        attachments = await MessageAttachment.objects.abulk_create([
-            MessageAttachment(file='file1', message=message),
-            MessageAttachment(file='file2', message=message)
-        ])
-        attachments_ids = [a.id for a in attachments]
+        room = await RoomSupportAsyncFactory(participants=[self.admin_user])
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -453,7 +160,121 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         self.assertTrue(connected)
 
         async with join_room(communicator, room.pk):
-            response = await self.delete_messages(communicator, [message.id])
+            response = await self.delete_messages(communicator, [0, -1])
+
+            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
+
+        await communicator.disconnect()
+
+    async def test_delete_messages_some_not_found(self):
+        room = await RoomSupportAsyncFactory(participants=[self.admin_user])
+        msg = await MessageAsyncFactory(user=self.admin_user, room=room)
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.admin_user
+        )
+
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            response = await self.delete_messages(communicator, [msg.pk, -1])
+
+            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
+
+            # check that existing message was not deleted
+            self.assertTrue(await Message.objects.filter(id=msg.pk).aexists())
+
+        await communicator.disconnect()
+
+    async def test_delete_messages_of_another_user_not_allowed(self):
+        user = await UserAsyncFactory()
+        room = await RoomSupportAsyncFactory(participants=[user])
+        msg = await MessageAsyncFactory(user=user, room=room)
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.admin_user
+        )
+
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            response = await self.delete_messages(communicator, [msg.pk])
+
+            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
+
+            self.assertTrue(await Message.objects.filter(id=msg.pk).aexists())
+
+        await communicator.disconnect()
+
+    async def test_delete_messages_not_in_support_room_not_allowed(self):
+        user = await UserAsyncFactory()
+        match_room, instant_room = await RoomAsyncFactory(2, type=factory.Iterator([Room.MATCH, Room.INSTANT]))
+
+        match_room_msg, instant_room_msg = await MessageAsyncFactory(
+            2, user=user, room=factory.Iterator([match_room, instant_room])
+        )
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.admin_user
+        )
+
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        async with join_room(communicator, match_room.pk):
+            response = await self.delete_messages(communicator, [match_room_msg.pk])
+
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
+
+        async with join_room(communicator, instant_room.pk):
+            response = await self.delete_messages(communicator, [instant_room_msg.pk])
+
+            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+            self.assertIsNone(response['data'])
+            self.assertTrue(response['errors'])
+
+        await communicator.disconnect()
+
+    async def test_delete_messages_with_attachments(self):
+        room = await RoomSupportAsyncFactory()
+        message = await MessageAsyncFactory(user=self.admin_user, room=room, has_attachments=True, attachments__file='')
+        attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
+
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=AdminRoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.admin_user
+        )
+
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+
+        async with join_room(communicator, room.pk):
+            response = await self.delete_messages(communicator, [message.pk])
 
             self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
