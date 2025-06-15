@@ -3,6 +3,7 @@ from factory.django import DjangoModelFactory
 
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.factories import BrandShortFactory
+from core.common.factories import factory_sync_to_async
 
 
 class BlackListFactory(DjangoModelFactory):
@@ -12,3 +13,6 @@ class BlackListFactory(DjangoModelFactory):
 
     initiator = factory.SubFactory(BrandShortFactory)
     blocked = factory.SubFactory(BrandShortFactory)
+
+
+BlackListAsyncFactory = factory_sync_to_async(BlackListFactory)

@@ -22,6 +22,7 @@ from core.apps.brand.models import (
 )
 from core.apps.chat.factories import RoomMatchFactory, RoomInstantFactory
 from core.apps.cities.factories import CityFactory
+from core.common.factories import factory_sync_to_async
 
 
 class GenderDistributedTAModelFactory(DjangoModelFactory):
@@ -59,7 +60,7 @@ class TargetAudienceFactory(DjangoModelFactory):
     gender = factory.SubFactory(GenderFactory)
     income = factory.LazyFunction(lambda: randint(50000, 1000000))
     geos = factory.RelatedFactoryList(
-        GeoFactory, factory_related_name='target_audience', size=lambda: randint( 1, 3)
+        GeoFactory, factory_related_name='target_audience', size=lambda: randint(1, 3)
     )
 
 
@@ -197,6 +198,9 @@ class BrandShortFactory(
         django_get_or_create = ('user',)
 
 
+BrandShortAsyncFactory = factory_sync_to_async(BrandShortFactory)
+
+
 class BrandPartOneFactory(
     BrandShortBaseFactory,
     BrandPartOnePostGenerationFactory
@@ -289,6 +293,9 @@ class InstantCoopFactory(
     MatchRoomPostGenerationFactory
 ):
     room = factory.SubFactory(RoomInstantFactory)
+
+
+InstantCoopAsyncFactory = factory_sync_to_async(InstantCoopFactory)
 
 
 class CollaborationFactory(DjangoModelFactory):

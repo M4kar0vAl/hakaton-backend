@@ -8,6 +8,7 @@ from factory.django import DjangoModelFactory
 
 from core.apps.brand.factories import BrandShortFactory
 from core.apps.payments.models import Tariff, PromoCode, GiftPromoCode, Subscription
+from core.common.factories import factory_sync_to_async
 
 
 class TariffFactory(DjangoModelFactory):
@@ -112,3 +113,6 @@ class SubscriptionFactory(DjangoModelFactory):
     upgraded_from = None
     upgraded_at = None
     gift_promocode = None
+
+
+SubscriptionAsyncFactory = factory_sync_to_async(SubscriptionFactory)

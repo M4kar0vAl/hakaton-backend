@@ -9,6 +9,7 @@ from factory.django import DjangoModelFactory
 
 from core.apps.accounts.models import PasswordRecoveryToken
 from core.apps.accounts.utils import get_recovery_token_hash, get_recovery_token
+from core.common.factories import factory_sync_to_async
 
 User = get_user_model()
 
@@ -25,6 +26,9 @@ class UserFactory(DjangoModelFactory):
     is_active = True
 
 
+UserAsyncFactory = factory_sync_to_async(UserFactory)
+
+
 class StaffUserFactory(UserFactory):
     email = factory.Sequence(lambda n: f'staff{n}@example.com')
     fullname = 'Стаффов Стафф Стаффович'
@@ -35,6 +39,9 @@ class AdminUserFactory(StaffUserFactory):
     email = factory.Sequence(lambda n: f'admin{n}@example.com')
     fullname = 'Админов Админ Админович'
     is_superuser = True
+
+
+AdminUserAsyncFactory = factory_sync_to_async(AdminUserFactory)
 
 
 class PasswordRecoveryTokenFactory(DjangoModelFactory):
