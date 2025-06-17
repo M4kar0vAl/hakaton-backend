@@ -18,11 +18,17 @@ class ArticleFactory(DjangoModelFactory):
     class Meta:
         model = Article
 
+    class Params:
+        has_files = False
+
     content = factory.Faker('paragraph', nb_sentences=10)
-
-
-class ArticleWithFilesFactory(ArticleFactory):
-    files = factory.RelatedFactoryList(ArticleFileFactory, factory_related_name='file', size=lambda: randint(1, 3))
+    files = factory.Maybe(
+        'has_files',
+        yes_declaration=factory.RelatedFactoryList(
+            ArticleFileFactory, factory_related_name='article', size=lambda: randint(1, 3)
+        ),
+        no_declaration=None
+    )
 
 
 class AbstractBaseArticleFactory(DjangoModelFactory):
