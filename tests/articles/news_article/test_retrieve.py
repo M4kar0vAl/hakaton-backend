@@ -1,13 +1,12 @@
 import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.articles.factories import NewsArticleFactory
 from core.apps.brand.factories import BrandShortFactory
-from core.apps.payments.models import Tariff, Subscription
+from core.apps.payments.factories import SubscriptionFactory
 
 
 class NewsArticleRetrieveTestCase(APITestCase):
@@ -16,19 +15,8 @@ class NewsArticleRetrieveTestCase(APITestCase):
         cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
-        cls.brand = BrandShortFactory(user=cls.user)
 
-        cls.tariff = Tariff.objects.get(name='Business Match')
-        cls.tariff_relativedelta = cls.tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.create(
-            brand=cls.brand,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
-        )
+        SubscriptionFactory(brand__user=cls.user)
 
         cls.published_news_article, cls.unpublished_news_article = NewsArticleFactory.create_batch(
             2, is_published=factory.Iterator([True, False])
