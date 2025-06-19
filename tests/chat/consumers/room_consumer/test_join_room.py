@@ -5,7 +5,7 @@ from rest_framework import status
 from core.apps.accounts.factories import UserFactory, UserAsyncFactory
 from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.consumers import RoomConsumer
-from core.apps.chat.factories import RoomAsyncFactory, RoomMatchAsyncFactory
+from core.apps.chat.factories import RoomAsyncFactory
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
@@ -96,7 +96,7 @@ class RoomConsumerJoinRoomTestCase(TransactionTestCase, RoomConsumerActionsMixin
         await communicator.disconnect()
 
     async def test_join_room_if_already_joined_another_one(self):
-        room1, room2 = await RoomMatchAsyncFactory(2, participants=[self.user1, self.user2])
+        room1, room2 = await RoomAsyncFactory(2, type=Room.MATCH, participants=[self.user1, self.user2])
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,

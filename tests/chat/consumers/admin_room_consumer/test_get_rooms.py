@@ -4,7 +4,7 @@ from rest_framework import status
 
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer
-from core.apps.chat.factories import RoomAsyncFactory, RoomSupportAsyncFactory, MessageAsyncFactory
+from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user
@@ -36,8 +36,8 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
             support_room2,
             own_support_room,
             support_another_admin
-        ) = support_rooms = await RoomSupportAsyncFactory(
-            4, participants=factory.Iterator([[user1], [user2], [self.admin_user], [another_admin]])
+        ) = support_rooms = await RoomAsyncFactory(
+            4, type=Room.SUPPORT, participants=factory.Iterator([[user1], [user2], [self.admin_user], [another_admin]])
         )
 
         (
@@ -109,7 +109,7 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
         self.assertEqual(len(instant_room_1_deleted_response[0]['interlocutors']), 1)
 
     async def test_get_rooms_pagination(self):
-        rooms = await RoomSupportAsyncFactory(120)
+        rooms = await RoomAsyncFactory(120, type=Room.SUPPORT)
         message1 = await MessageAsyncFactory(user=self.admin_user, room=rooms[10])
         message2 = await MessageAsyncFactory(user=self.admin_user, room=rooms[11])
 
@@ -152,7 +152,7 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
         await communicator.disconnect()
 
     async def test_get_rooms_last_message_includes_attachments(self):
-        room = await RoomSupportAsyncFactory()
+        room = await RoomAsyncFactory(type=Room.SUPPORT)
         message = await MessageAsyncFactory(user=self.admin_user, room=room, has_attachments=True, attachments__file='')
         attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 

@@ -7,9 +7,7 @@ from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.factories import (
     RoomAsyncFactory,
-    RoomSupportAsyncFactory,
-    MessageAsyncFactory,
-    RoomMatchAsyncFactory
+    MessageAsyncFactory
 )
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
@@ -64,7 +62,7 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
     async def test_get_support_room(self):
-        room = await RoomSupportAsyncFactory(participants=[self.user1])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.user1])
         msg = await MessageAsyncFactory(user=self.user1, room=room)
 
         communicator = get_websocket_communicator_for_user(
@@ -124,8 +122,8 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
         self.assertEqual(participants[0].pk, self.user1.pk)
 
     async def test_get_support_room_if_in_room(self):
-        room1 = await RoomMatchAsyncFactory(participants=[self.user1, self.user2])
-        support_room = await RoomSupportAsyncFactory(participants=[self.user1])
+        room1 = await RoomAsyncFactory(type=Room.MATCH, participants=[self.user1, self.user2])
+        support_room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.user1])
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -151,7 +149,7 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
         await communicator.disconnect()
 
     async def test_get_support_room_last_message_includes_attachments(self):
-        room = await RoomSupportAsyncFactory(participants=[self.user1])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.user1])
         message = await MessageAsyncFactory(user=self.user1, room=room, has_attachments=True, attachments__file='')
         attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 

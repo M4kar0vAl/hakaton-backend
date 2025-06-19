@@ -5,7 +5,7 @@ from rest_framework import status
 from core.apps.accounts.factories import UserFactory, UserAsyncFactory
 from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.consumers import RoomConsumer
-from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory, RoomMatchAsyncFactory
+from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
@@ -153,7 +153,7 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
         self.assertFalse(response['data']['results'])
 
     async def test_get_rooms_pagination(self):
-        rooms = await RoomMatchAsyncFactory(120, participants=[self.user1, self.user2])
+        rooms = await RoomAsyncFactory(120, type=Room.MATCH, participants=[self.user1, self.user2])
         message1 = await MessageAsyncFactory(user=self.user1, room=rooms[10])
         message2 = await MessageAsyncFactory(user=self.user1, room=rooms[11])
 

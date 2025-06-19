@@ -11,9 +11,8 @@ from core.apps.brand.factories import (
 from core.apps.chat.consumers import RoomConsumer, AdminRoomConsumer
 from core.apps.chat.factories import (
     RoomAsyncFactory,
-    RoomInstantAsyncFactory,
     MessageAsyncFactory,
-    MessageAttachmentAsyncFactory, RoomMatchAsyncFactory
+    MessageAttachmentAsyncFactory
 )
 from core.apps.chat.models import Room, MessageAttachment
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
@@ -93,7 +92,7 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         self.assertTrue(response['errors'])
 
     async def test_create_message_if_brand_in_blacklist_of_interlocutor_not_allowed(self):
-        room = await RoomMatchAsyncFactory(participants=[self.user1, self.user2])
+        room = await RoomAsyncFactory(type=Room.MATCH, participants=[self.user1, self.user2])
         await BlackListAsyncFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocks brand1
 
         communicator = get_websocket_communicator_for_user(
@@ -117,7 +116,7 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         await communicator.disconnect()
 
     async def test_create_message_if_interlocutor_in_blacklist_of_brand_not_allowed(self):
-        room = await RoomMatchAsyncFactory(participants=[self.user1, self.user2])
+        room = await RoomAsyncFactory(type=Room.MATCH, participants=[self.user1, self.user2])
         await BlackListAsyncFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocks brand2
 
         communicator = get_websocket_communicator_for_user(
@@ -251,7 +250,7 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         await admin_communicator2.disconnect()
 
     async def test_create_message_instant_room_not_allowed_if_message_by_user_already_created(self):
-        room = await RoomInstantAsyncFactory(participants=[self.user1, self.user2])
+        room = await RoomAsyncFactory(type=Room.INSTANT, participants=[self.user1, self.user2])
         await MatchAsyncFactory(instant_coop=True, initiator=self.brand1, target=self.brand2, room=room)
         await MessageAsyncFactory(user=self.user1, room=room)
 
@@ -276,7 +275,7 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         await communicator.disconnect()
 
     async def test_create_message_in_instant_room_user_is_not_the_initiator_of_coop(self):
-        room = await RoomInstantAsyncFactory(participants=[self.user1, self.user2])
+        room = await RoomAsyncFactory(type=Room.INSTANT, participants=[self.user1, self.user2])
         await MatchAsyncFactory(instant_coop=True, initiator=self.brand1, target=self.brand2, room=room)
 
         communicator = get_websocket_communicator_for_user(

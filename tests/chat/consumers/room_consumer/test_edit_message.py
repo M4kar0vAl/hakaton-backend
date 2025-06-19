@@ -9,7 +9,7 @@ from core.apps.brand.factories import (
     MatchAsyncFactory
 )
 from core.apps.chat.consumers import RoomConsumer, AdminRoomConsumer
-from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory, RoomMatchAsyncFactory
+from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room, Message
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
@@ -94,7 +94,7 @@ class RoomConsumerEditMessageTestCase(TransactionTestCase, RoomConsumerActionsMi
         self.assertEqual(msg.text, message.text)
 
     async def test_edit_message_if_brand_in_blacklist_of_interlocutor_not_allowed(self):
-        room = await RoomMatchAsyncFactory(participants=[self.user1, self.user2])
+        room = await RoomAsyncFactory(type=Room.MATCH, participants=[self.user1, self.user2])
         msg = await MessageAsyncFactory(user=self.user1, room=room)
         await BlackListAsyncFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocks brand1
 
@@ -119,7 +119,7 @@ class RoomConsumerEditMessageTestCase(TransactionTestCase, RoomConsumerActionsMi
         await communicator.disconnect()
 
     async def test_edit_message_if_interlocutor_in_blacklist_of_brand_not_allowed(self):
-        room = await RoomMatchAsyncFactory(participants=[self.user1, self.user2])
+        room = await RoomAsyncFactory(type=Room.MATCH, participants=[self.user1, self.user2])
         msg = await MessageAsyncFactory(user=self.user1, room=room)
         await BlackListAsyncFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocks brand2
 

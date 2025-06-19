@@ -4,7 +4,7 @@ from rest_framework import status
 
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
-from core.apps.chat.factories import RoomSupportAsyncFactory, MessageAsyncFactory, RoomAsyncFactory
+from core.apps.chat.factories import MessageAsyncFactory, RoomAsyncFactory
 from core.apps.chat.models import Room, Message
 from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
@@ -32,7 +32,7 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
         self.user_accepted_protocol = 'chat'
 
     async def test_edit_message_not_in_room_not_allowed(self):
-        room = await RoomSupportAsyncFactory(participants=[self.admin_user])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.admin_user])
         msg = await MessageAsyncFactory(user=self.admin_user, room=room)
 
         communicator = get_websocket_communicator_for_user(
@@ -58,8 +58,8 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
         user = await UserAsyncFactory()
         await SubscriptionAsyncFactory(brand__user=user)
 
-        support_room, own_support_room = await RoomSupportAsyncFactory(
-            2, participants=factory.Iterator([[user], [self.admin_user]])
+        support_room, own_support_room = await RoomAsyncFactory(
+            2, type=Room.SUPPORT, participants=factory.Iterator([[user], [self.admin_user]])
         )
 
         support_room_msg, own_support_room_msg = await MessageAsyncFactory(
@@ -158,7 +158,7 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
 
     async def test_edit_message_of_another_user_not_allowed(self):
         user = await UserAsyncFactory()
-        room = await RoomSupportAsyncFactory(participants=[user])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[user])
         message = await MessageAsyncFactory(user=user, room=room)
 
         communicator = get_websocket_communicator_for_user(
@@ -183,7 +183,7 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
         await communicator.disconnect()
 
     async def test_edit_message_not_found(self):
-        room = await RoomSupportAsyncFactory(participants=[self.admin_user])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.admin_user])
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,

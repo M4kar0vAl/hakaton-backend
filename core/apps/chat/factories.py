@@ -30,27 +30,6 @@ class RoomFactory(DjangoModelFactory):
 RoomAsyncFactory = factory_sync_to_async(RoomFactory)
 
 
-class RoomMatchFactory(RoomFactory):
-    type = Room.MATCH
-
-
-RoomMatchAsyncFactory = factory_sync_to_async(RoomMatchFactory)
-
-
-class RoomInstantFactory(RoomFactory):
-    type = Room.INSTANT
-
-
-RoomInstantAsyncFactory = factory_sync_to_async(RoomInstantFactory)
-
-
-class RoomSupportFactory(RoomFactory):
-    type = Room.SUPPORT
-
-
-RoomSupportAsyncFactory = factory_sync_to_async(RoomSupportFactory)
-
-
 class MessageAttachmentFactory(DjangoModelFactory):
     class Meta:
         model = MessageAttachment

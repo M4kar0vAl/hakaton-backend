@@ -4,7 +4,7 @@ from rest_framework import status
 
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
-from core.apps.chat.factories import RoomAsyncFactory, RoomSupportAsyncFactory, MessageAsyncFactory
+from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
@@ -58,8 +58,8 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
             type=factory.Iterator([Room.MATCH, Room.INSTANT]),
             participants=[user1, user2]
         )
-        support_room, own_support_room = await RoomSupportAsyncFactory(
-            2, participants=factory.Iterator([[user1], [self.admin_user]])
+        support_room, own_support_room = await RoomAsyncFactory(
+            2, type=Room.SUPPORT, participants=factory.Iterator([[user1], [self.admin_user]])
         )
 
         await MessageAsyncFactory(3, user=user1, room=factory.Iterator([match_room, instant_room, support_room]))
@@ -150,7 +150,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
 
     async def test_get_room_messages_pagination(self):
         user = await UserAsyncFactory()
-        room = await RoomSupportAsyncFactory(participants=[user])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[user])
         messages = await MessageAsyncFactory(110, user=factory.Iterator([user, self.admin_user]), room=room)
 
         communicator = get_websocket_communicator_for_user(
@@ -199,7 +199,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
         await communicator.disconnect()
 
     async def test_get_room_messages_include_attachments(self):
-        room = await RoomSupportAsyncFactory()
+        room = await RoomAsyncFactory(type=Room.SUPPORT)
         message = await MessageAsyncFactory(user=self.admin_user, room=room, has_attachments=True, attachments__file='')
         attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 

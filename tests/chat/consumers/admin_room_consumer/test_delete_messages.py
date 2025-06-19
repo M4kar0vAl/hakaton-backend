@@ -4,7 +4,7 @@ from rest_framework import status
 
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
-from core.apps.chat.factories import RoomSupportAsyncFactory, MessageAsyncFactory, RoomAsyncFactory
+from core.apps.chat.factories import MessageAsyncFactory, RoomAsyncFactory
 from core.apps.chat.models import Room, Message, MessageAttachment
 from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
@@ -32,7 +32,7 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         self.user_accepted_protocol = 'chat'
 
     async def test_delete_messages_not_in_room_not_allowed(self):
-        room = await RoomSupportAsyncFactory(participants=[self.admin_user])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.admin_user])
         msg = await MessageAsyncFactory(user=self.admin_user, room=room)
 
         communicator = get_websocket_communicator_for_user(
@@ -58,8 +58,8 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         user = await UserAsyncFactory()
         await SubscriptionAsyncFactory(brand__user=user)
 
-        support_room, own_support_room = await RoomSupportAsyncFactory(
-            2, participants=factory.Iterator([[user], [self.admin_user]])
+        support_room, own_support_room = await RoomAsyncFactory(
+            2, type=Room.SUPPORT, participants=factory.Iterator([[user], [self.admin_user]])
         )
 
         support_room_msg, *own_support_room_msgs = await MessageAsyncFactory(
@@ -146,7 +146,7 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         await another_admin_communicator.disconnect()
 
     async def test_delete_messages_all_not_found(self):
-        room = await RoomSupportAsyncFactory(participants=[self.admin_user])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.admin_user])
 
         communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -169,7 +169,7 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         await communicator.disconnect()
 
     async def test_delete_messages_some_not_found(self):
-        room = await RoomSupportAsyncFactory(participants=[self.admin_user])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.admin_user])
         msg = await MessageAsyncFactory(user=self.admin_user, room=room)
 
         communicator = get_websocket_communicator_for_user(
@@ -197,7 +197,7 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
 
     async def test_delete_messages_of_another_user_not_allowed(self):
         user = await UserAsyncFactory()
-        room = await RoomSupportAsyncFactory(participants=[user])
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[user])
         msg = await MessageAsyncFactory(user=user, room=room)
 
         communicator = get_websocket_communicator_for_user(
@@ -258,7 +258,7 @@ class AdminRoomConsumerDeleteMessagesTestCase(TransactionTestCase, AdminRoomCons
         await communicator.disconnect()
 
     async def test_delete_messages_with_attachments(self):
-        room = await RoomSupportAsyncFactory()
+        room = await RoomAsyncFactory(type=Room.SUPPORT)
         message = await MessageAsyncFactory(user=self.admin_user, room=room, has_attachments=True, attachments__file='')
         attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 

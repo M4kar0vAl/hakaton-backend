@@ -20,7 +20,8 @@ from core.apps.brand.models import (
     ProductPhoto,
     GalleryPhoto, Match, Collaboration
 )
-from core.apps.chat.factories import RoomMatchFactory, RoomInstantFactory
+from core.apps.chat.factories import RoomFactory
+from core.apps.chat.models import Room
 from core.apps.cities.factories import CityFactory
 from core.common.factories import factory_sync_to_async
 
@@ -252,14 +253,14 @@ class MatchFactory(DjangoModelFactory):
         )
         instant_coop = factory.Trait(
             like=True,
-            room=factory.SubFactory(RoomInstantFactory),
+            room=factory.SubFactory(RoomFactory, type=Room.INSTANT),
         )
 
     initiator = factory.SubFactory(BrandShortFactory)
     target = factory.SubFactory(BrandShortFactory)
     is_match = True
     match_at = factory.LazyFunction(lambda: timezone.now())
-    room = factory.SubFactory(RoomMatchFactory)
+    room = factory.SubFactory(RoomFactory, type=Room.MATCH)
 
     @factory.post_generation
     def like_at(self, create, extracted, **kwargs):

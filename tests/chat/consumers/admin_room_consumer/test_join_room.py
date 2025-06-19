@@ -4,7 +4,7 @@ from rest_framework import status
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer
-from core.apps.chat.factories import RoomFactory, RoomSupportFactory
+from core.apps.chat.factories import RoomFactory
 from core.apps.chat.models import Room
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import join_room, get_websocket_communicator_for_user
@@ -29,8 +29,8 @@ class AdminRoomConsumerJoinRoomTestCase(TransactionTestCase, AdminRoomConsumerAc
             2, type=factory.Iterator([Room.MATCH, Room.INSTANT]), participants=[self.user1, self.user2]
         )
 
-        self.support_room, self.own_support_room = RoomSupportFactory.create_batch(
-            2, participants=factory.Iterator([[self.user1], [self.admin_user]])
+        self.support_room, self.own_support_room = RoomFactory.create_batch(
+            2, type=Room.SUPPORT, participants=factory.Iterator([[self.user1], [self.admin_user]])
         )
 
         self.path = 'ws/admin-chat/'

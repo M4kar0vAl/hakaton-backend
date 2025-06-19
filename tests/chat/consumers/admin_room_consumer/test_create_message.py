@@ -4,7 +4,7 @@ from rest_framework import status
 
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
-from core.apps.chat.factories import RoomAsyncFactory, RoomSupportAsyncFactory, MessageAttachmentAsyncFactory
+from core.apps.chat.factories import RoomAsyncFactory, MessageAttachmentAsyncFactory
 from core.apps.chat.models import Room, Message, MessageAttachment
 from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
@@ -85,8 +85,8 @@ class AdminRoomConsumerCreateMessageTestCase(TransactionTestCase, AdminRoomConsu
         user = await UserAsyncFactory()
         await SubscriptionAsyncFactory(brand__user=user)
 
-        support_room, own_support_room = await RoomSupportAsyncFactory(
-            2, participants=factory.Iterator([[user], [self.admin_user]])
+        support_room, own_support_room = await RoomAsyncFactory(
+            2, type=Room.SUPPORT, participants=factory.Iterator([[user], [self.admin_user]])
         )
 
         admin_communicator = get_websocket_communicator_for_user(
@@ -180,7 +180,7 @@ class AdminRoomConsumerCreateMessageTestCase(TransactionTestCase, AdminRoomConsu
         await another_admin_communicator.disconnect()
 
     async def test_create_message_with_attachments(self):
-        room = await RoomSupportAsyncFactory()
+        room = await RoomAsyncFactory(type=Room.SUPPORT)
         attachments = await MessageAttachmentAsyncFactory(2, file='')
         attachments_ids = [a.pk for a in attachments]
 
