@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory, CollaborationFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory, CollaborationFactory
 from core.apps.brand.utils import get_periods
 from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
@@ -57,7 +57,7 @@ class StatisticsTestCase(
 
         # initial brand has matches with brand1 and brand2 (and he is an initiator of both) => 2 likes and 2 matches
         match1, match2 = MatchFactory.create_batch(2, initiator=self.brand, target=factory.Iterator([brand1, brand2]))
-        LikeFactory(initiator=self.brand, target=brand3)  # initial brand likes brand3 => 1 like
+        MatchFactory(like=True, initiator=self.brand, target=brand3)  # initial brand likes brand3 => 1 like
 
         # initial brand reports about collab with brand1 => 1 collab
         CollaborationFactory(reporter=self.brand, collab_with=brand1, match=match1)

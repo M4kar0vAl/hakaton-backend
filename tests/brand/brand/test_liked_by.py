@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
-from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory
 from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
@@ -63,8 +63,10 @@ class LikedByTestCase(
 
     def test_liked_by_returns_correct_list_of_brands(self):
         # brand2 likes brand1 and brand3
-        LikeFactory.create_batch(2, initiator=self.brand2, target=factory.Iterator([self.brand1, self.brand3]))
-        LikeFactory(initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
+        MatchFactory.create_batch(
+            2, like=True, initiator=self.brand2, target=factory.Iterator([self.brand1, self.brand3])
+        )
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
 
         response = self.auth_client1.get(self.url)  # get who liked brand1
 
@@ -73,7 +75,7 @@ class LikedByTestCase(
         self.assertEqual(response.data['results'][0]['id'], self.brand2.id)
 
     def test_liked_by_excludes_matches(self):
-        LikeFactory(initiator=self.brand2, target=self.brand1)  # brand2 likes brand1
+        MatchFactory(like=True, initiator=self.brand2, target=self.brand1)  # brand2 likes brand1
         MatchFactory(initiator=self.brand3, target=self.brand1)  # brand3 has match with brand1
 
         response = self.auth_client1.get(self.url)  # get who liked brand1
@@ -84,7 +86,9 @@ class LikedByTestCase(
 
     def test_liked_by_excludes_blacklist(self):
         # brand2 likes brand1 and brand3 likes brand1
-        LikeFactory.create_batch(2, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1)
+        MatchFactory.create_batch(
+            2, like=True, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1
+        )
 
         BlackListFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocks brand1
         BlackListFactory(initiator=self.brand1, blocked=self.brand3)  # brand1 blocks brand3
@@ -100,7 +104,9 @@ class LikedByTestCase(
 
     def test_liked_by_number_of_queries(self):
         # brand2 likes brand1 and brand3 likes brand1
-        LikeFactory.create_batch(2, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1)
+        MatchFactory.create_batch(
+            2, like=True, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1
+        )
 
         with self.assertNumQueriesLessThan(3, verbose=True):
             response = self.auth_client1.get(self.url)
@@ -109,7 +115,9 @@ class LikedByTestCase(
 
     def test_liked_by_ordering(self):
         # brand2 likes brand1 and brand3 likes brand1
-        LikeFactory.create_batch(2, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1)
+        MatchFactory.create_batch(
+            2, like=True, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1
+        )
 
         response = self.auth_client1.get(self.url)
 

@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
-from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory, InstantCoopFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory
 from core.apps.brand.models import Match
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionFactory
@@ -75,13 +75,13 @@ class BrandLikeTestCase(APITestCase):
         self.assertTrue(Match.objects.filter(initiator=self.brand1, target=self.brand2, is_match=False).exists())
 
     def test_cannot_like_twice_same_brand(self):
-        LikeFactory(initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2 AGAIN
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_like_each_other_leads_to_match(self):
-        LikeFactory(initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
         response = self.auth_client2.post(self.url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -122,7 +122,7 @@ class BrandLikeTestCase(APITestCase):
 
     def test_like_in_response_if_instant_cooped(self):
         # brand1 instant coop brand2
-        instant_coop = InstantCoopFactory(initiator=self.brand1, target=self.brand2)
+        instant_coop = MatchFactory(instant_coop=True, initiator=self.brand1, target=self.brand2)
         response = self.auth_client2.post(self.url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

@@ -239,9 +239,21 @@ class BrandFactory(
     target_audience = factory.SubFactory(TargetAudienceFactory)
 
 
-class MatchBaseFactory(DjangoModelFactory):
+class MatchFactory(DjangoModelFactory):
     class Meta:
-        abstract = True
+        model = Match
+        django_get_or_create = ('initiator', 'target',)
+
+    class Params:
+        like = factory.Trait(
+            is_match=False,
+            match_at=None,
+            room=None,
+        )
+        instant_coop = factory.Trait(
+            like=True,
+            room=factory.SubFactory(RoomInstantFactory),
+        )
 
     initiator = factory.SubFactory(BrandShortFactory)
     target = factory.SubFactory(BrandShortFactory)
@@ -256,46 +268,16 @@ class MatchBaseFactory(DjangoModelFactory):
 
         self.like_at = extracted
 
-
-class MatchRoomPostGenerationFactory(DjangoModelFactory):
-    class Meta:
-        abstract = True
-
     @factory.post_generation
     def room_participants(self, create, extracted, **kwargs):
         if not create:
             return
 
-        self.room.participants.add(self.initiator.user, self.target.user)
+        if self.room is not None:
+            self.room.participants.add(self.initiator.user, self.target.user)
 
 
-class MatchFactory(
-    MatchBaseFactory,
-    MatchRoomPostGenerationFactory
-):
-    class Meta:
-        model = Match
-        django_get_or_create = ('initiator', 'target',)
-
-
-class LikeFactory(MatchBaseFactory):
-    class Meta:
-        model = Match
-        django_get_or_create = ('initiator', 'target',)
-
-    is_match = False
-    match_at = None
-    room = None
-
-
-class InstantCoopFactory(
-    LikeFactory,
-    MatchRoomPostGenerationFactory
-):
-    room = factory.SubFactory(RoomInstantFactory)
-
-
-InstantCoopAsyncFactory = factory_sync_to_async(InstantCoopFactory)
+MatchAsyncFactory = factory_sync_to_async(MatchFactory)
 
 
 class CollaborationFactory(DjangoModelFactory):

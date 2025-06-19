@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
-from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory, InstantCoopFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionFactory, TariffFactory
 
@@ -33,8 +33,8 @@ class BrandInstantCooperationTestCase(APITestCase):
             tariff=factory.Iterator([business_tariff, TariffFactory(lite=True), business_tariff])
         )
 
-        cls.like1_2 = LikeFactory(initiator=cls.brand1, target=cls.brand2)
-        cls.like2_3 = LikeFactory(initiator=cls.brand2, target=cls.brand3)
+        cls.like1_2 = MatchFactory(like=True, initiator=cls.brand1, target=cls.brand2)
+        cls.like2_3 = MatchFactory(like=True, initiator=cls.brand2, target=cls.brand3)
 
         cls.url = reverse('brand-instant-coop')
 
@@ -100,7 +100,7 @@ class BrandInstantCooperationTestCase(APITestCase):
         self.assertEqual(room.match.id, self.like1_2.pk)
 
     def test_cannot_coop_with_the_same_brand(self):
-        InstantCoopFactory(initiator=self.brand1, target=self.brand3)  # brand1 instant coop brand3
+        MatchFactory(instant_coop=True, initiator=self.brand1, target=self.brand3)  # brand1 instant coop brand3
 
         response = self.auth_client1.post(self.url, {'target': self.brand3.id})  # brand1 instant coop brand3 AGAIN
 

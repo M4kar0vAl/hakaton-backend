@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.brand.factories import BrandShortFactory, MatchFactory, CollaborationFactory, LikeFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory, CollaborationFactory
 from core.apps.brand.models import Collaboration
 from core.apps.payments.factories import SubscriptionFactory
 
@@ -48,7 +48,7 @@ class CollaborationCreateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_collaboration_create_with_brand_without_match(self):
-        like = LikeFactory(initiator=self.brand1)
+        like = MatchFactory(like=True, initiator=self.brand1)
 
         collaboration_data = {**self.collaboration_data, 'match': like.id}
 

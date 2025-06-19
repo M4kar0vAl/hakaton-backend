@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.brand.factories import BrandShortFactory, MatchFactory, LikeFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory
 from core.apps.brand.models import Brand
 from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
@@ -123,7 +123,7 @@ class BrandMyMatchesTestCase(
 
     def test_my_matches_excludes_likes(self):
         MatchFactory(initiator=self.brand1, target=self.brand2)  # brand1 has match with brand2
-        LikeFactory(initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
 
         response = self.auth_client1.get(self.url)
 

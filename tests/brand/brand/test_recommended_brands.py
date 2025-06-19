@@ -10,7 +10,8 @@ from core.apps.brand.factories import (
     TagFactory,
     FormatFactory,
     GoalFactory,
-    CategoryFactory, LikeFactory, MatchFactory
+    CategoryFactory,
+    MatchFactory
 )
 from core.apps.cities.factories import CityFactory
 from core.apps.payments.factories import SubscriptionFactory
@@ -185,8 +186,8 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.data['results'][6]['id'], self.brand7.id)
 
     def test_recommended_brands_exclude_likes(self):
-        LikeFactory(initiator=self.initial_brand, target=self.brand1)  # initial brand likes brand1
-        LikeFactory(initiator=self.brand2, target=self.initial_brand)  # brand2 likes initial brand
+        MatchFactory(like=True, initiator=self.initial_brand, target=self.brand1)  # initial brand likes brand1
+        MatchFactory(like=True, initiator=self.brand2, target=self.initial_brand)  # brand2 likes initial brand
 
         response = self.auth_client1.get(self.url)
 

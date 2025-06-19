@@ -6,7 +6,7 @@ from core.apps.accounts.factories import UserFactory, UserAsyncFactory
 from core.apps.blacklist.factories import BlackListAsyncFactory
 from core.apps.brand.factories import (
     BrandShortFactory,
-    InstantCoopAsyncFactory
+    MatchAsyncFactory
 )
 from core.apps.chat.consumers import RoomConsumer, AdminRoomConsumer
 from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory, RoomMatchAsyncFactory
@@ -185,7 +185,7 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         )
         match_room, instant_room, support_room = rooms
 
-        await InstantCoopAsyncFactory(initiator=self.brand1, target=self.brand2, room=instant_room)
+        await MatchAsyncFactory(instant_coop=True, initiator=self.brand1, target=self.brand2, room=instant_room)
 
         messages = await MessageAsyncFactory(6, user=self.user1, room=factory.Iterator(rooms))
         match_room_messages_ids = [msg.pk for msg in messages if msg.room_id == match_room.pk]

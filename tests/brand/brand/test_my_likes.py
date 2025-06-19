@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
-from core.apps.brand.factories import BrandShortFactory, LikeFactory, MatchFactory, InstantCoopFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory
 from core.apps.brand.models import Brand
 from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
@@ -48,7 +48,7 @@ class BrandMyLikesTestCase(
         brands = BrandShortFactory.create_batch(n + 1, user=factory.Iterator(users))
         brand_with_likes = brands.pop()
 
-        LikeFactory.create_batch(n, initiator=brand_with_likes, target=factory.Iterator(brands))
+        MatchFactory.create_batch(n, like=True, initiator=brand_with_likes, target=factory.Iterator(brands))
 
         return brand_with_likes
 
@@ -80,7 +80,7 @@ class BrandMyLikesTestCase(
         self.assertFalse(response.data['results'])
 
     def test_my_likes_no_instant_coops(self):
-        LikeFactory(initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
         response = self.auth_client1.get(self.url)  # get brands that were liked by brand1
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -93,7 +93,7 @@ class BrandMyLikesTestCase(
 
     def test_my_likes_with_instant_coop(self):
         # brand1 instant coops brand2, INSTANT room is created
-        instant_coop = InstantCoopFactory(initiator=self.brand1, target=self.brand2)
+        instant_coop = MatchFactory(instant_coop=True, initiator=self.brand1, target=self.brand2)
 
         response = self.auth_client1.get(self.url)
 
@@ -104,8 +104,8 @@ class BrandMyLikesTestCase(
         self.assertEqual(response.data['results'][0]['instant_room'], instant_coop.room_id)
 
     def test_my_likes_includes_only_likes_of_current_brand(self):
-        LikeFactory(initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
-        LikeFactory(initiator=self.brand2, target=self.brand1)  # brand2 likes brand1
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
+        MatchFactory(like=True, initiator=self.brand2, target=self.brand1)  # brand2 likes brand1
 
         response = self.auth_client1.get(self.url)
 
@@ -126,7 +126,9 @@ class BrandMyLikesTestCase(
 
     def test_my_likes_exclude_blacklist(self):
         # brand1 likes brand2 and brand3
-        LikeFactory.create_batch(2, initiator=self.brand1, target=factory.Iterator([self.brand2, self.brand3]))
+        MatchFactory.create_batch(
+            2, like=True, initiator=self.brand1, target=factory.Iterator([self.brand2, self.brand3])
+        )
 
         BlackListFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocks brand2
         BlackListFactory(initiator=self.brand3, blocked=self.brand1)  # brand3 blocks brand1
@@ -141,8 +143,8 @@ class BrandMyLikesTestCase(
         self.assertEqual(len(results), 0)
 
     def test_my_likes_can_return_more_than_one_brand(self):
-        InstantCoopFactory(initiator=self.brand1, target=self.brand2)  # brand 1 instant coops brand2
-        LikeFactory(initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
+        MatchFactory(instant_coop=True, initiator=self.brand1, target=self.brand2)  # brand 1 instant coops brand2
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
 
         response = self.auth_client1.get(self.url)
 
@@ -164,7 +166,9 @@ class BrandMyLikesTestCase(
 
     def test_my_likes_ordering(self):
         # brand1 likes brand2 and brand1 likes brand3
-        LikeFactory.create_batch(2, initiator=self.brand1, target=factory.Iterator([self.brand2, self.brand3]))
+        MatchFactory.create_batch(
+            2, like=True, initiator=self.brand1, target=factory.Iterator([self.brand2, self.brand3])
+        )
 
         response = self.auth_client1.get(self.url)
 
