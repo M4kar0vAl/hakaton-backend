@@ -2,7 +2,7 @@ import factory
 from django.test import tag, TransactionTestCase, override_settings
 from rest_framework import status
 
-from core.apps.accounts.factories import AdminUserFactory, UserAsyncFactory, AdminUserAsyncFactory
+from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
 from core.apps.chat.factories import RoomSupportAsyncFactory, MessageAsyncFactory, RoomAsyncFactory
 from core.apps.chat.models import Room, Message
@@ -23,7 +23,7 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
     serialized_rollback = True
 
     def setUp(self):
-        self.admin_user = AdminUserFactory()
+        self.admin_user = UserFactory(admin=True)
 
         self.path = 'ws/admin-chat/'
         self.accepted_protocol = 'admin-chat'
@@ -90,7 +90,7 @@ class AdminRoomConsumerEditMessageTestCase(TransactionTestCase, AdminRoomConsume
 
         # create another admin when current one is already connected
         # another_admin must be added to the list of groups to which the message is sent
-        another_admin = await AdminUserAsyncFactory()
+        another_admin = await UserAsyncFactory(admin=True)
 
         another_admin_communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,

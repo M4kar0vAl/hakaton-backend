@@ -1,7 +1,7 @@
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
 
-from core.apps.accounts.factories import AdminUserFactory, UserAsyncFactory
+from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
 from core.apps.chat.factories import RoomSupportAsyncFactory
 from core.apps.payments.factories import SubscriptionAsyncFactory
@@ -21,7 +21,7 @@ class AdminRoomConsumerLeaveRoomTestCase(TransactionTestCase, AdminRoomConsumerA
     serialized_rollback = True
 
     def setUp(self):
-        self.admin_user = AdminUserFactory()
+        self.admin_user = UserFactory(admin=True)
 
         self.path = 'ws/admin-chat/'
         self.accepted_protocol = 'admin-chat'

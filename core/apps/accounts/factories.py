@@ -19,6 +19,19 @@ class UserFactory(DjangoModelFactory):
         model = User
         django_get_or_create = ('email',)
 
+    class Params:
+        staff = factory.Trait(
+            email=factory.Sequence(lambda n: f'staff{n}@example.com'),
+            fullname='Стаффов Стафф Стаффович',
+            is_staff=True,
+        )
+        admin = factory.Trait(
+            staff=True,
+            email=factory.Sequence(lambda n: f'admin{n}@example.com'),
+            fullname='Админов Админ Админович',
+            is_superuser=True,
+        )
+
     email = factory.Sequence(lambda n: f'user{n}@example.com')
     phone = '+79993332211'
     fullname = 'Юзеров Юзер Юзерович'
@@ -27,21 +40,6 @@ class UserFactory(DjangoModelFactory):
 
 
 UserAsyncFactory = factory_sync_to_async(UserFactory)
-
-
-class StaffUserFactory(UserFactory):
-    email = factory.Sequence(lambda n: f'staff{n}@example.com')
-    fullname = 'Стаффов Стафф Стаффович'
-    is_staff = True
-
-
-class AdminUserFactory(StaffUserFactory):
-    email = factory.Sequence(lambda n: f'admin{n}@example.com')
-    fullname = 'Админов Админ Админович'
-    is_superuser = True
-
-
-AdminUserAsyncFactory = factory_sync_to_async(AdminUserFactory)
 
 
 class PasswordRecoveryTokenFactory(DjangoModelFactory):

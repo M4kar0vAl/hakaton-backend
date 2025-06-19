@@ -1,6 +1,6 @@
 from django.test import override_settings, TransactionTestCase, tag
 
-from core.apps.accounts.factories import AdminUserFactory, UserAsyncFactory
+from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer
 from tests.utils import get_websocket_communicator, get_websocket_communicator_for_user
 
@@ -26,7 +26,7 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
 
     # TransactionTestCase does not support setUpTestData method
     def setUp(self):
-        self.admin_user = AdminUserFactory()
+        self.admin_user = UserFactory(admin=True)
 
         self.path = 'ws/admin-chat/'
         self.accepted_protocol = 'admin-chat'

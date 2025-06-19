@@ -2,7 +2,7 @@ import factory
 from django.test import tag, TransactionTestCase, override_settings
 from rest_framework import status
 
-from core.apps.accounts.factories import AdminUserFactory, UserFactory
+from core.apps.accounts.factories import UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer
 from core.apps.chat.factories import RoomFactory, RoomSupportFactory
 from core.apps.chat.models import Room
@@ -22,7 +22,7 @@ class AdminRoomConsumerJoinRoomTestCase(TransactionTestCase, AdminRoomConsumerAc
     serialized_rollback = True
 
     def setUp(self):
-        self.admin_user = AdminUserFactory()
+        self.admin_user = UserFactory(admin=True)
         self.user1, self.user2 = UserFactory.create_batch(2)
 
         self.match_room, self.instant_room = RoomFactory.create_batch(

@@ -5,7 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.accounts.factories import AdminUserFactory, UserFactory
+from core.apps.accounts.factories import UserFactory
 from core.apps.articles.factories import ArticleFileFactory
 from core.apps.articles.models import ArticleFile
 
@@ -31,7 +31,7 @@ class ArticleFileCreateTestCase(APITestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.admin_user = AdminUserFactory()
+        cls.admin_user = UserFactory(admin=True)
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.admin_user)
         cls._set_user_for_client_session(cls.auth_client, cls.admin_user)

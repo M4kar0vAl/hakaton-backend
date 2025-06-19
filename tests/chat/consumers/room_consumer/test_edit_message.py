@@ -2,7 +2,7 @@ import factory
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
 
-from core.apps.accounts.factories import UserFactory, UserAsyncFactory, AdminUserAsyncFactory
+from core.apps.accounts.factories import UserFactory, UserAsyncFactory
 from core.apps.blacklist.factories import BlackListAsyncFactory
 from core.apps.brand.factories import (
     BrandShortFactory,
@@ -195,7 +195,7 @@ class RoomConsumerEditMessageTestCase(TransactionTestCase, RoomConsumerActionsMi
         )
 
         # initial admin (that was before the user connected to websocket)
-        admin1 = await AdminUserAsyncFactory()
+        admin1 = await UserAsyncFactory(admin=True)
 
         communicator1 = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -231,7 +231,7 @@ class RoomConsumerEditMessageTestCase(TransactionTestCase, RoomConsumerActionsMi
 
         # create another admin when user is already connected
         # admin2 must be added to the list of groups to which the message is sent
-        admin2 = await AdminUserAsyncFactory()
+        admin2 = await UserAsyncFactory(admin=True)
 
         admin_communicator2 = get_websocket_communicator_for_user(
             url_pattern=self.admin_path,

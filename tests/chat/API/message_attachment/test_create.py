@@ -7,7 +7,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.accounts.factories import UserFactory, StaffUserFactory, AdminUserFactory
+from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.factories import MessageAttachmentFactory
 from core.apps.chat.models import MessageAttachment
@@ -70,11 +70,11 @@ class MessageAttachmentTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_message_attachment_create_staff_and_admins_allowed_wo_brand_and_active_sub(self):
-        staff_user = StaffUserFactory()
+        staff_user = UserFactory(staff=True)
         staff_client = APIClient()
         staff_client.force_authenticate(staff_user)
 
-        superuser = AdminUserFactory()
+        superuser = UserFactory(admin=True)
         superuser_client = APIClient()
         superuser_client.force_authenticate(superuser)
 

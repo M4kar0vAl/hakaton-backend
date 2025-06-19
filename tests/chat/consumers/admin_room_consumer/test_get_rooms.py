@@ -2,7 +2,7 @@ import factory
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
 
-from core.apps.accounts.factories import AdminUserFactory, UserAsyncFactory, AdminUserAsyncFactory
+from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer
 from core.apps.chat.factories import RoomAsyncFactory, RoomSupportAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room
@@ -22,14 +22,14 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
     serialized_rollback = True
 
     def setUp(self):
-        self.admin_user = AdminUserFactory()
+        self.admin_user = UserFactory(admin=True)
 
         self.path = 'ws/admin-chat/'
         self.accepted_protocol = 'admin-chat'
 
     async def test_get_rooms(self):
         user1, user2 = await UserAsyncFactory(2)
-        another_admin = await AdminUserAsyncFactory()
+        another_admin = await UserAsyncFactory(admin=True)
 
         (
             support_room1,
