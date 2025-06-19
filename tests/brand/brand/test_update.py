@@ -1,7 +1,6 @@
 import glob
 import json
 import os
-import shutil
 
 import factory
 from django.conf import settings
@@ -32,11 +31,16 @@ from core.apps.brand.models import Brand, Tag, ProductPhoto, Age, Gender, Catego
 from core.apps.cities.factories import CityFactory
 
 
-# InMemoryStorage does not work here, because it is called from BrandUpdateSerializer.update_single_photo
-# and there is another default_storage instance, which is empty.
-# So default FileSystemStorage is used with overridden MEDIA_ROOT setting
-# TODO try to make InMemoryStorage to work
-@override_settings(MEDIA_ROOT=os.path.join(settings.BASE_DIR, 'media', 'TEST'))
+@override_settings(
+    STORAGES={
+        "default": {
+            "BACKEND": "django.core.files.storage.InMemoryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+)
 @tag('slow')
 class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires TransactionTestCase to be used
     def setUp(self):
@@ -163,10 +167,6 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
 
         self.url = reverse('brand-me')
 
-    def tearDown(self):
-        # delete created media files after each test
-        shutil.rmtree(os.path.join(settings.MEDIA_ROOT))
-
     def test_brand_put_not_allowed(self):
         response = self.auth_client.put(self.url, {}, format='multipart')
 
@@ -227,38 +227,50 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
 
         # check tags
         self.assertEqual(updated_brand.tags.count(), len(self.tags) + 1)
-        self.assertEqual(updated_brand.tags.filter(
-            name__in=list(map(lambda tag_: tag_['name'], [*self.tags_as_dicts, self.other_tag]))
-        ).count(), len(self.tags) + 1)
+        self.assertEqual(
+            updated_brand.tags.filter(
+                name__in=list(map(lambda tag_: tag_['name'], [*self.tags_as_dicts, self.other_tag]))
+            ).count(),
+            len(self.tags) + 1
+        )
         self.assertEqual(updated_brand.tags.filter(is_other=True).count(), 1)
 
         # check formats
         self.assertEqual(updated_brand.formats.count(), len(self.formats) + 1)
-        self.assertEqual(updated_brand.formats.filter(
-            name__in=list(map(lambda format_: format_['name'], [*self.formats_as_dicts, self.other_format]))
-        ).count(), len(self.formats) + 1)
+        self.assertEqual(
+            updated_brand.formats.filter(
+                name__in=list(map(lambda format_: format_['name'], [*self.formats_as_dicts, self.other_format]))
+            ).count(),
+            len(self.formats) + 1
+        )
         self.assertEqual(updated_brand.formats.filter(is_other=True).count(), 1)
 
         # check goals
         self.assertEqual(updated_brand.goals.count(), len(self.goals) + 1)
-        self.assertEqual(updated_brand.goals.filter(
-            name__in=list(map(lambda goal: goal['name'], [*self.goals_as_dicts, self.other_goal]))
-        ).count(), len(self.goals) + 1)
+        self.assertEqual(
+            updated_brand.goals.filter(
+                name__in=list(map(lambda goal: goal['name'], [*self.goals_as_dicts, self.other_goal]))
+            ).count(),
+            len(self.goals) + 1
+        )
         self.assertEqual(updated_brand.goals.filter(is_other=True).count(), 1)
 
         # check categories of interest
         self.assertEqual(updated_brand.categories_of_interest.count(), len(self.categories_of_interest) + 1)
-        self.assertEqual(updated_brand.categories_of_interest.filter(
-            name__in=list(
+        self.assertEqual(
+            updated_brand.categories_of_interest.filter(name__in=list(
                 map(lambda cat: cat['name'], [*self.categories_of_interest_as_dicts, self.other_category_of_interest]))
-        ).count(), len(self.categories_of_interest) + 1)
+            ).count(),
+            len(self.categories_of_interest) + 1
+        )
         self.assertEqual(updated_brand.categories_of_interest.filter(is_other=True).count(), 1)
 
         # check business groups
         self.assertEqual(updated_brand.business_groups.count(), len(self.new_business_groups))
-        self.assertEqual(updated_brand.business_groups.filter(
-            name__in=self.new_business_groups
-        ).count(), len(self.new_business_groups))
+        self.assertEqual(
+            updated_brand.business_groups.filter(name__in=self.new_business_groups).count(),
+            len(self.new_business_groups)
+        )
 
         # check target audience
         self.assertIsNotNone(updated_brand.target_audience)
@@ -271,44 +283,54 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
         self.assertEqual(updated_brand.target_audience.gender.women, self.gender['women'])
         self.assertEqual(updated_brand.target_audience.income, self.target_audience['income'])
         self.assertEqual(updated_brand.target_audience.geos.count(), len(self.geos))
-
         self.assertEqual(updated_brand.target_audience.geos.filter(self.geos_query).count(), len(self.geos))
 
+        user_directory_path = os.path.join(settings.MEDIA_ROOT, f'user_{self.user.pk}')
+
         # check single photos
-        logo_files = glob.glob(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}', 'logo*'))
-        photo_files = glob.glob(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}', 'photo*'))
+        filenames = default_storage.listdir(user_directory_path)[1]
+        logo_files = list(filter(lambda name: name.startswith('logo'), filenames))
+        photo_files = list(filter(lambda name: name.startswith('photo'), filenames))
 
         self.assertEqual(len(logo_files), 1)
         self.assertEqual(len(photo_files), 1)
 
         # check that files actually changed by comparing their sizes
-        self.assertEqual(default_storage.size(logo_files[0]), self.new_image_size)
-        self.assertEqual(default_storage.size(photo_files[0]), self.new_image_size)
+        self.assertEqual(
+            default_storage.size(os.path.join(user_directory_path, logo_files[0])), self.new_image_size
+        )
+        self.assertEqual(
+            default_storage.size(os.path.join(user_directory_path, photo_files[0])), self.new_image_size
+        )
 
         # check gallery
-        files = glob.glob(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}', 'gallery', '*'))
+        gallery_path = os.path.join(user_directory_path, 'gallery')
+        filenames = default_storage.listdir(gallery_path)[1]
         gallery_photos_expected = (
                 self.initial_gallery_photos_num + len(self.gallery_add) - len(self.gallery_remove)
         )
 
-        self.assertEqual(len(files), gallery_photos_expected)
+        self.assertEqual(len(filenames), gallery_photos_expected)
         self.assertEqual(updated_brand.gallery_photos.count(), gallery_photos_expected)
 
-        for path in files:
+        for name in filenames:
             # check that files actually changed by comparing their sizes
-            self.assertEqual(default_storage.size(path), self.new_image_size)
+            self.assertEqual(default_storage.size(os.path.join(gallery_path, name)), self.new_image_size)
 
         # check product photos
-        match_files = glob.glob(os.path.join(
-            settings.MEDIA_ROOT, f'user_{self.user.id}', 'product_photos', 'match', '*')
-        )
-        card_files = glob.glob(os.path.join(
-            settings.MEDIA_ROOT, f'user_{self.user.id}', 'product_photos', 'brand_card', '*')
-        )
+        product_photos_path = os.path.join(user_directory_path, 'product_photos')
+        match_photos_path = os.path.join(product_photos_path, 'match')
+        card_photos_path = os.path.join(product_photos_path, 'brand_card')
+        match_filenames = default_storage.listdir(match_photos_path)[1]
+        card_filenames = default_storage.listdir(card_photos_path)[1]
 
-        for path in match_files + card_files:
+        for name in match_filenames:
             # check that files actually changed by comparing their sizes
-            self.assertEqual(default_storage.size(path), self.new_image_size)
+            self.assertEqual(default_storage.size(os.path.join(match_photos_path, name)), self.new_image_size)
+
+        for name in card_filenames:
+            # check that files actually changed by comparing their sizes
+            self.assertEqual(default_storage.size(os.path.join(card_photos_path, name)), self.new_image_size)
 
         match_photos_expected = (
                 self.initial_match_photos_num
@@ -322,8 +344,8 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
                 - len(self.product_photos_card_remove)
         )
 
-        self.assertEqual(len(match_files), match_photos_expected)
-        self.assertEqual(len(card_files), card_photos_expected)
+        self.assertEqual(len(match_filenames), match_photos_expected)
+        self.assertEqual(len(card_filenames), card_photos_expected)
         self.assertEqual(updated_brand.product_photos.count(), match_photos_expected + card_photos_expected)
         self.assertEqual(updated_brand.product_photos.filter(format=ProductPhoto.MATCH).count(), match_photos_expected)
         self.assertEqual(updated_brand.product_photos.filter(format=ProductPhoto.CARD).count(), card_photos_expected)
