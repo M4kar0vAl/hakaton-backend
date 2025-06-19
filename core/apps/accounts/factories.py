@@ -3,7 +3,6 @@ from datetime import timedelta
 import factory
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import F
 from factory import post_generation
 from factory.django import DjangoModelFactory
 
@@ -50,21 +49,24 @@ class PasswordRecoveryTokenFactory(DjangoModelFactory):
     user = factory.SubFactory(UserFactory)
     token = factory.LazyFunction(lambda: get_recovery_token_hash(get_recovery_token()))
 
-
-class PasswordRecoveryTokenExpiredFactory(PasswordRecoveryTokenFactory):
     @post_generation
     def created(self, create, extracted, **kwargs):
-        # if obj was not created, does nothing
+        # if obj is not created, does nothing
         if not create:
             return
 
-        # if created was passed to the factory as a parameter,
-        # sets object created value to that one
+        # if the concrete value is passed, use it
         if extracted:
             self.created = extracted
-        # if token is already expired, does nothing
-        elif self.is_expired:
+
+    @post_generation
+    def expired(self, create, extracted, **kwargs):
+        """
+        Used to make an expired token.
+        To make an expired token pass expired=True when calling factory
+        """
+        if not create:
             return
-        # otherwise sets created such a way that token is expired now
-        else:
-            self.created = F('created') - timedelta(seconds=settings.PASSWORD_RESET_TIMEOUT)
+
+        if extracted:
+            self.created -= timedelta(seconds=settings.PASSWORD_RESET_TIMEOUT)

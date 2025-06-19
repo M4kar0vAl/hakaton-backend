@@ -5,8 +5,7 @@ from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import (
     UserFactory,
-    PasswordRecoveryTokenFactory,
-    PasswordRecoveryTokenExpiredFactory
+    PasswordRecoveryTokenFactory
 )
 from core.apps.accounts.models import PasswordRecoveryToken
 from core.apps.accounts.utils import get_recovery_token_hash
@@ -39,7 +38,9 @@ class PasswordRecoveryConfirmTestCase(APITestCase):
 
     def test_password_recovery_confirm_token_expired(self):
         expired_token = 'svdjkml'
-        expired_recovery_token = PasswordRecoveryTokenExpiredFactory(token=get_recovery_token_hash(expired_token))
+        expired_recovery_token = PasswordRecoveryTokenFactory(
+            token=get_recovery_token_hash(expired_token), expired=True
+        )
 
         response = self.client.post(self.url, {'token': expired_token, 'new_password': self.new_password})
 

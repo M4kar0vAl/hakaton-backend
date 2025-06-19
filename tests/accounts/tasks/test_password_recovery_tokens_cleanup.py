@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from core.apps.accounts.factories import PasswordRecoveryTokenFactory, PasswordRecoveryTokenExpiredFactory
+from core.apps.accounts.factories import PasswordRecoveryTokenFactory
 from core.apps.accounts.models import PasswordRecoveryToken
 from core.apps.accounts.tasks import password_recovery_tokens_cleanup
 
@@ -16,7 +16,7 @@ class PasswordRecoveryTokensCleanupTaskTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.recovery_token = PasswordRecoveryTokenFactory()
-        cls.expired_recovery_token = PasswordRecoveryTokenExpiredFactory()
+        cls.expired_recovery_token = PasswordRecoveryTokenFactory(expired=True)
 
         cls.task = password_recovery_tokens_cleanup
 
