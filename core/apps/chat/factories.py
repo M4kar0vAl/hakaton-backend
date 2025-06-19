@@ -2,7 +2,7 @@ from random import randint
 
 import factory
 from django.conf import settings
-from django.db.models import F
+from factory import post_generation
 from factory.django import DjangoModelFactory
 
 from core.apps.accounts.factories import UserFactory
@@ -37,17 +37,30 @@ class MessageAttachmentFactory(DjangoModelFactory):
     message = None
     file = factory.django.FileField()
 
-
-MessageAttachmentAsyncFactory = factory_sync_to_async(MessageAttachmentFactory)
-
-
-class MessageAttachmentExpiredFactory(MessageAttachmentFactory):
-    @factory.post_generation
+    @post_generation
     def created_at(self, create, extracted, **kwargs):
+        # if obj is not created, does nothing
         if not create:
             return
 
-        self.created_at = F('created_at') - settings.MESSAGE_ATTACHMENT_DANGLING_LIFE_TIME
+        # if the concrete value is passed, use it
+        if extracted:
+            self.created = extracted
+
+    @post_generation
+    def expired(self, create, extracted, **kwargs):
+        """
+        Used to make an expired attachment.
+        To make an expired attachment pass expired=True when calling factory
+        """
+        if not create:
+            return
+
+        if extracted:
+            self.created_at -= settings.MESSAGE_ATTACHMENT_DANGLING_LIFE_TIME
+
+
+MessageAttachmentAsyncFactory = factory_sync_to_async(MessageAttachmentFactory)
 
 
 class MessageFactory(DjangoModelFactory):

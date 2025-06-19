@@ -1,7 +1,7 @@
 import factory
 from django.test import TestCase, override_settings
 
-from core.apps.chat.factories import MessageAttachmentFactory, MessageFactory, MessageAttachmentExpiredFactory
+from core.apps.chat.factories import MessageAttachmentFactory, MessageFactory
 from core.apps.chat.models import MessageAttachment
 from core.apps.chat.tasks import message_attachments_cleanup
 
@@ -18,8 +18,8 @@ class MessageAttachmentCleanupTaskTestCase(TestCase):
         attachments = MessageAttachmentFactory.create_batch(
             2, message=factory.Iterator([cls.message, None]), file=''
         )
-        expired_attachments = MessageAttachmentExpiredFactory.create_batch(
-            2, message=factory.Iterator([cls.message, None]), file=''
+        expired_attachments = MessageAttachmentFactory.create_batch(
+            2, message=factory.Iterator([cls.message, None]), file='', expired=True
         )
 
         cls.linked_attachment_id, cls.dangling_attachment_id = map(lambda x: x.id, attachments)
