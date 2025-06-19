@@ -21,7 +21,6 @@ from tests.utils import get_websocket_communicator_for_user
 )
 @tag('slow', 'chats')
 class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin):
-    serialized_rollback = True
 
     def setUp(self):
         self.user1, self.user2 = UserFactory.create_batch(2)

@@ -18,7 +18,6 @@ from tests.utils import join_room, get_websocket_communicator_for_user
 )
 @tag('slow', 'chats')
 class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomConsumerActionsMixin):
-    serialized_rollback = True
 
     def setUp(self):
         self.admin_user = UserFactory(admin=True)

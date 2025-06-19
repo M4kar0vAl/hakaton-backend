@@ -21,7 +21,6 @@ from core.apps.payments.factories import SubscriptionFactory
 @override_settings(MEDIA_ROOT=os.path.join(settings.BASE_DIR, 'media', 'TEST'))
 @tag('slow')
 class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires TransactionTestCase to be used
-    serialized_rollback = True
 
     def setUp(self):
         self.user = UserFactory()

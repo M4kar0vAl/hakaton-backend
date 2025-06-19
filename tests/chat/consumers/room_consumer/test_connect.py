@@ -22,10 +22,6 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
     # won't work if inherit from TestCase
     # having troubles with db connection maintenance (closed before middleware can authenticate user)
 
-    # used to reload data from migrations in TransactionTestCase
-    # https://docs.djangoproject.com/en/5.0/topics/testing/overview/#rollback-emulation
-    serialized_rollback = True
-
     # TransactionTestCase does not support setUpTestData method
     def setUp(self):
         self.user = UserFactory()
