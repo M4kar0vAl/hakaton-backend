@@ -1,3 +1,4 @@
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
@@ -7,6 +8,16 @@ from core.apps.chat.factories import RoomFactory, MessageFactory
 from core.apps.chat.models import RoomFavorites
 
 
+@override_settings(
+    STORAGES={
+        "default": {
+            "BACKEND": "django.core.files.storage.InMemoryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    },
+)
 class RoomFavoritesCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
@@ -52,7 +63,7 @@ class RoomFavoritesCreateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_room_favorites_create_includes_last_message_attachments(self):
-        message = MessageFactory(user=self.user, room=self.room, has_attachments=True, attachments__file='')
+        message = MessageFactory(user=self.user, room=self.room, has_attachments=True)
         attachments_ids = [a.pk for a in message.attachments.all()]
 
         response = self.auth_client.post(self.url, {'room': self.room.id})

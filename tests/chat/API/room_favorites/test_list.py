@@ -1,4 +1,5 @@
 import factory
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
@@ -8,6 +9,16 @@ from core.apps.chat.factories import RoomFactory, RoomFavoritesFactory, MessageF
 from core.apps.chat.models import Room
 
 
+@override_settings(
+    STORAGES={
+        "default": {
+            "BACKEND": "django.core.files.storage.InMemoryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    },
+)
 class RoomFavoritesListTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
@@ -66,7 +77,7 @@ class RoomFavoritesListTestCase(APITestCase):
         self.assertFalse([i for i in results if i['id'] in set(another_favs)])
 
     def test_room_favorites_list_includes_last_message_attachments(self):
-        message = MessageFactory(user=self.user, room=self.match_room, has_attachments=True, attachments__file='')
+        message = MessageFactory(user=self.user, room=self.match_room, has_attachments=True)
         attachments_ids = [a.pk for a in message.attachments.all()]
 
         response = self.auth_client.get(self.url)

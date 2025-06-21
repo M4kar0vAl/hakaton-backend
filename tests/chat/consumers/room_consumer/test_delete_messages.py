@@ -21,7 +21,15 @@ from tests.utils import get_websocket_communicator_for_user, join_room_communal,
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer"
         }
-    }
+    },
+    STORAGES={
+        "default": {
+            "BACKEND": "django.core.files.storage.InMemoryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    },
 )
 @tag('slow', 'chats')
 class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerActionsMixin):
@@ -416,9 +424,7 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
     async def test_delete_messages_with_attachments(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
-        message = await MessageAsyncFactory(
-            user=self.user1, room=room, has_attachments=True, attachments__file=''
-        )
+        message = await MessageAsyncFactory(user=self.user1, room=room, has_attachments=True)
         attachments_ids = message.attachments.values_list('pk', flat=True)
 
         communicator = get_websocket_communicator_for_user(

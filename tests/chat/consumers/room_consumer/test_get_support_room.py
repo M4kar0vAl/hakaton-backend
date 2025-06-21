@@ -20,7 +20,15 @@ from tests.utils import get_websocket_communicator_for_user, join_room
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer"
         }
-    }
+    },
+    STORAGES={
+        "default": {
+            "BACKEND": "django.core.files.storage.InMemoryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    },
 )
 @tag('slow', 'chats')
 class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerActionsMixin):
@@ -149,7 +157,7 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
 
     async def test_get_support_room_last_message_includes_attachments(self):
         room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.user1])
-        message = await MessageAsyncFactory(user=self.user1, room=room, has_attachments=True, attachments__file='')
+        message = await MessageAsyncFactory(user=self.user1, room=room, has_attachments=True)
         attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 
         communicator = get_websocket_communicator_for_user(
