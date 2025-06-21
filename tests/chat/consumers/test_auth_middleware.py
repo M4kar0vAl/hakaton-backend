@@ -6,9 +6,9 @@ from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.consumers import RoomConsumer
-from tests.utils import get_websocket_communicator, get_websocket_application
+from core.apps.payments.factories import SubscriptionFactory
+from tests.utils import get_websocket_communicator, get_websocket_application, get_websocket_communicator_for_user
 
 
 # IMPORTANT
@@ -29,7 +29,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
     # TransactionTestCase does not support setUpTestData method
     def setUp(self):
         self.user = UserFactory()
-        BrandShortFactory(user=self.user)
+        SubscriptionFactory(brand__user=self.user)  # need this to connect to RoomConsumer
 
         self.path = 'ws/chat/'
         self.accepted_protocol = 'chat'
@@ -158,3 +158,17 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         self.assertEqual(scope['subprotocols'], [self.accepted_protocol])
 
         await communicator.disconnect()
+
+    async def test_connect(self):
+        communicator = get_websocket_communicator_for_user(
+            url_pattern=self.path,
+            path=self.path,
+            consumer_class=RoomConsumer,
+            protocols=[self.accepted_protocol],
+            user=self.user
+        )
+
+        connected, _ = await communicator.connect()
+
+        self.assertTrue(connected)
+        self.assertEqual(communicator.scope['user'].pk, self.user.pk)
