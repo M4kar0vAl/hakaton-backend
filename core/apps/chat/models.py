@@ -2,6 +2,7 @@ import os
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from core.common.utils import get_random_filename_with_extension
 
@@ -81,6 +82,10 @@ class MessageAttachment(models.Model):
 
     def __repr__(self):
         return f'{self.__class__.__name__} {self.pk}'
+
+    @property
+    def is_expired(self):
+        return self.created_at + settings.MESSAGE_ATTACHMENT_DANGLING_LIFE_TIME <= timezone.now()
 
 
 class RoomFavorites(models.Model):
