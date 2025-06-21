@@ -56,6 +56,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'core.config.urls'
+CHANNELS_URLCONF = 'core.apps.chat.routing'
 
 TEMPLATES = [
     {

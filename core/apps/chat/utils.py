@@ -3,8 +3,13 @@ from typing import Any, Optional
 
 from channels.layers import get_channel_layer
 from django.conf import settings
+from django.urls import reverse
 
 from core.common.validators import is_valid_file_type
+
+
+def channels_reverse(viewname, args=None, kwargs=None):
+    return reverse(viewname, urlconf=settings.CHANNELS_URLCONF, args=args, kwargs=kwargs)
 
 
 async def get_payload(
