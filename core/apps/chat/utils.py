@@ -131,10 +131,4 @@ def is_attachment_file_size_valid(file):
 
 
 def is_attachment_file_type_valid(file):
-    ALLOWED_MIME_TYPES = (
-            settings.ALLOWED_IMAGE_MIME_TYPES
-            + settings.ALLOWED_VIDEO_MIME_TYPES
-            + settings.ALLOWED_AUDIO_MIME_TYPES
-    )
-
-    return is_valid_file_type(ALLOWED_MIME_TYPES, file)
+    return is_valid_file_type(settings.MESSAGE_ATTACHMENT_ALLOWED_MIME_TYPES, file)
