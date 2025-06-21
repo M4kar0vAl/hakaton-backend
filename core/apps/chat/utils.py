@@ -124,10 +124,10 @@ async def reply_to_groups(
 
 
 def is_attachment_file_size_valid(file):
-    MAX_SIZE_MB = 5
-    MAX_SIZE = 1024 * 1024 * MAX_SIZE_MB
+    max_size = settings.MESSAGE_ATTACHMENT_MAX_SIZE
+    max_size_mb = max_size // 1024 ** 2
 
-    return file.size <= MAX_SIZE, MAX_SIZE_MB
+    return file.size <= max_size, max_size_mb
 
 
 def is_attachment_file_type_valid(file):

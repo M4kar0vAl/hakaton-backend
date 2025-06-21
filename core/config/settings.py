@@ -322,3 +322,4 @@ ALLOWED_AUDIO_MIME_TYPES = [
 # chat app
 # how much time an unlinked (message=None) attachment should stay on the server
 MESSAGE_ATTACHMENT_DANGLING_LIFE_TIME = timedelta(minutes=10)
+MESSAGE_ATTACHMENT_MAX_SIZE = 5242880  # 5Mb

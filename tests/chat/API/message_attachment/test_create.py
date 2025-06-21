@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import factory
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile, InMemoryUploadedFile
 from django.test import override_settings
 from django.urls import reverse
@@ -103,7 +104,7 @@ class MessageAttachmentTestCase(APITestCase):
     def test_message_attachment_create_file_is_too_big(self, mock_file_complete):
         file_name = "big.png"
         file_content_type = "image/png"
-        max_size = 1024 * 1024 * 5  # 5Mb
+        max_size = settings.MESSAGE_ATTACHMENT_MAX_SIZE
 
         mock_file_complete.return_value = InMemoryUploadedFile(
             file=b"",
