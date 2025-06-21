@@ -1,10 +1,12 @@
+import factory
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.accounts.factories import UserFactory
+from core.apps.articles.factories import ArticleFileFactory
 from core.apps.articles.models import ArticleFile
 
 User = get_user_model()
@@ -29,38 +31,18 @@ class ArticleFileCreateTestCase(APITestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.admin_user = User.objects.create_superuser(
-            email=f'admin_user@example.com',
-            phone='+79993332211',
-            fullname='Админов Админ Админович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        cls.admin_user = UserFactory(admin=True)
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.admin_user)
         cls._set_user_for_client_session(cls.auth_client, cls.admin_user)
 
-        small_gif = (
-            b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x05\x04\x04\x00\x00\x00\x2c\x00\x00\x00\x00\x01'
-            b'\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b'
-        )
+        cls.test_file = factory.build(dict, FACTORY_CLASS=ArticleFileFactory)['file']
+        cls.test_unsupported_file = factory.build(dict, FACTORY_CLASS=ArticleFileFactory, file__format='ICO')['file']
 
-        cls.test_file = SimpleUploadedFile('small.gif', small_gif, content_type='image/gif')
-        cls.test_unsupported_file = SimpleUploadedFile(
-            'Iamsupported.txt', b'I am supported! I swear!!!', content_type='text/plain'
-        )
         cls.url = reverse('tinymce_image_upload')
 
     def test_article_file_create_non_staff_not_allowed(self):
-        non_staff_user = User.objects.create(
-            email=f'user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        non_staff_user = UserFactory()
         non_staff_client = APIClient()
         non_staff_client.force_authenticate(non_staff_user)
         self._set_user_for_client_session(non_staff_client, non_staff_user)

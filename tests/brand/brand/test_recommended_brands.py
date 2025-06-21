@@ -1,16 +1,21 @@
-from cities_light.models import Country, City
-from django.contrib.auth import get_user_model
+import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.blacklist.models import BlackList
-from core.apps.brand.models import Brand, Category, Format, Tag, Goal, Match
-from core.apps.payments.models import Subscription, Tariff
+from core.apps.accounts.factories import UserFactory
+from core.apps.blacklist.factories import BlackListFactory
+from core.apps.brand.factories import (
+    BrandShortFactory,
+    TagFactory,
+    FormatFactory,
+    GoalFactory,
+    CategoryFactory,
+    MatchFactory
+)
+from core.apps.cities.factories import CityFactory
+from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
-
-User = get_user_model()
 
 
 class BrandRecommendedBrandsTestCase(
@@ -19,15 +24,7 @@ class BrandRecommendedBrandsTestCase(
 ):
     @classmethod
     def setUpTestData(cls):
-        users = User.objects.bulk_create([
-            User(
-                email=f'user{i}@example.com',
-                phone='+79993332211',
-                fullname='Юзеров Юзер Юзерович',
-                password='Pass!234',
-                is_active=True
-            ) for i in range(1, 11)
-        ])
+        users = UserFactory.create_batch(8)
 
         for i, user in enumerate(users, start=1):
             # set users to class attributes named user{i}
@@ -39,119 +36,110 @@ class BrandRecommendedBrandsTestCase(
             # force authenticate clients
             getattr(cls, f'auth_client{i}').force_authenticate(user)
 
-        cls.formats = list(Format.objects.order_by('id'))
-        cls.categories = list(Category.objects.order_by('id'))
-        cls.tags = list(Tag.objects.order_by('id'))
-        cls.goals = list(Goal.objects.order_by('id'))
+        cls.city1, cls.city2, cls.city3 = CityFactory.create_batch(3)
 
-        cls.country = Country.objects.create(name='Country', continent='EU')
-        cls.city1 = City.objects.create(name='City1', country=cls.country)
-        cls.city2 = City.objects.create(name='City2', country=cls.country)
-        cls.city3 = City.objects.create(name='City3', country=cls.country)
+        cls.initial_tags = TagFactory.create_batch(3)
+        cls.initial_formats = FormatFactory.create_batch(3)
+        cls.initial_goals = GoalFactory.create_batch(3)
+        cls.initial_categories_of_interest = CategoryFactory.create_batch(3)
 
-        # formats, categories, tags, goals, avg_bill, subs_count
-        cls.brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': cls.city1,
-            'name': 'brand1',
-            'position': 'position',
-            'category': cls.categories[0],
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
+        cls.initial_brand = BrandShortFactory(
+            user=cls.user1,
+            tags=cls.initial_tags,
+            formats=cls.initial_formats,
+            goals=cls.initial_goals,
+            categories_of_interest=cls.initial_categories_of_interest,
+        )
 
-        cls.initial_brand = Brand.objects.create(user=cls.user1, **cls.brand_data)
-        cls.initial_brand.formats.set(cls.formats[:3])  # format 1, 2 and 3
-        cls.initial_brand.categories_of_interest.set(cls.categories[1:5])  # category 2, 3, 4, 5
-        cls.initial_brand.tags.set(cls.tags[:4])  # tag 1, 2, 3, 4
-        cls.initial_brand.goals.set(cls.goals[:3])  # goal 1, 2, 3
+        cls.initial_subs_count = cls.initial_brand.subs_count
+        cls.initial_avg_bill = cls.initial_brand.avg_bill
 
         # priority1
-        cls.brand1 = Brand.objects.create(
+        # everything matches
+        cls.brand1 = BrandShortFactory(
             user=cls.user2,
-            **{**cls.brand_data, 'category': cls.categories[1], 'city': cls.city1}
+            category=factory.Iterator(cls.initial_categories_of_interest),
+            tags=cls.initial_tags[:2],
+            formats=cls.initial_formats[:2],
+            goals=cls.initial_goals[:2],
+            subs_count=cls.initial_subs_count,
+            avg_bill=cls.initial_avg_bill,
         )
-        cls.brand1.formats.set(cls.formats[1:3])  # format 2 and 3
-        cls.brand1.tags.set(cls.tags[1:4])  # tag 2, 3, 4
-        cls.brand1.goals.set(cls.goals[1:3])  # goal 2, 3
 
         # priority2
         # subs_count don't match
-        cls.brand2 = Brand.objects.create(
+        cls.brand2 = BrandShortFactory(
             user=cls.user3,
-            **{**cls.brand_data, 'category': cls.categories[2], 'subs_count': 20000, 'city': cls.city1}
+            category=factory.Iterator(cls.initial_categories_of_interest),
+            tags=[*cls.initial_tags, TagFactory()],
+            formats=[*cls.initial_formats, FormatFactory()],
+            goals=[*cls.initial_goals, GoalFactory()],
+            avg_bill=cls.initial_avg_bill,
         )
-        cls.brand2.formats.set(cls.formats[1:4])  # format 2, 3, 4
-        cls.brand2.tags.set(cls.tags[1:3])  # tag 2, 3
-        cls.brand2.goals.set(cls.goals[1:4])  # goal 2, 3, 4
 
         # priority3
         # subs_count and avg_bill don't match
-        cls.brand3 = Brand.objects.create(
+        cls.brand3 = BrandShortFactory(
             user=cls.user4,
-            **{**cls.brand_data, 'category': cls.categories[3], 'subs_count': 20000, 'avg_bill': 20000,
-               'city': cls.city2}
+            category=factory.Iterator(cls.initial_categories_of_interest),
+            tags=cls.initial_tags[:2],
+            formats=cls.initial_formats[:2],
+            goals=cls.initial_goals[:2],
         )
-        cls.brand3.formats.set(cls.formats[2:4])  # format 3, 4
-        cls.brand3.tags.set(cls.tags[1:5])  # tag 2, 3, 4, 5
-        cls.brand3.goals.set([cls.goals[2]])  # goal 3
 
         # priority4
         # subs_count, avg_bill and goals don't match
-        cls.brand4 = Brand.objects.create(
+        cls.brand4 = BrandShortFactory(
             user=cls.user5,
-            **{**cls.brand_data, 'category': cls.categories[4], 'subs_count': 20000, 'avg_bill': 20000,
-               'city': cls.city2}
+            category=factory.Iterator(cls.initial_categories_of_interest),
+            tags=cls.initial_tags[:2],
+            formats=cls.initial_formats[:2],
+            goals=GoalFactory.create_batch(3),
         )
-        cls.brand4.formats.set(cls.formats[2:4])  # format 3, 4
-        cls.brand4.tags.set(cls.tags[1:5])  # tag 2, 3, 4, 5
-        cls.brand4.goals.set(cls.goals[3:5])  # goal 4, 5 # don't match
 
         # priority5
         # subs_count, avg_bill, goals and tags don't match
-        cls.brand5 = Brand.objects.create(
+        cls.brand5 = BrandShortFactory(
             user=cls.user6,
-            **{**cls.brand_data, 'category': cls.categories[1], 'subs_count': 20000, 'avg_bill': 20000,
-               'city': cls.city2}
+            category=factory.Iterator(cls.initial_categories_of_interest),
+            tags=TagFactory.create_batch(3),
+            formats=cls.initial_formats[:2],
+            goals=GoalFactory.create_batch(3),
         )
-        cls.brand5.formats.set(cls.formats[2:4])  # format 3, 4
-        cls.brand5.tags.set(cls.tags[5:9])  # tag 6, 7, 8, 9 # don't match
-        cls.brand5.goals.set(cls.goals[3:5])  # goal 4, 5 # don't match
 
         # priority6
         # subs_count, avg_bill, goals, tags and category don't match
-        cls.brand6 = Brand.objects.create(
+        cls.brand6 = BrandShortFactory(
             user=cls.user7,
-            **{**cls.brand_data, 'subs_count': 20000, 'avg_bill': 20000, 'city': cls.city3}
+            category=CategoryFactory(),
+            tags=TagFactory.create_batch(3),
+            formats=cls.initial_formats[:2],
+            goals=GoalFactory.create_batch(3),
         )
-        cls.brand6.formats.set(cls.formats[2:4])  # format 3, 4
-        cls.brand6.tags.set(cls.tags[5:9])  # tag 6, 7, 8, 9 # don't match
-        cls.brand6.goals.set(cls.goals[3:5])  # goal 4, 5 # don't match
 
         # priority7
         # subs_count, avg_bill, goals, tags, category and formats don't match
-        cls.brand7 = Brand.objects.create(
+        cls.brand7 = BrandShortFactory(
             user=cls.user8,
-            **{**cls.brand_data, 'subs_count': 20000, 'avg_bill': 20000, 'city': cls.city3}
+            category=CategoryFactory(),
+            tags=TagFactory.create_batch(3),
+            formats=FormatFactory.create_batch(3),
+            goals=GoalFactory.create_batch(3),
         )
-        cls.brand7.formats.set([cls.formats[3]])  # format 4 # don't match
-        cls.brand7.tags.set(cls.tags[5:9])  # tag 6, 7, 8, 9 # don't match
-        cls.brand7.goals.set(cls.goals[3:5])  # goal 4, 5 # don't match
 
-        cls.business_tariff = Tariff.objects.get(name='Business Match')
-        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.create(
-            brand=cls.initial_brand,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
+        cls.recommended_brands = [getattr(cls, f'brand{i}') for i in range(1, 8)]
+        cls.recommended_brands_num = len(cls.recommended_brands)
+        cls.brands_with_initial_avg_bill_num = len(
+            list(filter(lambda brand: brand.avg_bill == cls.initial_avg_bill, cls.recommended_brands))
         )
+        cls.brands_with_initial_subs_count_num = len(
+            list(filter(lambda brand: brand.subs_count == cls.initial_subs_count, cls.recommended_brands))
+        )
+        cls.brands_that_interest_initial_one_num = len(list(filter(
+            lambda brand: brand.category in cls.initial_categories_of_interest, cls.recommended_brands
+        )))
+
+        SubscriptionFactory(brand=cls.initial_brand)
 
         cls.url = reverse('brand-recommended_brands')
 
@@ -161,14 +149,7 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_recommended_brands_wo_brand_not_allowed(self):
-        user_wo_brand = User.objects.create_user(
-            email='user100@example.com',
-            phone='+79993332214',
-            fullname='Юзеров Юзер100 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        user_wo_brand = UserFactory()
         auth_client_wo_brand = APIClient()
         auth_client_wo_brand.force_authenticate(user_wo_brand)
 
@@ -177,18 +158,11 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_recommended_brands_wo_active_sub_not_allowed(self):
-        user_wo_active_sub = User.objects.create_user(
-            email='user101@example.com',
-            phone='+79993332214',
-            fullname='Юзеров Юзер3 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        user_wo_active_sub = UserFactory()
         client_wo_active_sub = APIClient()
         client_wo_active_sub.force_authenticate(user_wo_active_sub)
 
-        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+        BrandShortFactory(user=user_wo_active_sub)
 
         response = client_wo_active_sub.get(self.url)
 
@@ -200,7 +174,7 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # check number of brands in response
-        self.assertEqual(len(response.data['results']), 7)
+        self.assertEqual(len(response.data['results']), self.recommended_brands_num)
 
         # check ordering
         self.assertEqual(response.data['results'][0]['id'], self.brand1.id)
@@ -212,10 +186,8 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.data['results'][6]['id'], self.brand7.id)
 
     def test_recommended_brands_exclude_likes(self):
-        Match.objects.bulk_create([
-            Match(initiator=self.initial_brand, target=self.brand1),  # initial brand likes brand1
-            Match(initiator=self.brand2, target=self.initial_brand),  # brand2 likes initial brand
-        ])
+        MatchFactory(like=True, initiator=self.initial_brand, target=self.brand1)  # initial brand likes brand1
+        MatchFactory(like=True, initiator=self.brand2, target=self.initial_brand)  # brand2 likes initial brand
 
         response = self.auth_client1.get(self.url)
 
@@ -224,51 +196,24 @@ class BrandRecommendedBrandsTestCase(
         results = response.data['results']
 
         # results must exclude likes of the current brand and must not exclude brands that liked the current one
-        self.assertEqual(len(results), 6)
+        self.assertEqual(len(results), self.recommended_brands_num - 1)
 
     def test_recommended_brands_exclude_matches(self):
-        brand_match_1 = Brand.objects.create(
-            user=self.user9,
-            **self.brand_data
+        # initial brand match with brand1 and brand2
+        MatchFactory.create_batch(
+            2, initiator=self.initial_brand, target=factory.Iterator([self.brand1, self.brand2])
         )
-
-        brand_match_2 = Brand.objects.create(
-            user=self.user10,
-            **self.brand_data
-        )
-
-        now = timezone.now()
-
-        Subscription.objects.bulk_create([
-            Subscription(
-                brand=brand,
-                tariff=self.business_tariff,
-                start_date=now,
-                end_date=now + self.business_tariff_relativedelta,
-                is_active=True
-            )
-            for brand in [brand_match_1, brand_match_2]
-        ])
-
-        like_url = reverse('brand-like')
-
-        self.auth_client9.post(like_url, {'target': self.initial_brand.id})
-        self.auth_client10.post(like_url, {'target': self.initial_brand.id})
-        self.auth_client1.post(like_url, {'target': brand_match_1.id})  # initial brand match with brand_match_1
-        self.auth_client1.post(like_url, {'target': brand_match_2.id})  # initial brand match with brand_match_2
 
         response = self.auth_client1.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(len(response.data['results']), 7)
+        self.assertEqual(len(response.data['results']), self.recommended_brands_num - 2)
 
     def test_recommended_brands_avg_bill_query_param(self):
-        response = self.auth_client1.get(f'{self.url}?avg_bill=20000')
+        response = self.auth_client1.get(f'{self.url}?avg_bill={self.initial_avg_bill}')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(len(response.data['results']), 5)
+        self.assertEqual(len(response.data['results']), self.brands_with_initial_avg_bill_num)
 
     def test_recommended_brands_avg_bill_query_param_must_be_positive(self):
         response = self.auth_client1.get(f'{self.url}?avg_bill=-1')
@@ -281,11 +226,10 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_recommended_brands_subs_count_query_param(self):
-        response = self.auth_client1.get(f'{self.url}?subs_count=20000')
+        response = self.auth_client1.get(f'{self.url}?subs_count={self.initial_subs_count}')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(len(response.data['results']), 6)
+        self.assertEqual(len(response.data['results']), self.brands_with_initial_subs_count_num)
 
     def test_recommended_brands_subs_count_query_param_must_be_positive(self):
         response = self.auth_client1.get(f'{self.url}?subs_count=-1')
@@ -298,53 +242,51 @@ class BrandRecommendedBrandsTestCase(
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_recommended_brands_category_query_param(self):
-        response = self.auth_client1.get(
-            f'{self.url}?category={self.categories[1].id}&category={self.categories[2].id}'
+        url = (
+            f'{self.url}?'
+            f'{"&".join([f"category={c.pk}" for c in self.initial_categories_of_interest])}'
         )
+        response = self.auth_client1.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(len(response.data['results']), 3)
+        self.assertEqual(len(response.data['results']), self.brands_that_interest_initial_one_num)
 
     def test_recommended_brands_city_query_param(self):
-        response = self.auth_client1.get(f'{self.url}?city={self.city1.id}&city={self.city2.id}')
+        response = self.auth_client1.get(f'{self.url}?city={self.brand1.city_id}&city={self.brand2.city_id}')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(len(response.data['results']), 5)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_recommended_brands_city_query_param_max_cities(self):
-        response = self.auth_client1.get(
-            f'{self.url}'
-            f'?city={self.city1.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
-            f'&city={self.city2.id}'
+        url = (
+            f'{self.url}?'
+            f'{"&".join([f"city={self.brand1.city_id}" for _ in range(11)])}'
         )
+        response = self.auth_client1.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_recommended_brands_multiple_query_params(self):
-        response = self.auth_client1.get(
+        url = (
             f'{self.url}'
-            f'?subs_count=20000'
-            f'&avg_bill=20000'
-            f'&category={self.categories[1].id}'
-            f'&category={self.categories[3].id}'
-            f'&city={self.city1.id}'
-            f'&city={self.city2.id}'
+            f'?subs_count={self.initial_subs_count}'
+            f'&avg_bill={self.initial_avg_bill}'
+            f'&{"&".join([f"category={c.pk}" for c in self.initial_categories_of_interest])}'
+            f'&city={self.brand1.city_id}'
+            f'&city={self.brand2.city_id}'
         )
+        response = self.auth_client1.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        self.assertEqual(len(response.data['results']), 2)
+        self.assertEqual(
+            len(response.data['results']),
+            min(
+                self.brands_with_initial_subs_count_num,
+                self.brands_with_initial_avg_bill_num,
+                self.brands_that_interest_initial_one_num,
+                2
+            )
+        )
 
     def test_number_of_queries(self):
         with self.assertNumQueriesLessThan(16, verbose=True):
@@ -356,14 +298,11 @@ class BrandRecommendedBrandsTestCase(
         response = self.auth_client1.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
         self.assertFalse(any(brand['id'] == self.initial_brand.id for brand in response.data['results']))
 
     def test_recommended_brands_exclude_blacklist(self):
-        BlackList.objects.bulk_create([
-            BlackList(initiator=self.initial_brand, blocked=self.brand1),  # initial brand blocks brand1
-            BlackList(initiator=self.brand2, blocked=self.initial_brand),  # brand2 blocks initial brand
-        ])
+        BlackListFactory(initiator=self.initial_brand, blocked=self.brand1)  # initial brand blocks brand1
+        BlackListFactory(initiator=self.brand2, blocked=self.initial_brand)  # brand2 blocks initial brand
 
         response = self.auth_client1.get(self.url)
 
@@ -372,4 +311,4 @@ class BrandRecommendedBrandsTestCase(
         results = response.data['results']
 
         # results must exclude both blocked brands and brands that blocked the current one
-        self.assertEqual(len(results), 5)
+        self.assertEqual(len(results), self.recommended_brands_num - 2)

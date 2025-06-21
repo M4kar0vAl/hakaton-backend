@@ -1,15 +1,13 @@
-from django.contrib.auth import get_user_model
+import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.blacklist.models import BlackList
-from core.apps.brand.models import Category, Brand
-from core.apps.payments.models import Tariff, Subscription
+from core.apps.accounts.factories import UserFactory
+from core.apps.blacklist.factories import BlackListFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory
+from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
-
-User = get_user_model()
 
 
 class LikedByTestCase(
@@ -18,89 +16,18 @@ class LikedByTestCase(
 ):
     @classmethod
     def setUpTestData(cls):
-        cls.user1 = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.user2 = User.objects.create_user(
-            email='user2@example.com',
-            phone='+79993332212',
-            fullname='Юзеров Юзер1 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.user3 = User.objects.create_user(
-            email='user3@example.com',
-            phone='+79993332213',
-            fullname='Юзеров Юзер2 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.auth_client1 = APIClient()
-        cls.auth_client2 = APIClient()
-        cls.auth_client3 = APIClient()
-
+        cls.user1, cls.user2, cls.user3 = UserFactory.create_batch(3)
+        cls.auth_client1, cls.auth_client2, cls.auth_client3 = APIClient(), APIClient(), APIClient()
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
         cls.auth_client3.force_authenticate(cls.user3)
 
-        cls.brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(pk=1),
-            'inst_url': 'https://example.com',
-            'vk_url': 'https://example.com',
-            'tg_url': 'https://example.com',
-            'wb_url': 'https://example.com',
-            'lamoda_url': 'https://example.com',
-            'site_url': 'https://example.com',
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        cls.brand1 = Brand.objects.create(user=cls.user1, **cls.brand_data)
-        cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
-        cls.brand3 = Brand.objects.create(user=cls.user3, **cls.brand_data)
-
-        cls.tariff = Tariff.objects.get(name='Business Match')
-        cls.tariff_relativedelta = cls.tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.create(
-            brand=cls.brand1,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
+        cls.brand1, cls.brand2, cls.brand3 = BrandShortFactory.create_batch(
+            3, user=factory.Iterator([cls.user1, cls.user2, cls.user3])
         )
 
-        Subscription.objects.create(
-            brand=cls.brand2,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
-        )
+        SubscriptionFactory.create_batch(3, brand=factory.Iterator([cls.brand1, cls.brand2, cls.brand3]))
 
-        Subscription.objects.create(
-            brand=cls.brand3,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
-        )
-
-        cls.like_url = reverse('brand-like')
         cls.url = reverse('brand-liked_by')
 
     def test_unauthenticated_not_allowed(self):
@@ -109,13 +36,7 @@ class LikedByTestCase(
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_without_brand_not_allowed(self):
-        user_wo_brand = User.objects.create_user(
-            email='user4@example.com',
-            phone='+79993332214',
-            fullname='Юзеров Юзер3 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
+        user_wo_brand = UserFactory()
         auth_client = APIClient()
         auth_client.force_authenticate(user_wo_brand)
 
@@ -124,18 +45,11 @@ class LikedByTestCase(
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_liked_by_wo_active_sub_not_allowed(self):
-        user_wo_active_sub = User.objects.create_user(
-            email='user5@example.com',
-            phone='+79993332214',
-            fullname='Юзеров Юзер3 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        user_wo_active_sub = UserFactory()
         client_wo_active_sub = APIClient()
         client_wo_active_sub.force_authenticate(user_wo_active_sub)
 
-        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+        BrandShortFactory(user=user_wo_active_sub)
 
         response = client_wo_active_sub.get(self.url)
 
@@ -148,21 +62,21 @@ class LikedByTestCase(
         self.assertFalse(response.data['results'])
 
     def test_liked_by_returns_correct_list_of_brands(self):
-        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1
-        self.auth_client2.post(self.like_url, {'target': self.brand3.id})  # brand2 likes brand3
-        self.auth_client1.post(self.like_url, {'target': self.brand3.id})  # brand1 likes brand3
+        # brand2 likes brand1 and brand3
+        MatchFactory.create_batch(
+            2, like=True, initiator=self.brand2, target=factory.Iterator([self.brand1, self.brand3])
+        )
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand3)  # brand1 likes brand3
 
         response = self.auth_client1.get(self.url)  # get who liked brand1
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
         self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(response.data['results'][0]['id'], self.brand2.id)
 
     def test_liked_by_excludes_matches(self):
-        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1
-        self.auth_client3.post(self.like_url, {'target': self.brand1.id})  # brand3 likes brand1
-        self.auth_client1.post(self.like_url, {'target': self.brand3.id})  # brand1 likes brand3 MATCH!
+        MatchFactory(like=True, initiator=self.brand2, target=self.brand1)  # brand2 likes brand1
+        MatchFactory(initiator=self.brand3, target=self.brand1)  # brand3 has match with brand1
 
         response = self.auth_client1.get(self.url)  # get who liked brand1
 
@@ -171,13 +85,13 @@ class LikedByTestCase(
         self.assertEqual(len(response.data['results']), 1)
 
     def test_liked_by_excludes_blacklist(self):
-        self.auth_client2.post(self.like_url, {'target': self.brand1.id})  # brand2 likes brand1
-        self.auth_client3.post(self.like_url, {'target': self.brand1.id})  # brand3 likes brand1
+        # brand2 likes brand1 and brand3 likes brand1
+        MatchFactory.create_batch(
+            2, like=True, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1
+        )
 
-        BlackList.objects.bulk_create([
-            BlackList(initiator=self.brand2, blocked=self.brand1),  # brand2 blocks brand1
-            BlackList(initiator=self.brand1, blocked=self.brand3),  # brand1 blocks brand3
-        ])
+        BlackListFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocks brand1
+        BlackListFactory(initiator=self.brand1, blocked=self.brand3)  # brand1 blocks brand3
 
         response = self.auth_client1.get(self.url)
 
@@ -189,8 +103,10 @@ class LikedByTestCase(
         self.assertEqual(len(results), 0)
 
     def test_liked_by_number_of_queries(self):
-        self.auth_client2.post(self.like_url, {'target': self.brand1.id})
-        self.auth_client3.post(self.like_url, {'target': self.brand1.id})
+        # brand2 likes brand1 and brand3 likes brand1
+        MatchFactory.create_batch(
+            2, like=True, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1
+        )
 
         with self.assertNumQueriesLessThan(3, verbose=True):
             response = self.auth_client1.get(self.url)
@@ -198,8 +114,10 @@ class LikedByTestCase(
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_liked_by_ordering(self):
-        self.auth_client2.post(self.like_url, {'target': self.brand1.id})
-        self.auth_client3.post(self.like_url, {'target': self.brand1.id})
+        # brand2 likes brand1 and brand3 likes brand1
+        MatchFactory.create_batch(
+            2, like=True, initiator=factory.Iterator([self.brand2, self.brand3]), target=self.brand1
+        )
 
         response = self.auth_client1.get(self.url)
 

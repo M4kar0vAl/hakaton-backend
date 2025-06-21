@@ -3,20 +3,15 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.accounts.factories import UserFactory
+
 User = get_user_model()
 
 
 class UserGetMeTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
 

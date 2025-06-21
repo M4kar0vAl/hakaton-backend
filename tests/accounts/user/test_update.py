@@ -3,20 +3,15 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.accounts.factories import UserFactory
+
 User = get_user_model()
 
 
 class UserUpdateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
 
@@ -43,10 +38,7 @@ class UserUpdateTestCase(APITestCase):
         self.assertEqual(user.fullname, self.update_data['fullname'])
 
     def test_user_update_bad_phone(self):
-        response = self.auth_client.patch(self.url, {
-            **self.update_data,
-            'phone': '+71928'
-        })
+        response = self.auth_client.patch(self.url, {**self.update_data, 'phone': '+71928'})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

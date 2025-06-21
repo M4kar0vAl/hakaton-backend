@@ -1,76 +1,26 @@
-from django.contrib.auth import get_user_model
+import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.blacklist.models import BlackList
-from core.apps.brand.models import Category, Brand, Match
+from core.apps.accounts.factories import UserFactory
+from core.apps.blacklist.factories import BlackListFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory
+from core.apps.brand.models import Match
 from core.apps.chat.models import Room
-from core.apps.payments.models import Subscription, Tariff
-
-User = get_user_model()
+from core.apps.payments.factories import SubscriptionFactory
 
 
 class BrandLikeTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user1 = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.user2 = User.objects.create_user(
-            email='user2@example.com',
-            phone='+79993332212',
-            fullname='Юзеров Юзер1 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.auth_client1 = APIClient()
-        cls.auth_client2 = APIClient()
-
+        cls.user1, cls.user2 = UserFactory.create_batch(2)
+        cls.auth_client1, cls.auth_client2 = APIClient(), APIClient()
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
+        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([cls.user1, cls.user2]))
 
-        cls.brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(pk=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        cls.brand1 = Brand.objects.create(user=cls.user1, **cls.brand_data)
-        cls.brand2 = Brand.objects.create(user=cls.user2, **cls.brand_data)
-
-        cls.tariff = Tariff.objects.get(name='Business Match')
-        cls.tariff_relativedelta = cls.tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.create(
-            brand=cls.brand1,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
-        )
-
-        Subscription.objects.create(
-            brand=cls.brand2,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
-        )
+        SubscriptionFactory.create_batch(2, brand=factory.Iterator([cls.brand1, cls.brand2]))
 
         cls.url = reverse('brand-like')
 
@@ -80,14 +30,7 @@ class BrandLikeTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_like_wo_brand_not_allowed(self):
-        user_wo_brand = User.objects.create_user(
-            email='user3@example.com',
-            phone='+79993332213',
-            fullname='Юзеров Юзер2 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        user_wo_brand = UserFactory()
         auth_client_wo_brand = APIClient()
         auth_client_wo_brand.force_authenticate(user_wo_brand)
 
@@ -96,32 +39,25 @@ class BrandLikeTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_like_wo_active_sub_not_allowed(self):
-        user_wo_active_sub = User.objects.create_user(
-            email='user3@example.com',
-            phone='+79993332213',
-            fullname='Юзеров Юзер2 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        user_wo_active_sub = UserFactory()
         client_wo_active_sub = APIClient()
         client_wo_active_sub.force_authenticate(user_wo_active_sub)
 
-        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+        BrandShortFactory(user=user_wo_active_sub)
 
         response = client_wo_active_sub.post(self.url, {'target': self.brand1.id})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_like_if_in_blacklist_of_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
+        BlackListFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
 
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 tries to like brand2
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_like_if_blocked_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
+        BlackListFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
 
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 tries to like brand2
 
@@ -136,21 +72,19 @@ class BrandLikeTestCase(APITestCase):
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
         self.assertTrue(Match.objects.filter(initiator=self.brand1, target=self.brand2, is_match=False).exists())
 
     def test_cannot_like_twice_same_brand(self):
-        self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2 AGAIN
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_like_each_other_leads_to_match(self):
-        self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand2)  # brand1 likes brand2
         response = self.auth_client2.post(self.url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
         self.assertTrue(Match.objects.filter(id=response.data['id'], is_match=True).exists())  # check that match exists
 
         match = Match.objects.get(id=response.data['id'])
@@ -174,13 +108,11 @@ class BrandLikeTestCase(APITestCase):
         self.assertTrue(self.brand2.user in room.participants.all())
 
     def test_cannot_like_after_match(self):
-        self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2
-        self.auth_client2.post(self.url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
+        MatchFactory(initiator=self.brand1, target=self.brand2)  # brand1 has match with brand2
 
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2 AGAIN
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
         self.assertEqual(Match.objects.count(), 1)
 
     def test_like_not_existing_brand(self):
@@ -189,20 +121,15 @@ class BrandLikeTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_like_in_response_if_instant_cooped(self):
-        self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 likes brand2
-
         # brand1 instant coop brand2
-        instant_coop_response = self.auth_client1.post(reverse('brand-instant-coop'), {'target': self.brand2.id})
-
+        instant_coop = MatchFactory(instant_coop=True, initiator=self.brand1, target=self.brand2)
         response = self.auth_client2.post(self.url, {'target': self.brand1.id})  # brand2 likes brand1 MATCH
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        instant_room_id = instant_coop_response.data['id']
         room_id = response.data['room']
 
         # check that id of the room did not change
-        self.assertEqual(room_id, instant_room_id)
+        self.assertEqual(room_id, instant_coop.room_id)
 
         # check that room type was changed to MATCH
         room = Room.objects.get(id=room_id)

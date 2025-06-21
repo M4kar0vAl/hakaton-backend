@@ -1,96 +1,28 @@
-from datetime import timedelta
-
-from cities_light.models import Country, City
-from django.contrib.auth import get_user_model
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
-from core.apps.brand.models import Brand, Category
-from core.apps.payments.models import Tariff, GiftPromoCode, Subscription
-
-User = get_user_model()
+from core.apps.accounts.factories import UserFactory
+from core.apps.brand.factories import BrandShortFactory
+from core.apps.payments.factories import GiftPromoCodeFactory, TariffFactory, SubscriptionFactory
+from core.apps.payments.models import GiftPromoCode
 
 
 class GiftPromoCodeActivateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user1 = User.objects.create_user(
-            email=f'user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.user2 = User.objects.create_user(
-            email=f'user2@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.giver_auth_client = APIClient()
-        cls.receiver_auth_client = APIClient()
+        cls.user1, cls.user2 = UserFactory.create_batch(2)
+        cls.giver_auth_client, cls.receiver_auth_client = APIClient(), APIClient()
         cls.giver_auth_client.force_authenticate(cls.user1)
         cls.receiver_auth_client.force_authenticate(cls.user2)
 
-        country = Country.objects.create(name='Country', continent='EU')
-        city = City.objects.create(name='City', country=country)
+        cls.giver_brand = BrandShortFactory(user=cls.user1)
+        cls.receiver_brand = BrandShortFactory(user=cls.user2)
 
-        brand_data = cls.brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        cls.giver_brand = Brand.objects.create(user=cls.user1, **brand_data)
-        cls.receiver_brand = Brand.objects.create(user=cls.user2, **brand_data)
-
-        cls.lite_tariff = Tariff.objects.get(name='Lite Match')
-        cls.business_tariff = Tariff.objects.get(name='Business Match')
-
-        gift_promocodes = GiftPromoCode.objects.bulk_create([
-            # valid lite
-            GiftPromoCode(
-                tariff_id=cls.lite_tariff.id,
-                expires_at=timezone.now() + timedelta(days=1),
-                giver=cls.giver_brand
-            ),
-            # valid business
-            GiftPromoCode(
-                tariff_id=cls.business_tariff.id,
-                expires_at=timezone.now() + timedelta(days=1),
-                giver=cls.giver_brand
-            ),
-            # used
-            GiftPromoCode(
-                tariff_id=cls.lite_tariff.id,
-                expires_at=timezone.now() + timedelta(days=1),
-                giver=cls.giver_brand,
-                is_used=True
-            ),
-            # expired
-            GiftPromoCode(
-                tariff_id=cls.lite_tariff.id,
-                expires_at=timezone.now() - timedelta(days=1),
-                giver=cls.giver_brand
-            )
-        ])
-
-        cls.valid_lite_gift = gift_promocodes[0]
-        cls.valid_business_gift = gift_promocodes[1]
-        cls.used_gift = gift_promocodes[2]
-        cls.expired_gift = gift_promocodes[3]
+        cls.valid_lite_gift = GiftPromoCodeFactory(giver=cls.giver_brand, tariff=TariffFactory(lite=True))
+        cls.valid_business_gift = GiftPromoCodeFactory(giver=cls.giver_brand)
+        cls.used_gift = GiftPromoCodeFactory(giver=cls.giver_brand, is_used=True)
+        cls.expired_gift = GiftPromoCodeFactory(giver=cls.giver_brand, expired=True)
 
         cls.url = reverse('gift_promocodes-activate')
 
@@ -100,14 +32,7 @@ class GiftPromoCodeActivateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_activate_gift_promocode_wo_brand_not_allowed(self):
-        user_wo_brand = User.objects.create_user(
-            email=f'user_wo_brand@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        user_wo_brand = UserFactory()
         auth_client_wo_brand = APIClient()
         auth_client_wo_brand.force_authenticate(user_wo_brand)
 
@@ -116,13 +41,7 @@ class GiftPromoCodeActivateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_activate_gift_promocode_with_active_subscription(self):
-        Subscription.objects.create(
-            brand=self.receiver_brand,
-            tariff=self.lite_tariff,
-            end_date=timezone.now() + timedelta(days=1),
-            is_active=True
-        )
-
+        SubscriptionFactory(brand=self.receiver_brand)
         response = self.receiver_auth_client.post(self.url, {'gift_promocode': self.valid_lite_gift.id})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -146,7 +65,6 @@ class GiftPromoCodeActivateTestCase(APITestCase):
         response = self.receiver_auth_client.post(self.url, {'gift_promocode': self.valid_lite_gift.id})
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
         self.assertEqual(self.receiver_brand.subscriptions.count(), 1)
 
         # check that subscription was bound to gift promo code
@@ -162,10 +80,12 @@ class GiftPromoCodeActivateTestCase(APITestCase):
         self.assertTrue(response.data['is_active'])
 
     def test_activate_gift_promocode_cannot_activate_twice_same_gift(self):
-        self.receiver_auth_client.post(self.url, {'gift_promocode': self.valid_lite_gift.id})
-        response = self.receiver_auth_client.post(self.url, {'gift_promocode': self.valid_lite_gift.id})
+        sub = SubscriptionFactory(brand=self.receiver_brand, is_gifted=True)
+        gift_id = sub.gift_promocode_id
+
+        response = self.receiver_auth_client.post(self.url, {'gift_promocode': gift_id})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # check that gift promo code is marked as used
-        self.assertTrue(GiftPromoCode.objects.get(id=self.valid_lite_gift.id).is_used)
+        self.assertTrue(GiftPromoCode.objects.get(id=gift_id).is_used)

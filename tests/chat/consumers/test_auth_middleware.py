@@ -1,17 +1,14 @@
 from datetime import timedelta
 
 from channels.testing import WebsocketCommunicator
-from cities_light.models import Country, City
-from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken
 
-from core.apps.brand.models import Category, Brand
+from core.apps.accounts.factories import UserFactory
+from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.consumers import RoomConsumer
 from tests.utils import get_websocket_communicator, get_websocket_application
-
-User = get_user_model()
 
 
 # IMPORTANT
@@ -29,37 +26,10 @@ class AuthMiddlewareTestCase(TransactionTestCase):
     # won't work if inherit from TestCase
     # having troubles with db connection maintenance (closed before middleware can authenticate user)
 
-    # used to reload data from migrations in TransactionTestCase
-    # https://docs.djangoproject.com/en/5.0/topics/testing/overview/#rollback-emulation
-    serialized_rollback = True
-
     # TransactionTestCase does not support setUpTestData method
     def setUp(self):
-        self.user = User.objects.create_user(
-            email=f'user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        country = Country.objects.create(name='Country', continent='EU')
-        city = City.objects.create(name='City', country=country)
-
-        brand_data = self.brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        self.brand = Brand.objects.create(user=self.user, **brand_data)
+        self.user = UserFactory()
+        BrandShortFactory(user=self.user)
 
         self.path = 'ws/chat/'
         self.accepted_protocol = 'chat'
@@ -87,16 +57,17 @@ class AuthMiddlewareTestCase(TransactionTestCase):
 
         # middleware transforms request after communicator.connect()
         connected, _ = await communicator.connect()
-
         self.assertFalse(connected)
 
-        self.assertTrue(communicator.scope['user'].is_anonymous)
+        scope = communicator.scope
+
+        self.assertTrue(scope['user'].is_anonymous)
 
         # check that token wasn't removed from subprotocols and headers
         # token IS NOT a valid subprotocol
-        self.assertEqual(communicator.scope['subprotocols'][0], str(access))
+        self.assertEqual(scope['subprotocols'][0], str(access))
         self.assertEqual(
-            dict(communicator.scope['headers'])[b'sec-websocket-protocol'],
+            dict(scope['headers'])[b'sec-websocket-protocol'],
             bytes(str(access), 'utf-8')
         )
 
@@ -118,7 +89,6 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         )
 
         connected, _ = await communicator.connect()
-
         self.assertFalse(connected)
 
         # if token is expired, then middleware populates scope with AnonymousUser
@@ -148,13 +118,15 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         # connection will be rejected, because accepted protocol not in the subprotocols list
         self.assertFalse(connected)
 
+        scope = communicator.scope
+
         # token will be correctly transformed to user
-        self.assertFalse(communicator.scope['user'].is_anonymous)
+        self.assertFalse(scope['user'].is_anonymous)
 
         # because token is the only "protocol", then it will be removed,
         # so headers and subprotocols will be empty
-        self.assertFalse(communicator.scope['headers'])
-        self.assertFalse(communicator.scope['subprotocols'])
+        self.assertFalse(scope['headers'])
+        self.assertFalse(scope['subprotocols'])
 
         await communicator.disconnect()
 
@@ -175,13 +147,14 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         )
 
         connected, _ = await communicator.connect()
-
         self.assertFalse(connected)
 
-        self.assertTrue(communicator.scope['user'].is_anonymous)
+        scope = communicator.scope
 
-        self.assertFalse(communicator.scope['headers'])  # check that headers are empty
+        self.assertTrue(scope['user'].is_anonymous)
+        self.assertFalse(scope['headers'])  # check that headers are empty
+
         # check that subprotocols were transformed correctly
-        self.assertEqual(communicator.scope['subprotocols'], [self.accepted_protocol])
+        self.assertEqual(scope['subprotocols'], [self.accepted_protocol])
 
         await communicator.disconnect()

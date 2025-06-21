@@ -1,24 +1,15 @@
-from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 
+from core.apps.accounts.factories import UserFactory
 from core.apps.payments.models import Tariff
-
-User = get_user_model()
 
 
 class TariffListTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_user(
-            email=f'user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
+        cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
 
@@ -33,5 +24,4 @@ class TariffListTestCase(APITestCase):
         response = self.auth_client.get(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
         self.assertEqual(len(response.data), Tariff.objects.count())

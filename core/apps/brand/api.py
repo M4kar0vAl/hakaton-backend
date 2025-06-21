@@ -127,7 +127,7 @@ class BrandViewSet(
             # Prefetch product_photos of the CARD format to improve performance
             # and set them to a 'card_photos' attribute
             # prefetch instant rooms for the brand user
-            return Brand.objects.filter(pk__in=Subquery(my_likes_ids)).select_related('user').prefetch_related(
+            return Brand.objects.filter(pk__in=Subquery(my_likes_ids)).select_related('user', 'city').prefetch_related(
                 Prefetch(
                     'product_photos',
                     queryset=ProductPhoto.objects.filter(format=ProductPhoto.CARD),
@@ -162,7 +162,7 @@ class BrandViewSet(
             # prefetch card photos and match rooms to improve performance
             return Brand.objects.filter(
                 Q(pk__in=Subquery(my_matches_ids_as_initiator)) | Q(pk__in=Subquery(my_matches_ids_as_target))
-            ).select_related('user').prefetch_related(
+            ).select_related('user', 'city').prefetch_related(
                 Prefetch(
                     'product_photos',
                     queryset=ProductPhoto.objects.filter(format=ProductPhoto.CARD),

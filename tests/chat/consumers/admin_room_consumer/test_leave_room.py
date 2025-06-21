@@ -1,17 +1,13 @@
-from cities_light.models import Country, City
-from django.contrib.auth import get_user_model
 from django.test import override_settings, TransactionTestCase, tag
-from django.utils import timezone
 from rest_framework import status
 
-from core.apps.brand.models import Category, Brand
+from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
+from core.apps.chat.factories import RoomAsyncFactory
 from core.apps.chat.models import Room
-from core.apps.payments.models import Tariff, Subscription
+from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import get_websocket_communicator_for_user
-
-User = get_user_model()
 
 
 @override_settings(
@@ -23,16 +19,9 @@ User = get_user_model()
 )
 @tag('slow', 'chats')
 class AdminRoomConsumerLeaveRoomTestCase(TransactionTestCase, AdminRoomConsumerActionsMixin):
-    serialized_rollback = True
 
     def setUp(self):
-        self.admin_user = User.objects.create_superuser(
-            email=f'admin_user@example.com',
-            phone='+79993332211',
-            fullname='Админов Админ Админович',
-            password='Pass!234',
-            is_active=True
-        )
+        self.admin_user = UserFactory(admin=True)
 
         self.path = 'ws/admin-chat/'
         self.accepted_protocol = 'admin-chat'
@@ -50,7 +39,6 @@ class AdminRoomConsumerLeaveRoomTestCase(TransactionTestCase, AdminRoomConsumerA
         )
 
         connected, _ = await communicator.connect()
-
         self.assertTrue(connected)
 
         response = await self.leave_room(communicator)
@@ -62,47 +50,9 @@ class AdminRoomConsumerLeaveRoomTestCase(TransactionTestCase, AdminRoomConsumerA
         await communicator.disconnect()
 
     async def test_leave_room(self):
-        user = await User.objects.acreate(
-            email=f'user@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        country = await Country.objects.acreate(name='Country', continent='EU')
-        city = await City.objects.acreate(name='City', country=country)
-
-        brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': await Category.objects.aget(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        brand = await Brand.objects.acreate(user=user, **brand_data)
-
-        now = timezone.now()
-        tariff = await Tariff.objects.aget(name='Lite Match')
-        tariff_relativedelta = tariff.get_duration_as_relativedelta()
-
-        await Subscription.objects.acreate(
-            brand=brand,
-            tariff=tariff,
-            start_date=now,
-            end_date=now + tariff_relativedelta,
-            is_active=True
-        )
-
-        room = await Room.objects.acreate(type=Room.SUPPORT)
-
-        await room.participants.aset([user])
+        user = await UserAsyncFactory()
+        room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[user])
+        await SubscriptionAsyncFactory(brand__user=user)
 
         admin_communicator = get_websocket_communicator_for_user(
             url_pattern=self.path,
@@ -121,7 +71,7 @@ class AdminRoomConsumerLeaveRoomTestCase(TransactionTestCase, AdminRoomConsumerA
         )
 
         admin_connected, _ = await admin_communicator.connect()
-        user_connected, __ = await user_communicator.connect()
+        user_connected, _ = await user_communicator.connect()
 
         self.assertTrue(admin_connected)
         self.assertTrue(user_connected)
