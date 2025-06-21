@@ -30,8 +30,8 @@ class GenderDistributedTAModelFactory(DjangoModelFactory):
     class Meta:
         abstract = True
 
-    men = 30
-    women = 70
+    men = factory.LazyFunction(lambda: randint(0, 100))
+    women = factory.LazyFunction(lambda: randint(0, 100))
 
 
 class AgeFactory(GenderDistributedTAModelFactory):
@@ -42,6 +42,8 @@ class AgeFactory(GenderDistributedTAModelFactory):
 class GenderFactory(GenderDistributedTAModelFactory):
     class Meta:
         model = Gender
+
+    women = factory.LazyAttribute(lambda o: 100 - o.men)
 
 
 class GeoFactory(DjangoModelFactory):
