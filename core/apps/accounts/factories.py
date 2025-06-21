@@ -21,19 +21,17 @@ class UserFactory(DjangoModelFactory):
     class Params:
         staff = factory.Trait(
             email=factory.Sequence(lambda n: f'staff{n}@example.com'),
-            fullname='Стаффов Стафф Стаффович',
             is_staff=True,
         )
         admin = factory.Trait(
             staff=True,
             email=factory.Sequence(lambda n: f'admin{n}@example.com'),
-            fullname='Админов Админ Админович',
             is_superuser=True,
         )
 
     email = factory.Sequence(lambda n: f'user{n}@example.com')
     phone = '+79993332211'
-    fullname = 'Юзеров Юзер Юзерович'
+    fullname = factory.Faker('name')
     password = factory.django.Password('Pass!234')
     is_active = True
 
