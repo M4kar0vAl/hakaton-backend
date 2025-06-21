@@ -24,6 +24,7 @@ class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires Tr
 
     def setUp(self):
         self.user = UserFactory()
+        self.user_id = self.user.pk
         self.auth_client = APIClient()
         self.auth_client.force_authenticate(self.user)
         self.brand = BrandFactory(user=self.user)
@@ -105,4 +106,4 @@ class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires Tr
         self.assertFalse(deleted_brand.gallery_photos.exists())
 
         # check user media directory
-        self.assertFalse(default_storage.exists(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.pk}')))
+        self.assertFalse(default_storage.exists(os.path.join(settings.MEDIA_ROOT, f'user_{self.user_id}')))
