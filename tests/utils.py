@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from typing import Type
+from typing import Type, List, Optional
 
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.routing import URLRouter
@@ -8,7 +8,9 @@ from django.contrib.auth import get_user_model
 from django.urls import re_path
 from rest_framework_simplejwt.tokens import Token, AccessToken
 
+from core.apps.chat.consumers import RoomConsumer, AdminRoomConsumer
 from core.apps.chat.middleware import JwtAuthMiddlewareStack
+from core.apps.chat.utils import channels_reverse
 
 User = get_user_model()
 
@@ -69,11 +71,11 @@ def get_websocket_communicator(
 
 
 def get_websocket_communicator_for_user(
-    url_pattern: str,
-    path: str,
-    consumer_class: Type[AsyncJsonWebsocketConsumer],
-    protocols: list[str],
-    user: User
+        url_pattern: str,
+        path: str,
+        consumer_class: Type[AsyncJsonWebsocketConsumer],
+        protocols: list[str],
+        user: User
 ):
     access = AccessToken.for_user(user)
 
@@ -83,6 +85,56 @@ def get_websocket_communicator_for_user(
         consumer_class=consumer_class,
         protocols=protocols,
         token=access
+    )
+
+    return communicator
+
+
+def get_user_communicator(user: User, protocols: Optional[List[str]] = None):
+    """
+    Get websocket communicator for user.
+    Authentication is handled automatically.
+
+    Args:
+        user: user to get communicator for
+        protocols: list of protocols to connect with (optional)
+
+    Returns:
+        WebsocketCommunicator instance
+    """
+    path_to_user_chat = channels_reverse('chat')
+
+    communicator = get_websocket_communicator_for_user(
+        url_pattern=path_to_user_chat.removeprefix('/'),
+        path=path_to_user_chat,
+        consumer_class=RoomConsumer,
+        protocols=['chat'] if protocols is None else protocols,
+        user=user
+    )
+
+    return communicator
+
+
+def get_admin_communicator(user: User, protocols: Optional[List[str]] = None):
+    """
+    Get websocket communicator for staff or admin user.
+    Authentication is handled automatically.
+
+    Args:
+        user: user to get communicator for
+        protocols: list of protocols to connect with (optional)
+
+    Returns:
+        WebsocketCommunicator instance
+    """
+    path_to_admin_chat = channels_reverse('admin_chat')
+
+    communicator = get_websocket_communicator_for_user(
+        url_pattern=path_to_admin_chat.removeprefix('/'),
+        path=path_to_admin_chat,
+        consumer_class=AdminRoomConsumer,
+        protocols=['admin-chat'] if protocols is None else protocols,
+        user=user
     )
 
     return communicator
