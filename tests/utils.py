@@ -51,7 +51,7 @@ def get_websocket_communicator(
     protocols_ = f"{', '.join(protocols)}"
 
     if token is not None:
-        protocols_ += f', {token}'
+        protocols_ += f', {token}' if protocols_ else f'{token}'
 
     app = get_websocket_application(url_pattern, consumer_class)
 
