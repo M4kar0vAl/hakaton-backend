@@ -2,7 +2,7 @@ from django.test import override_settings, TransactionTestCase, tag
 
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.consumers import AdminRoomConsumer
-from tests.utils import get_websocket_communicator, get_websocket_communicator_for_user
+from tests.utils import get_websocket_communicator, get_admin_communicator
 
 
 # IMPORTANT
@@ -45,65 +45,37 @@ class AdminRoomConsumerConnectTestCase(TransactionTestCase):
     async def test_connect_non_admin_user_not_allowed(self):
         non_admin_user = await UserAsyncFactory()
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=non_admin_user
-        )
-
+        communicator = get_admin_communicator(non_admin_user)
         connected, _ = await communicator.connect()
-        self.assertFalse(connected)
 
+        self.assertFalse(connected)
         self.assertEqual(communicator.scope['user'].pk, non_admin_user.pk)
 
         await communicator.disconnect()
 
     async def test_connect_unsupported_protocol(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=['unsupported'],
-            user=self.admin_user
-        )
-
+        communicator = get_admin_communicator(self.admin_user, protocols=['unsupported'])
         connected, _ = await communicator.connect()
-        self.assertFalse(connected)
 
+        self.assertFalse(connected)
         self.assertEqual(communicator.scope['subprotocols'], ['unsupported'])
 
         await communicator.disconnect()
 
     async def test_connect_supported_and_unsupported_protocols_together(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=['unsupported', self.accepted_protocol],
-            user=self.admin_user
-        )
-
+        communicator = get_admin_communicator(self.admin_user, protocols=['unsupported', self.accepted_protocol])
         connected, subprotocol = await communicator.connect()
-        self.assertTrue(connected)
 
+        self.assertTrue(connected)
         self.assertEqual(subprotocol, self.accepted_protocol)
 
         await communicator.disconnect()
 
     async def test_connect_admin_user(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
-
+        communicator = get_admin_communicator(self.admin_user)
         connected, subprotocol = await communicator.connect()
-        self.assertTrue(connected)
 
+        self.assertTrue(connected)
         self.assertEqual(subprotocol, self.accepted_protocol)
         self.assertEqual(communicator.scope['user'].pk, self.admin_user.pk)
 

@@ -4,12 +4,11 @@ from rest_framework import status
 
 from core.apps.accounts.factories import UserFactory, UserAsyncFactory
 from core.apps.brand.factories import BrandShortFactory
-from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
-from tests.utils import get_websocket_communicator_for_user
+from tests.utils import get_user_communicator
 
 
 @override_settings(
@@ -36,21 +35,12 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         SubscriptionFactory.create_batch(2, brand=factory.Iterator([self.brand1, self.brand2]))
 
-        self.path = 'ws/chat/'
-        self.accepted_protocol = 'chat'
-
     async def test_get_rooms_wo_active_sub_not_allowed(self):
         user_wo_active_sub = await UserAsyncFactory()
         await RoomAsyncFactory(participants=[user_wo_active_sub])
         sub = await SubscriptionAsyncFactory(brand__user=user_wo_active_sub)  # create active sub
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=user_wo_active_sub
-        )
+        communicator = get_user_communicator(user_wo_active_sub)
 
         # connect with active sub
         connected, _ = await communicator.connect()
@@ -78,13 +68,7 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
         await MessageAsyncFactory(2, user=self.user1, room=factory.Iterator([rooms[0], rooms[1]]))
         await MessageAsyncFactory(user=self.user2, room=rooms[0])
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.user1
-        )
+        communicator = get_user_communicator(self.user1)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -142,13 +126,7 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
             participants=factory.Iterator([both_users, both_users, [another_user]])
         )
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.user1
-        )
+        communicator = get_user_communicator(self.user1)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -164,13 +142,7 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
         message1 = await MessageAsyncFactory(user=self.user1, room=rooms[10])
         message2 = await MessageAsyncFactory(user=self.user1, room=rooms[11])
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.user1
-        )
+        communicator = get_user_communicator(self.user1)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -209,13 +181,7 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
         message = await MessageAsyncFactory(user=self.user1, room=room, has_attachments=True)
         attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.user1
-        )
+        communicator = get_user_communicator(self.user1)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)

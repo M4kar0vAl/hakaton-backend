@@ -7,8 +7,9 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.chat.consumers import RoomConsumer
+from core.apps.chat.utils import channels_reverse
 from core.apps.payments.factories import SubscriptionFactory
-from tests.utils import get_websocket_communicator, get_websocket_application, get_websocket_communicator_for_user
+from tests.utils import get_websocket_communicator, get_websocket_application, get_user_communicator
 
 
 # IMPORTANT
@@ -31,7 +32,8 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         self.user = UserFactory()
         SubscriptionFactory(brand__user=self.user)  # need this to connect to RoomConsumer
 
-        self.path = 'ws/chat/'
+        self.path = channels_reverse('chat')
+        self.url_pattern = self.path.removeprefix('/')
         self.accepted_protocol = 'chat'
 
     async def test_connect_token_not_last_in_protocol_list(self):
@@ -40,7 +42,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         # middleware is the same for both RoomConsumer and AdminRoomConsumer,
         # so it doesn't matter which to use in tests
         app = get_websocket_application(
-            url_pattern=self.path,
+            url_pattern=self.url_pattern,
             consumer_class=RoomConsumer
         )
 
@@ -81,7 +83,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         )
 
         communicator = get_websocket_communicator(
-            url_pattern=self.path,
+            url_pattern=self.url_pattern,
             path=self.path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
@@ -97,22 +99,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_protocols_not_specified_except_token(self):
-        access = AccessToken.for_user(self.user)
-
-        app = get_websocket_application(
-            url_pattern=self.path,
-            consumer_class=RoomConsumer
-        )
-
-        communicator = WebsocketCommunicator(
-            app,
-            path=self.path,
-            headers=[
-                (b'sec-websocket-protocol', bytes(str(access), 'utf-8'))
-            ],
-            subprotocols=[str(access)]
-        )
-
+        communicator = get_user_communicator(self.user, protocols=[])
         connected, _ = await communicator.connect()
 
         # connection will be rejected, because accepted protocol not in the subprotocols list
@@ -134,7 +121,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         access = AccessToken.for_user(self.user)
 
         app = get_websocket_application(
-            url_pattern=self.path,
+            url_pattern=self.url_pattern,
             consumer_class=RoomConsumer
         )
 
@@ -160,14 +147,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.user
-        )
-
+        communicator = get_user_communicator(self.user)
         connected, _ = await communicator.connect()
 
         self.assertTrue(connected)

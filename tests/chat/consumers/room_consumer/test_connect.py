@@ -4,7 +4,7 @@ from core.apps.accounts.factories import UserFactory, UserAsyncFactory
 from core.apps.brand.factories import BrandShortFactory, BrandShortAsyncFactory
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.payments.factories import SubscriptionFactory
-from tests.utils import get_websocket_communicator, get_websocket_communicator_for_user
+from tests.utils import get_websocket_communicator, get_user_communicator
 
 
 # IMPORTANT
@@ -50,13 +50,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
     async def test_connect_wo_brand(self):
         user_wo_brand = await UserAsyncFactory()
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=user_wo_brand
-        )
+        communicator = get_user_communicator(user_wo_brand)
 
         connected, _ = await communicator.connect()
         self.assertFalse(connected)
@@ -71,14 +65,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         user_wo_active_sub = await UserAsyncFactory()
         await BrandShortAsyncFactory(user=user_wo_active_sub)
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=user_wo_active_sub
-        )
-
+        communicator = get_user_communicator(user_wo_active_sub)
         connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
@@ -87,14 +74,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_authenticated_brand(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.user
-        )
-
+        communicator = get_user_communicator(self.user)
         connected, subprotocol = await communicator.connect()
 
         self.assertTrue(connected)
@@ -106,14 +86,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_unsupported_protocol(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=['unsupported'],
-            user=self.user
-        )
-
+        communicator = get_user_communicator(self.user, protocols=['unsupported'])
         connected, _ = await communicator.connect()
 
         self.assertFalse(connected)
@@ -122,14 +95,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
         await communicator.disconnect()
 
     async def test_connect_supported_and_unsupported_protocols_together(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=RoomConsumer,
-            protocols=['unsupported', self.accepted_protocol],
-            user=self.user
-        )
-
+        communicator = get_user_communicator(self.user, protocols=['unsupported', self.accepted_protocol])
         connected, subprotocol = await communicator.connect()
 
         self.assertTrue(connected)

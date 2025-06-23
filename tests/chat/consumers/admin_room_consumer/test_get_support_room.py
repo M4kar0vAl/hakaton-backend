@@ -2,11 +2,10 @@ from django.test import tag, TransactionTestCase, override_settings
 from rest_framework import status
 
 from core.apps.accounts.factories import UserFactory
-from core.apps.chat.consumers import AdminRoomConsumer
 from core.apps.chat.factories import MessageAsyncFactory, RoomAsyncFactory
 from core.apps.chat.models import Room
 from tests.mixins import AdminRoomConsumerActionsMixin
-from tests.utils import join_room, get_websocket_communicator_for_user
+from tests.utils import join_room, get_admin_communicator
 
 
 @override_settings(
@@ -30,20 +29,11 @@ class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomCons
     def setUp(self):
         self.admin_user = UserFactory(admin=True)
 
-        self.path = 'ws/admin-chat/'
-        self.accepted_protocol = 'admin-chat'
-
     async def test_get_support_room(self):
         room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.admin_user])
         msg = await MessageAsyncFactory(user=self.admin_user, room=room)
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -62,13 +52,7 @@ class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomCons
         room = await RoomAsyncFactory(type=Room.MATCH)
         support_room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.admin_user])
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -85,13 +69,7 @@ class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomCons
         await communicator.disconnect()
 
     async def test_get_support_room_if_does_not_exist(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -121,13 +99,7 @@ class AdminRoomConsumerGetSupportRoomTestCase(TransactionTestCase, AdminRoomCons
         message = await MessageAsyncFactory(user=self.admin_user, room=room, has_attachments=True)
         attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)

@@ -3,12 +3,16 @@ from django.test import tag, TransactionTestCase, override_settings
 from rest_framework import status
 
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
-from core.apps.chat.consumers import AdminRoomConsumer, RoomConsumer
 from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
-from tests.utils import join_room, get_websocket_communicator_for_user, join_room_communal
+from tests.utils import (
+    join_room,
+    join_room_communal,
+    get_admin_communicator,
+    get_user_communicator
+)
 
 
 @override_settings(
@@ -32,20 +36,8 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
     def setUp(self):
         self.admin_user = UserFactory(admin=True)
 
-        self.path = 'ws/admin-chat/'
-        self.accepted_protocol = 'admin-chat'
-
-        self.user_path = 'ws/chat/'
-        self.user_accepted_protocol = 'chat'
-
     async def test_get_room_messages_not_in_room_not_allowed(self):
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -76,21 +68,8 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
         messages.extend(
             await MessageAsyncFactory(2, user=self.admin_user, room=factory.Iterator([support_room, own_support_room])))
 
-        admin_communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
-
-        user_communicator = get_websocket_communicator_for_user(
-            url_pattern=self.user_path,
-            path=self.user_path,
-            consumer_class=RoomConsumer,
-            protocols=[self.user_accepted_protocol],
-            user=user1
-        )
+        admin_communicator = get_admin_communicator(self.admin_user)
+        user_communicator = get_user_communicator(user1)
 
         admin_connected, _ = await admin_communicator.connect()
         user_connected, _ = await user_communicator.connect()
@@ -160,13 +139,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
         room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[user])
         messages = await MessageAsyncFactory(110, user=factory.Iterator([user, self.admin_user]), room=room)
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
@@ -210,13 +183,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
         message = await MessageAsyncFactory(user=self.admin_user, room=room, has_attachments=True)
         attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
         connected, _ = await communicator.connect()
         self.assertTrue(connected)
