@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from typing import Type, List, Optional
 
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
@@ -193,27 +193,6 @@ async def websocket_connect_communal(communicators: list[WebsocketCommunicator],
 
 
 @asynccontextmanager
-async def _join_room(communicator: WebsocketCommunicator, room_id: int):
-    await communicator.send_json_to({
-        'action': 'join_room',
-        'room_id': room_id,
-        'request_id': 1500000
-    })
-
-    response = await communicator.receive_json_from()
-
-    try:
-        yield response
-    finally:
-        await communicator.send_json_to({
-            'action': 'leave_room',
-            'request_id': 1500000
-        })
-
-        await communicator.receive_json_from()
-
-
-@asynccontextmanager
 async def join_room(communicator: WebsocketCommunicator, room_id: int, connect: bool = False):
     """
     Join room and return response
@@ -224,33 +203,12 @@ async def join_room(communicator: WebsocketCommunicator, room_id: int, connect: 
         communicator: connected communicator for interactions with websocket application
         room_id: id of a room to join,
         connect: boolean indicating whether to connect to websocket first or not.
-    """
-    if connect:
-        async with websocket_connect(communicator):
-            async with _join_room(communicator, room_id) as response:
-                yield response
-    else:
-        async with _join_room(communicator, room_id) as response:
-            yield response
-
-
-@asynccontextmanager
-async def _join_room_communal(communicators: list[WebsocketCommunicator], room_id: int):
-    """
-    Context manager for connecting several communicators to one room.
-
-    On exit leaves the room for each communicator
-
-    Args:
-        communicators: list of communicators for joining the room
-        room_id: id of the room to be connected to
 
     Returns:
-        list of responses of calling join room for each communicator, preserving the order
+        response of calling join_room action
     """
-    responses = []
-
-    for communicator in communicators:
+    # if connect is True, uses websocket_connect cm wrapper, otherwise just executes the code block
+    async with websocket_connect(communicator) if connect else nullcontext():
         await communicator.send_json_to({
             'action': 'join_room',
             'room_id': room_id,
@@ -258,12 +216,10 @@ async def _join_room_communal(communicators: list[WebsocketCommunicator], room_i
         })
 
         response = await communicator.receive_json_from()
-        responses.append(response)
 
-    try:
-        yield responses
-    finally:
-        for communicator in communicators:
+        try:
+            yield response
+        finally:
             await communicator.send_json_to({
                 'action': 'leave_room',
                 'request_id': 1500000
@@ -285,12 +241,28 @@ async def join_room_communal(communicators: list[WebsocketCommunicator], room_id
         connect: boolean indicating whether to connect to websocket first or not.
 
     Returns:
-        list of responses of calling join room for each communicator, preserving the order
+        list of responses of calling join_room action for each communicator, preserving the order
     """
-    if connect:
-        async with websocket_connect_communal(communicators):
-            async with _join_room_communal(communicators, room_id) as response:
-                yield response
-    else:
-        async with _join_room_communal(communicators, room_id) as response:
-            yield response
+    async with websocket_connect_communal(communicators) if connect else nullcontext():
+        responses = []
+
+        for communicator in communicators:
+            await communicator.send_json_to({
+                'action': 'join_room',
+                'room_id': room_id,
+                'request_id': 1500000
+            })
+
+            response = await communicator.receive_json_from()
+            responses.append(response)
+
+        try:
+            yield responses
+        finally:
+            for communicator in communicators:
+                await communicator.send_json_to({
+                    'action': 'leave_room',
+                    'request_id': 1500000
+                })
+
+                await communicator.receive_json_from()
