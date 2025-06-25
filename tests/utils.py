@@ -141,16 +141,59 @@ def get_admin_communicator(user: User, protocols: Optional[List[str]] = None):
 
 
 @asynccontextmanager
-async def join_room(communicator: WebsocketCommunicator, room_id: int):
+async def websocket_connect(communicator: WebsocketCommunicator, check_connected: bool = True):
     """
-    Join room and return response
+    Connect the communicator to a websocket.
 
-    Leave room on exit
+    Disconnect on exit.
 
     Args:
-        communicator: connected communicator for interactions with websocket application
-        room_id: id of a room to join
+        communicator: WebsocketCommunicator instance to connect
+        check_connected: if True, it will check whether the communicator was connected
     """
+    is_connected, subprotocol = await communicator.connect()
+
+    if check_connected:
+        # depending on whether socket was accepted or not, second return value of the connect method would change
+        # https://channels.readthedocs.io/en/stable/topics/testing.html#connect
+        assert is_connected, f'Connection failed. Close code: {subprotocol}'
+
+    try:
+        yield is_connected, subprotocol
+    finally:
+        await communicator.disconnect()
+
+
+@asynccontextmanager
+async def websocket_connect_communal(communicators: list[WebsocketCommunicator], check_connected: bool = True):
+    """
+    Connect the list of communicators to a websocket.
+
+    Disconnect on exit.
+
+    Args:
+        communicators: list of WebsocketCommunicator instances to connect
+        check_connected: if True, it will check whether each communicator was connected
+    """
+    response_list = []
+
+    for i, communicator in enumerate(communicators):
+        is_connected, subprotocol = await communicator.connect()
+
+        if check_connected:
+            assert is_connected, f'Communicator at index {i} was not connected. Close code: {subprotocol}'
+
+        response_list.append((is_connected, subprotocol))
+
+    try:
+        yield response_list
+    finally:
+        for communicator in communicators:
+            await communicator.disconnect()
+
+
+@asynccontextmanager
+async def _join_room(communicator: WebsocketCommunicator, room_id: int):
     await communicator.send_json_to({
         'action': 'join_room',
         'room_id': room_id,
@@ -171,7 +214,28 @@ async def join_room(communicator: WebsocketCommunicator, room_id: int):
 
 
 @asynccontextmanager
-async def join_room_communal(communicators: list[WebsocketCommunicator], room_id: int):
+async def join_room(communicator: WebsocketCommunicator, room_id: int, connect: bool = False):
+    """
+    Join room and return response
+
+    Leave room on exit
+
+    Args:
+        communicator: connected communicator for interactions with websocket application
+        room_id: id of a room to join,
+        connect: boolean indicating whether to connect to websocket first or not.
+    """
+    if connect:
+        async with websocket_connect(communicator):
+            async with _join_room(communicator, room_id) as response:
+                yield response
+    else:
+        async with _join_room(communicator, room_id) as response:
+            yield response
+
+
+@asynccontextmanager
+async def _join_room_communal(communicators: list[WebsocketCommunicator], room_id: int):
     """
     Context manager for connecting several communicators to one room.
 
@@ -194,7 +258,6 @@ async def join_room_communal(communicators: list[WebsocketCommunicator], room_id
         })
 
         response = await communicator.receive_json_from()
-
         responses.append(response)
 
     try:
@@ -207,3 +270,27 @@ async def join_room_communal(communicators: list[WebsocketCommunicator], room_id
             })
 
             await communicator.receive_json_from()
+
+
+@asynccontextmanager
+async def join_room_communal(communicators: list[WebsocketCommunicator], room_id: int, connect: bool = False):
+    """
+    Context manager for connecting several communicators to one room.
+
+    On exit leaves the room for each communicator
+
+    Args:
+        communicators: list of communicators for joining the room
+        room_id: id of the room to be connected to
+        connect: boolean indicating whether to connect to websocket first or not.
+
+    Returns:
+        list of responses of calling join room for each communicator, preserving the order
+    """
+    if connect:
+        async with websocket_connect_communal(communicators):
+            async with _join_room_communal(communicators, room_id) as response:
+                yield response
+    else:
+        async with _join_room_communal(communicators, room_id) as response:
+            yield response
