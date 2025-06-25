@@ -9,7 +9,7 @@ from core.apps.accounts.factories import UserFactory
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.utils import channels_reverse
 from core.apps.payments.factories import SubscriptionFactory
-from tests.utils import get_websocket_communicator, get_websocket_application, get_user_communicator
+from tests.utils import get_websocket_communicator, get_websocket_application, get_user_communicator, websocket_connect
 
 
 # IMPORTANT
@@ -58,8 +58,8 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         )
 
         # middleware transforms request after communicator.connect()
-        connected, _ = await communicator.connect()
-        self.assertFalse(connected)
+        async with websocket_connect(communicator, check_connected=False) as (is_connected, _):
+            self.assertFalse(is_connected)
 
         scope = communicator.scope
 
@@ -72,8 +72,6 @@ class AuthMiddlewareTestCase(TransactionTestCase):
             dict(scope['headers'])[b'sec-websocket-protocol'],
             bytes(str(access), 'utf-8')
         )
-
-        await communicator.disconnect()
 
     async def test_connect_expired_token(self):
         access = AccessToken.for_user(self.user)
@@ -90,20 +88,18 @@ class AuthMiddlewareTestCase(TransactionTestCase):
             token=access
         )
 
-        connected, _ = await communicator.connect()
-        self.assertFalse(connected)
+        async with websocket_connect(communicator, check_connected=False) as (is_connected, _):
+            self.assertFalse(is_connected)
 
         # if token is expired, then middleware populates scope with AnonymousUser
         self.assertTrue(communicator.scope['user'].is_anonymous)
 
-        await communicator.disconnect()
-
     async def test_connect_protocols_not_specified_except_token(self):
         communicator = get_user_communicator(self.user, protocols=[])
-        connected, _ = await communicator.connect()
 
-        # connection will be rejected, because accepted protocol not in the subprotocols list
-        self.assertFalse(connected)
+        async with websocket_connect(communicator, check_connected=False) as (is_connected, _):
+            # connection will be rejected, because accepted protocol not in the subprotocols list
+            self.assertFalse(is_connected)
 
         scope = communicator.scope
 
@@ -114,8 +110,6 @@ class AuthMiddlewareTestCase(TransactionTestCase):
         # so headers and subprotocols will be empty
         self.assertFalse(scope['headers'])
         self.assertFalse(scope['subprotocols'])
-
-        await communicator.disconnect()
 
     async def test_connect_header_not_specified(self):
         access = AccessToken.for_user(self.user)
@@ -133,22 +127,18 @@ class AuthMiddlewareTestCase(TransactionTestCase):
             subprotocols=protocols.split(', ')
         )
 
-        connected, _ = await communicator.connect()
-        self.assertFalse(connected)
+        async with websocket_connect(communicator, check_connected=False) as (is_connected, _):
+            self.assertFalse(is_connected)
 
         scope = communicator.scope
-
         self.assertTrue(scope['user'].is_anonymous)
         self.assertFalse(scope['headers'])  # check that headers are empty
 
         # check that subprotocols were transformed correctly
         self.assertEqual(scope['subprotocols'], [self.accepted_protocol])
 
-        await communicator.disconnect()
-
     async def test_connect(self):
         communicator = get_user_communicator(self.user)
-        connected, _ = await communicator.connect()
 
-        self.assertTrue(connected)
-        self.assertEqual(communicator.scope['user'].pk, self.user.pk)
+        async with websocket_connect(communicator):
+            self.assertEqual(communicator.scope['user'].pk, self.user.pk)

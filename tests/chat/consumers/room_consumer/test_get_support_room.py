@@ -11,7 +11,7 @@ from core.apps.chat.factories import (
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
-from tests.utils import join_room, get_user_communicator
+from tests.utils import join_room, get_user_communicator, websocket_connect
 
 
 @override_settings(
@@ -46,15 +46,12 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
         communicator = get_user_communicator(user_wo_active_sub)
 
         # connect with active sub
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
+        async with websocket_connect(communicator):
+            # make sub inactive
+            sub.is_active = False
+            await sub.asave()
 
-        # make sub inactive
-        sub.is_active = False
-        await sub.asave()
-
-        response = await self.get_support_room(communicator)
-        await communicator.disconnect()
+            response = await self.get_support_room(communicator)
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
@@ -64,11 +61,8 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_support_room(communicator)
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.get_support_room(communicator)
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
@@ -81,11 +75,8 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
     async def test_get_support_room_if_does_not_exist(self):
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_support_room(communicator)
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.get_support_room(communicator)
 
         self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
 
@@ -112,20 +103,14 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room1.pk):
+        async with join_room(communicator, room1.pk, connect=True):
             response = await self.get_support_room(communicator)
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            room_id = response['data']['id']
-            interlocutors = response['data']['interlocutors']
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            self.assertEqual(room_id, support_room.pk)
-            self.assertFalse(interlocutors)
-
-        await communicator.disconnect()
+        data = response['data']
+        self.assertEqual(data['id'], support_room.pk)
+        self.assertFalse(data['interlocutors'])
 
     async def test_get_support_room_last_message_includes_attachments(self):
         room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[self.user1])
@@ -134,11 +119,8 @@ class RoomConsumerGetSupportRoomTestCase(TransactionTestCase, RoomConsumerAction
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_support_room(communicator)
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.get_support_room(communicator)
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 

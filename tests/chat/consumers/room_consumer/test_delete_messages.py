@@ -16,7 +16,9 @@ from tests.utils import (
     join_room_communal,
     join_room,
     get_user_communicator,
-    get_admin_communicator
+    get_admin_communicator,
+    websocket_connect,
+    websocket_connect_communal
 )
 
 
@@ -52,19 +54,14 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
         communicator = get_user_communicator(user_wo_active_sub)
 
-        # connect with active sub
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             # make sub inactive
             sub.is_active = False
             await sub.asave()
 
             response = await self.delete_messages(communicator, [msg.pk])
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
     async def test_delete_messages_not_in_room_not_allowed(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -72,11 +69,8 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.delete_messages(communicator, [message.pk])
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.delete_messages(communicator, [message.pk])
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertIsNone(response['data'])
@@ -90,17 +84,12 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.delete_messages(communicator, [msg.pk])
 
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
     async def test_delete_messages_if_interlocutor_in_blacklist_of_brand_not_allowed(self):
         room = await RoomAsyncFactory(type=Room.MATCH, participants=[self.user1, self.user2])
@@ -109,17 +98,12 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.delete_messages(communicator, [msg.pk])
 
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
     async def test_delete_messages_all_not_found(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -127,22 +111,13 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         communicator1 = get_user_communicator(self.user1)
         communicator2 = get_user_communicator(self.user2)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-
-        async with join_room_communal([communicator1, communicator2], room.pk):
+        async with join_room_communal([communicator1, communicator2], room.pk, connect=True):
             response = await self.delete_messages(communicator1, [0, -1])
             self.assertTrue(await communicator2.receive_nothing())  # check that nothing was sent to the second user
 
-            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
     async def test_delete_messages(self):
         both_users = [self.user1, self.user2]
@@ -167,71 +142,56 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         communicator2 = get_user_communicator(self.user2)
         admin_communicator1 = get_admin_communicator(admin1)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-        connected3, _ = await admin_communicator1.connect()
+        async with websocket_connect_communal([communicator1, communicator2, admin_communicator1]):
+            # create another admin when user is already connected
+            # admin2 must be added to the list of groups to which the message is sent
+            admin2 = await UserAsyncFactory(admin=True)
+            admin_communicator2 = get_admin_communicator(admin2)
 
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-        self.assertTrue(connected3)
+            async with websocket_connect(admin_communicator2):
+                async with join_room_communal([communicator1, communicator2], match_room.pk):
+                    response1 = await self.delete_messages(communicator1, match_room_messages_ids)
+                    response2 = await communicator2.receive_json_from()
 
-        # create another admin when user is already connected
-        # admin2 must be added to the list of groups to which the message is sent
-        admin2 = await UserAsyncFactory(admin=True)
+                    # check that admins aren't notified about non-support room actions
+                    self.assertTrue(await admin_communicator1.receive_nothing())
+                    self.assertTrue(await admin_communicator2.receive_nothing())
 
-        admin_communicator2 = get_admin_communicator(admin2)
+                    for response in [response1, response2]:
+                        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                        self.assertEqual(response['data']['messages_ids'], match_room_messages_ids)
+                        self.assertEqual(response['data']['room_id'], match_room.pk)
 
-        connected4, _ = await admin_communicator2.connect()
-        self.assertTrue(connected4)
+                    messages_exists = await Message.objects.filter(id__in=match_room_messages_ids).aexists()
+                    self.assertFalse(messages_exists)
 
-        async with join_room_communal([communicator1, communicator2], match_room.pk):
-            response1 = await self.delete_messages(communicator1, match_room_messages_ids)
-            response2 = await communicator2.receive_json_from()
+                async with join_room_communal([communicator1, communicator2], instant_room.pk):
+                    response1 = await self.delete_messages(communicator1, instant_room_messages_ids)
+                    response2 = await communicator2.receive_json_from()
 
-            # check that admins aren't notified about non-support room actions
-            self.assertTrue(await admin_communicator1.receive_nothing())
-            self.assertTrue(await admin_communicator2.receive_nothing())
+                    # check that admins aren't notified about non-support room actions
+                    self.assertTrue(await admin_communicator1.receive_nothing())
+                    self.assertTrue(await admin_communicator2.receive_nothing())
 
-            for response in [response1, response2]:
-                self.assertEqual(response['response_status'], status.HTTP_200_OK)
-                self.assertEqual(response['data']['messages_ids'], match_room_messages_ids)
-                self.assertEqual(response['data']['room_id'], match_room.pk)
+                    for response in [response1, response2]:
+                        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                        self.assertEqual(response['data']['messages_ids'], instant_room_messages_ids)
+                        self.assertEqual(response['data']['room_id'], instant_room.pk)
 
-            messages_exists = await Message.objects.filter(id__in=match_room_messages_ids).aexists()
-            self.assertFalse(messages_exists)
+                async with join_room(communicator1, support_room.pk):
+                    response = await self.delete_messages(communicator1, support_room_messages_ids)
+                    admin1_response = await admin_communicator1.receive_json_from()
+                    admin2_response = await admin_communicator2.receive_json_from()
 
-        async with join_room_communal([communicator1, communicator2], instant_room.pk):
-            response1 = await self.delete_messages(communicator1, instant_room_messages_ids)
-            response2 = await communicator2.receive_json_from()
+                    # check that only one notification is sent
+                    self.assertTrue(await communicator1.receive_nothing())
+                    self.assertTrue(await admin_communicator1.receive_nothing())
+                    self.assertTrue(await admin_communicator2.receive_nothing())
 
-            # check that admins aren't notified about non-support room actions
-            self.assertTrue(await admin_communicator1.receive_nothing())
-            self.assertTrue(await admin_communicator2.receive_nothing())
-
-            for response in [response1, response2]:
-                self.assertEqual(response['response_status'], status.HTTP_200_OK)
-                self.assertEqual(response['data']['messages_ids'], instant_room_messages_ids)
-                self.assertEqual(response['data']['room_id'], instant_room.pk)
-
-        async with join_room(communicator1, support_room.pk):
-            response = await self.delete_messages(communicator1, support_room_messages_ids)
-            admin1_response = await admin_communicator1.receive_json_from()
-            admin2_response = await admin_communicator2.receive_json_from()
-
-            # check that only one notification is sent
-            self.assertTrue(await communicator1.receive_nothing())
-            self.assertTrue(await admin_communicator1.receive_nothing())
-            self.assertTrue(await admin_communicator2.receive_nothing())
-
-            for response in [response, admin1_response, admin2_response]:
-                self.assertEqual(response['response_status'], status.HTTP_200_OK)
-                self.assertEqual(response['data']['messages_ids'], support_room_messages_ids)
-                self.assertEqual(response['data']['room_id'], support_room.pk)
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
-        await admin_communicator1.disconnect()
-        await admin_communicator2.disconnect()
+                    for response in [response, admin1_response, admin2_response]:
+                        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                        self.assertEqual(response['data']['messages_ids'], support_room_messages_ids)
+                        self.assertEqual(response['data']['room_id'], support_room.pk)
 
     async def test_delete_messages_of_another_user_not_allowed(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -241,25 +201,16 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         communicator1 = get_user_communicator(self.user1)
         communicator2 = get_user_communicator(self.user2)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-
-        async with join_room_communal([communicator1, communicator2], room.pk):
+        async with join_room_communal([communicator1, communicator2], room.pk, connect=True):
             response = await self.delete_messages(communicator1, messages_ids)
             self.assertTrue(await communicator2.receive_nothing())  # check that nothing was sent to the second user
 
-            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
+        self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
-            messages_exist = await Message.objects.filter(id__in=messages_ids).aexists()
-            self.assertTrue(messages_exist)
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
+        messages_exist = await Message.objects.filter(id__in=messages_ids).aexists()
+        self.assertTrue(messages_exist)
 
     async def test_delete_messages_some_not_found(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -269,25 +220,16 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         communicator1 = get_user_communicator(self.user1)
         communicator2 = get_user_communicator(self.user2)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-
-        async with join_room_communal([communicator1, communicator2], room.pk):
+        async with join_room_communal([communicator1, communicator2], room.pk, connect=True):
             response = await self.delete_messages(communicator1, existing_messages_ids + [0])
             self.assertTrue(await communicator2.receive_nothing())  # check that nothing was sent to the second user
 
-            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
-            self.assertTrue(response['errors'])
-            self.assertIsNone(response['data'])
+        self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
+        self.assertTrue(response['errors'])
+        self.assertIsNone(response['data'])
 
-            existing_messages_num = await Message.objects.filter(id__in=existing_messages_ids).acount()
-            self.assertEqual(existing_messages_num, len(messages))
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
+        existing_messages_num = await Message.objects.filter(id__in=existing_messages_ids).acount()
+        self.assertEqual(existing_messages_num, len(messages))
 
     async def test_delete_messages_does_not_delete_messages_in_other_rooms(self):
         room1, room2 = await RoomAsyncFactory(2, participants=[self.user1, self.user2])
@@ -297,26 +239,17 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
         communicator1 = get_user_communicator(self.user1)
         communicator2 = get_user_communicator(self.user2)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-
-        async with join_room_communal([communicator1, communicator2], room1.pk):
+        async with join_room_communal([communicator1, communicator2], room1.pk, connect=True):
             # try to delete messages in room2
             response = await self.delete_messages(communicator1, messages_ids)
             self.assertTrue(await communicator2.receive_nothing())  # check that nothing was sent to the second user
 
-            self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
+        self.assertEqual(response['response_status'], status.HTTP_404_NOT_FOUND)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
-            messages_exist = await Message.objects.filter(id__in=messages_ids).aexists()
-            self.assertTrue(messages_exist)
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
+        messages_exist = await Message.objects.filter(id__in=messages_ids).aexists()
+        self.assertTrue(messages_exist)
 
     async def test_delete_messages_with_attachments(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -325,17 +258,12 @@ class RoomConsumerDeleteMessagesTestCase(TransactionTestCase, RoomConsumerAction
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.delete_messages(communicator, [message.pk])
 
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            # check that attachments were deleted
-            self.assertFalse(
-                await MessageAttachment.objects.filter(id__in=attachments_ids).aexists()
-            )
-
-        await communicator.disconnect()
+        # check that attachments were deleted
+        self.assertFalse(
+            await MessageAttachment.objects.filter(id__in=attachments_ids).aexists()
+        )

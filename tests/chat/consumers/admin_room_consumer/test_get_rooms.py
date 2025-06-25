@@ -6,7 +6,7 @@ from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room
 from tests.mixins import AdminRoomConsumerActionsMixin
-from tests.utils import get_admin_communicator
+from tests.utils import get_admin_communicator, websocket_connect
 
 
 @override_settings(
@@ -57,11 +57,8 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
 
         communicator = get_admin_communicator(self.admin_user)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_rooms(communicator, 1)
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.get_rooms(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
         results = response['data']['results']
@@ -112,35 +109,31 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
 
         communicator = get_admin_communicator(self.admin_user)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
+        async with websocket_connect(communicator):
+            # page 1
+            response = await self.get_rooms(communicator, 1)
 
-        # page 1
-        response = await self.get_rooms(communicator, 1)
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            data = response['data']
+            results = data['results']
 
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
-        data = response['data']
-        results = data['results']
+            self.assertEqual(data['count'], len(rooms))
+            self.assertEqual(len(results), 100)
+            self.assertEqual(data['next'], 2)
 
-        self.assertEqual(data['count'], len(rooms))
-        self.assertEqual(len(results), 100)
-        self.assertEqual(data['next'], 2)
+            # check ordering
+            # rooms are ordered by the room last message's 'created_at' field descending
+            self.assertEqual(results[0]['last_message']['id'], message2.pk)
+            self.assertEqual(results[1]['last_message']['id'], message1.pk)
 
-        # check ordering
-        # rooms are ordered by the room last message's 'created_at' field descending
-        self.assertEqual(results[0]['last_message']['id'], message2.pk)
-        self.assertEqual(results[1]['last_message']['id'], message1.pk)
+            # page 2
+            response = await self.get_rooms(communicator, 2)
 
-        # page 2
-        response = await self.get_rooms(communicator, 2)
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            data = response['data']
 
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
-        data = response['data']
-
-        self.assertEqual(len(data['results']), 20)
-        self.assertIsNone(data['next'])
-
-        await communicator.disconnect()
+            self.assertEqual(len(data['results']), 20)
+            self.assertIsNone(data['next'])
 
     async def test_get_rooms_last_message_includes_attachments(self):
         room = await RoomAsyncFactory(type=Room.SUPPORT)
@@ -149,10 +142,8 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
 
         communicator = get_admin_communicator(self.admin_user)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_rooms(communicator, 1)
+        async with websocket_connect(communicator):
+            response = await self.get_rooms(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
@@ -164,5 +155,3 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
 
         response_attachments_ids = [a['id'] for a in last_message['attachments']]
         self.assertEqual(response_attachments_ids, attachments_ids)
-
-        await communicator.disconnect()

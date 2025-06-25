@@ -11,7 +11,9 @@ from tests.utils import (
     join_room,
     join_room_communal,
     get_admin_communicator,
-    get_user_communicator
+    get_user_communicator,
+    websocket_connect,
+    websocket_connect_communal
 )
 
 
@@ -39,10 +41,8 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
     async def test_get_room_messages_not_in_room_not_allowed(self):
         communicator = get_admin_communicator(self.admin_user)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_room_messages(communicator, 1)
+        async with websocket_connect(communicator):
+            response = await self.get_room_messages(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertIsNone(response['data'])
@@ -71,68 +71,60 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
         admin_communicator = get_admin_communicator(self.admin_user)
         user_communicator = get_user_communicator(user1)
 
-        admin_connected, _ = await admin_communicator.connect()
-        user_connected, _ = await user_communicator.connect()
+        async with websocket_connect_communal([admin_communicator, user_communicator]):
+            async with join_room_communal([admin_communicator, user_communicator], match_room.pk) as responses:
+                for response in responses:
+                    self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        self.assertTrue(admin_connected)
-        self.assertTrue(user_connected)
+                response = await self.get_room_messages(admin_communicator, 1)
+                self.assertTrue(await user_communicator.receive_nothing())
 
-        async with join_room_communal([admin_communicator, user_communicator], match_room.pk) as responses:
-            for response in responses:
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                messages_resp = response['data']['results']
+
+                self.assertEqual(len(messages_resp), 2)
+                # check that messages ordered by created_at desc
+                self.assertEqual(messages_resp[0]['id'], messages[0].pk)
+
+            async with join_room_communal([admin_communicator, user_communicator], instant_room.pk) as responses:
+                for response in responses:
+                    self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+                response = await self.get_room_messages(admin_communicator, 1)
+                self.assertTrue(await user_communicator.receive_nothing())
+
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                messages_resp = response['data']['results']
+
+                self.assertEqual(len(messages_resp), 2)
+                # check that messages ordered by created_at desc
+                self.assertEqual(messages_resp[0]['id'], messages[1].pk)
+
+            async with join_room_communal([admin_communicator, user_communicator], support_room.pk) as responses:
+                for response in responses:
+                    self.assertEqual(response['response_status'], status.HTTP_200_OK)
+
+                response = await self.get_room_messages(admin_communicator, 1)
+                self.assertTrue(await user_communicator.receive_nothing())
+
+                self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                messages_resp = response['data']['results']
+
+                self.assertEqual(len(messages_resp), 2)
+                # check that messages ordered by created_at desc
+                self.assertEqual(messages_resp[0]['id'], messages[2].pk)
+
+            async with join_room(admin_communicator, own_support_room.pk) as response:
                 self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            response = await self.get_room_messages(admin_communicator, 1)
-            self.assertTrue(await user_communicator.receive_nothing())
+                response = await self.get_room_messages(admin_communicator, 1)
 
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            messages_resp = response['data']['results']
-
-            self.assertEqual(len(messages_resp), 2)
-            # check that messages ordered by created_at desc
-            self.assertEqual(messages_resp[0]['id'], messages[0].pk)
-
-        async with join_room_communal([admin_communicator, user_communicator], instant_room.pk) as responses:
-            for response in responses:
                 self.assertEqual(response['response_status'], status.HTTP_200_OK)
+                messages_resp = response['data']['results']
 
-            response = await self.get_room_messages(admin_communicator, 1)
-            self.assertTrue(await user_communicator.receive_nothing())
-
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            messages_resp = response['data']['results']
-
-            self.assertEqual(len(messages_resp), 2)
-            # check that messages ordered by created_at desc
-            self.assertEqual(messages_resp[0]['id'], messages[1].pk)
-
-        async with join_room_communal([admin_communicator, user_communicator], support_room.pk) as responses:
-            for response in responses:
-                self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-            response = await self.get_room_messages(admin_communicator, 1)
-            self.assertTrue(await user_communicator.receive_nothing())
-
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            messages_resp = response['data']['results']
-
-            self.assertEqual(len(messages_resp), 2)
-            # check that messages ordered by created_at desc
-            self.assertEqual(messages_resp[0]['id'], messages[2].pk)
-
-        async with join_room(admin_communicator, own_support_room.pk) as response:
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-            response = await self.get_room_messages(admin_communicator, 1)
-
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            messages_resp = response['data']['results']
-
-            self.assertEqual(len(messages_resp), 2)
-            # check that messages ordered by created_at desc
-            self.assertEqual(messages_resp[0]['id'], messages[3].pk)
-
-        await admin_communicator.disconnect()
-        await user_communicator.disconnect()
+                self.assertEqual(len(messages_resp), 2)
+                # check that messages ordered by created_at desc
+                self.assertEqual(messages_resp[0]['id'], messages[3].pk)
 
     async def test_get_room_messages_pagination(self):
         user = await UserAsyncFactory()
@@ -141,10 +133,7 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
 
         communicator = get_admin_communicator(self.admin_user)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             # first page
             response = await self.get_room_messages(communicator, 1)
             data = response['data']
@@ -176,8 +165,6 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
             self.assertIsNone(response['data'])
             self.assertTrue(response['errors'])
 
-        await communicator.disconnect()
-
     async def test_get_room_messages_include_attachments(self):
         room = await RoomAsyncFactory(type=Room.SUPPORT)
         message = await MessageAsyncFactory(user=self.admin_user, room=room, has_attachments=True)
@@ -185,19 +172,14 @@ class AdminRoomConsumerGetRoomMessagesTestCase(TransactionTestCase, AdminRoomCon
 
         communicator = get_admin_communicator(self.admin_user)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.get_room_messages(communicator, 1)
 
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            results = response['data']['results']
-            self.assertEqual(len(results), 1)
-            self.assertTrue('attachments' in results[0])
+        results = response['data']['results']
+        self.assertEqual(len(results), 1)
+        self.assertTrue('attachments' in results[0])
 
-            response_attachments_ids = [a['id'] for a in results[0]['attachments']]
-            self.assertEqual(response_attachments_ids, attachments_ids)
-
-        await communicator.disconnect()
+        response_attachments_ids = [a['id'] for a in results[0]['attachments']]
+        self.assertEqual(response_attachments_ids, attachments_ids)

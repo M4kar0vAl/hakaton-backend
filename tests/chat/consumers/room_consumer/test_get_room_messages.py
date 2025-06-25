@@ -7,7 +7,7 @@ from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
-from tests.utils import join_room_communal, join_room, get_user_communicator
+from tests.utils import join_room_communal, join_room, get_user_communicator, websocket_connect
 
 
 @override_settings(
@@ -41,28 +41,20 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
         communicator = get_user_communicator(user_wo_active_sub)
 
-        # connect with active sub
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             # make sub inactive
             sub.is_active = False
             await sub.asave()
 
             response = await self.get_room_messages(communicator, 1)
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
     async def test_get_room_messages_not_in_room_not_allowed(self):
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_room_messages(communicator, 1)
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.get_room_messages(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertTrue(response['errors'])
@@ -80,21 +72,12 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
         communicator1 = get_user_communicator(self.user1)
         communicator2 = get_user_communicator(self.user2)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-
-        async with join_room_communal([communicator1, communicator2], room.pk):
+        async with join_room_communal([communicator1, communicator2], room.pk, connect=True):
             response = await self.get_room_messages(communicator1, 1)
             self.assertTrue(await communicator2.receive_nothing())  # check that nothing was sent to the second user
 
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            self.assertEqual(len(response['data']['results']), len(messages))
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+        self.assertEqual(len(response['data']['results']), len(messages))
 
     async def test_get_room_messages_returns_only_current_room_messages(self):
         room1, room2 = await RoomAsyncFactory(2, participants=[self.user1, self.user2])
@@ -109,16 +92,11 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room1.pk):
+        async with join_room(communicator, room1.pk, connect=True):
             response = await self.get_room_messages(communicator, 1)
 
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            self.assertEqual(len(response['data']['results']), len(room1_messages))
-
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+        self.assertEqual(len(response['data']['results']), len(room1_messages))
 
     async def test_get_room_messages_pagination(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -126,10 +104,7 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             # first page
             response = await self.get_room_messages(communicator, 1)
 
@@ -159,8 +134,6 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
             self.assertTrue(response['errors'])
             self.assertIsNone(response['data'])
 
-        await communicator.disconnect()
-
     async def test_get_room_messages_include_attachments(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
         message = await MessageAsyncFactory(user=self.user1, room=room, has_attachments=True)
@@ -168,18 +141,14 @@ class RoomConsumerGetRoomMessagesTestCase(TransactionTestCase, RoomConsumerActio
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.get_room_messages(communicator, 1)
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            results = response['data']['results']
-            self.assertEqual(len(results), 1)
-            self.assertTrue('attachments' in results[0])
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-            response_attachments_ids = [a['id'] for a in results[0]['attachments']]
-            self.assertEqual(response_attachments_ids, attachments_ids)
+        results = response['data']['results']
+        self.assertEqual(len(results), 1)
+        self.assertTrue('attachments' in results[0])
 
-        await communicator.disconnect()
+        response_attachments_ids = [a['id'] for a in results[0]['attachments']]
+        self.assertEqual(response_attachments_ids, attachments_ids)

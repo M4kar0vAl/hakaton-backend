@@ -20,7 +20,9 @@ from tests.utils import (
     join_room_communal,
     join_room,
     get_user_communicator,
-    get_admin_communicator
+    get_admin_communicator,
+    websocket_connect,
+    websocket_connect_communal
 )
 
 
@@ -58,27 +60,20 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
 
         communicator = get_user_communicator(user_wo_active_sub)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             # deactivate sub for create_message action test
             sub.is_active = False
             await sub.asave()
 
             response = await self.create_message(communicator, 'test')
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
 
     async def test_create_message_not_in_room_not_allowed(self):
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.create_message(communicator, 'asf')
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.create_message(communicator, 'asf')
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertIsNone(response['data'])
@@ -90,17 +85,12 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.create_message(communicator, 'test')
 
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
     async def test_create_message_if_interlocutor_in_blacklist_of_brand_not_allowed(self):
         room = await RoomAsyncFactory(type=Room.MATCH, participants=[self.user1, self.user2])
@@ -108,17 +98,12 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.create_message(communicator, 'test')
 
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
     async def test_create_message(self):
         both_users = [self.user1, self.user2]
@@ -137,72 +122,57 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         communicator2 = get_user_communicator(self.user2)
         admin_communicator1 = get_admin_communicator(admin1)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-        connected3, _ = await admin_communicator1.connect()
+        async with websocket_connect_communal([communicator1, communicator2, admin_communicator1]):
+            # create another admin when user is already connected
+            # admin2 must be added to the list of groups to which the message is sent
+            admin2 = await UserAsyncFactory(admin=True)
+            admin_communicator2 = get_admin_communicator(admin2)
 
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-        self.assertTrue(connected3)
+            async with websocket_connect(admin_communicator2):
+                async with join_room_communal([communicator1, communicator2], match_room.pk):
+                    msg_text = 'test'
+                    response1 = await self.create_message(communicator1, msg_text)
+                    response2 = await communicator2.receive_json_from()
 
-        # create another admin when user is already connected
-        # admin2 must be added to the list of groups to which the message is sent
-        admin2 = await UserAsyncFactory(admin=True)
+                    # check that admins aren't notified about non-support room actions
+                    self.assertTrue(await admin_communicator1.receive_nothing())
+                    self.assertTrue(await admin_communicator2.receive_nothing())
 
-        admin_communicator2 = get_admin_communicator(admin2)
+                    for response in [response1, response2]:
+                        self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
+                        self.assertEqual(response['data']['text'], msg_text)
+                        self.assertEqual(response['data']['room'], match_room.pk)
 
-        connected4, _ = await admin_communicator2.connect()
-        self.assertTrue(connected4)
+                async with join_room_communal([communicator1, communicator2], instant_room.pk):
+                    msg_text = 'test'
+                    response1 = await self.create_message(communicator1, msg_text)
+                    response2 = await communicator2.receive_json_from()
 
-        async with join_room_communal([communicator1, communicator2], match_room.pk):
-            msg_text = 'test'
-            response1 = await self.create_message(communicator1, msg_text)
-            response2 = await communicator2.receive_json_from()
+                    # check that admins aren't notified about non-support room actions
+                    self.assertTrue(await admin_communicator1.receive_nothing())
+                    self.assertTrue(await admin_communicator2.receive_nothing())
 
-            # check that admins aren't notified about non-support room actions
-            self.assertTrue(await admin_communicator1.receive_nothing())
-            self.assertTrue(await admin_communicator2.receive_nothing())
+                    for response in [response1, response2]:
+                        self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
+                        self.assertEqual(response['data']['text'], msg_text)
+                        self.assertEqual(response['data']['room'], instant_room.pk)
 
-            for response in [response1, response2]:
-                self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
-                self.assertEqual(response['data']['text'], msg_text)
-                self.assertEqual(response['data']['room'], match_room.pk)
+                async with join_room(communicator1, support_room.pk):
+                    msg_text = 'test'
+                    response1 = await self.create_message(communicator1, msg_text)
+                    admin1_response = await admin_communicator1.receive_json_from()
+                    admin2_response = await admin_communicator2.receive_json_from()
 
-        async with join_room_communal([communicator1, communicator2], instant_room.pk):
-            msg_text = 'test'
-            response1 = await self.create_message(communicator1, msg_text)
-            response2 = await communicator2.receive_json_from()
+                    # check that only one notification is sent
+                    self.assertTrue(await communicator1.receive_nothing())
+                    self.assertTrue(await admin_communicator1.receive_nothing())
+                    self.assertTrue(await admin_communicator2.receive_nothing())
 
-            # check that admins aren't notified about non-support room actions
-            self.assertTrue(await admin_communicator1.receive_nothing())
-            self.assertTrue(await admin_communicator2.receive_nothing())
-
-            for response in [response1, response2]:
-                self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
-                self.assertEqual(response['data']['text'], msg_text)
-                self.assertEqual(response['data']['room'], instant_room.pk)
-
-        async with join_room(communicator1, support_room.pk):
-            msg_text = 'test'
-            response1 = await self.create_message(communicator1, msg_text)
-            admin1_response = await admin_communicator1.receive_json_from()
-            admin2_response = await admin_communicator2.receive_json_from()
-
-            # check that only one notification is sent
-            self.assertTrue(await communicator1.receive_nothing())
-            self.assertTrue(await admin_communicator1.receive_nothing())
-            self.assertTrue(await admin_communicator2.receive_nothing())
-
-            # check that both admins were notified
-            for response in [response1, admin1_response, admin2_response]:
-                self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
-                self.assertEqual(response['data']['text'], msg_text)
-                self.assertEqual(response['data']['room'], support_room.pk)
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
-        await admin_communicator1.disconnect()
-        await admin_communicator2.disconnect()
+                    # check that both admins were notified
+                    for response in [response1, admin1_response, admin2_response]:
+                        self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
+                        self.assertEqual(response['data']['text'], msg_text)
+                        self.assertEqual(response['data']['room'], support_room.pk)
 
     async def test_create_message_instant_room_not_allowed_if_message_by_user_already_created(self):
         room = await RoomAsyncFactory(type=Room.INSTANT, participants=[self.user1, self.user2])
@@ -211,17 +181,12 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.create_message(communicator, 'asf')
 
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
     async def test_create_message_in_instant_room_user_is_not_the_initiator_of_coop(self):
         room = await RoomAsyncFactory(type=Room.INSTANT, participants=[self.user1, self.user2])
@@ -229,17 +194,12 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
 
         communicator = get_user_communicator(self.user2)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             response = await self.create_message(communicator, 'asf')
 
-            self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
-            self.assertIsNone(response['data'])
-            self.assertTrue(response['errors'])
-
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
+        self.assertIsNone(response['data'])
+        self.assertTrue(response['errors'])
 
     async def test_create_message_with_attachments(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -249,29 +209,20 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         communicator1 = get_user_communicator(self.user1)
         communicator2 = get_user_communicator(self.user2)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-
-        async with join_room_communal([communicator1, communicator2], room.pk):
+        async with join_room_communal([communicator1, communicator2], room.pk, connect=True):
             response1 = await self.create_message(communicator1, 'any text', attachments_ids)
             response2 = await communicator2.receive_json_from()
 
-            for response in [response1, response2]:
-                response_attachments_ids = [a['id'] for a in response['data']['attachments']]
+        for response in [response1, response2]:
+            response_attachments_ids = [a['id'] for a in response['data']['attachments']]
 
-                self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
-                self.assertEqual(attachments_ids, response_attachments_ids)
+            self.assertEqual(response['response_status'], status.HTTP_201_CREATED)
+            self.assertEqual(attachments_ids, response_attachments_ids)
 
-            msg_id = response1['data']['id']
+        msg_id = response1['data']['id']
 
-            # check that attachments were connected to the message
-            self.assertEqual(
-                await MessageAttachment.objects.filter(id__in=attachments_ids, message_id=msg_id).acount(),
-                2
-            )
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
+        # check that attachments were connected to the message
+        self.assertEqual(
+            await MessageAttachment.objects.filter(id__in=attachments_ids, message_id=msg_id).acount(),
+            2
+        )

@@ -7,7 +7,7 @@ from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.factories import RoomAsyncFactory
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
-from tests.utils import join_room_communal, join_room, get_user_communicator
+from tests.utils import join_room_communal, join_room, get_user_communicator, websocket_connect
 
 
 @override_settings(
@@ -33,19 +33,14 @@ class RoomConsumerLeaveRoomTestCase(TransactionTestCase, RoomConsumerActionsMixi
 
         communicator = get_user_communicator(user_wo_active_sub)
 
-        # connect with active sub
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        async with join_room(communicator, room.pk):
+        async with join_room(communicator, room.pk, connect=True):
             # make sub inactive
             sub.is_active = False
             await sub.asave()
 
             response = await self.leave_room(communicator)
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        await communicator.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
     async def test_leave_room(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -53,31 +48,19 @@ class RoomConsumerLeaveRoomTestCase(TransactionTestCase, RoomConsumerActionsMixi
         communicator1 = get_user_communicator(self.user1)
         communicator2 = get_user_communicator(self.user2)
 
-        connected1, _ = await communicator1.connect()
-        connected2, _ = await communicator2.connect()
-
-        self.assertTrue(connected1)
-        self.assertTrue(connected2)
-
-        async with join_room_communal([communicator1, communicator2], room.pk):
+        async with join_room_communal([communicator1, communicator2], room.pk, connect=True):
             response = await self.leave_room(communicator1)
             self.assertTrue(await communicator2.receive_nothing())  # check that nothing was sent to the second user
 
-            self.assertEqual(response['response_status'], status.HTTP_200_OK)
-            self.assertEqual(response['data']['response'], f'Leaved room {room.pk} successfully!')
-
-        await communicator1.disconnect()
-        await communicator2.disconnect()
+        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+        self.assertEqual(response['data']['response'], f'Leaved room {room.pk} successfully!')
 
     async def test_leave_room_if_not_in_room(self):
         await RoomAsyncFactory(participants=[self.user1])
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.leave_room(communicator)
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.leave_room(communicator)
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)

@@ -8,7 +8,7 @@ from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room
 from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
-from tests.utils import get_user_communicator
+from tests.utils import get_user_communicator, websocket_connect
 
 
 @override_settings(
@@ -42,16 +42,12 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         communicator = get_user_communicator(user_wo_active_sub)
 
-        # connect with active sub
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
+        async with websocket_connect(communicator):
+            # make sub inactive
+            sub.is_active = False
+            await sub.asave()
 
-        # make sub inactive
-        sub.is_active = False
-        await sub.asave()
-
-        response = await self.get_rooms(communicator, 1)
-        await communicator.disconnect()
+            response = await self.get_rooms(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_403_FORBIDDEN)
         self.assertIsNone(response['data'])
@@ -70,11 +66,8 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_rooms(communicator, 1)
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.get_rooms(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
@@ -128,11 +121,8 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_rooms(communicator, 1)
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.get_rooms(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
         self.assertFalse(response['data']['results'])
@@ -144,37 +134,33 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
+        async with websocket_connect(communicator):
+            # page 1
+            response = await self.get_rooms(communicator, 1)
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        # page 1
-        response = await self.get_rooms(communicator, 1)
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            count = response['data']['count']
+            results = response['data']['results']
+            next_ = response['data']['next']
 
-        count = response['data']['count']
-        results = response['data']['results']
-        next_ = response['data']['next']
+            self.assertEqual(count, len(rooms))
+            self.assertEqual(len(results), 100)
+            self.assertEqual(next_, 2)
 
-        self.assertEqual(count, len(rooms))
-        self.assertEqual(len(results), 100)
-        self.assertEqual(next_, 2)
+            # check ordering
+            # rooms are ordered by the room last message's 'created_at' field descending
+            self.assertEqual(results[0]['last_message']['id'], message2.pk)
+            self.assertEqual(results[1]['last_message']['id'], message1.pk)
 
-        # check ordering
-        # rooms are ordered by the room last message's 'created_at' field descending
-        self.assertEqual(results[0]['last_message']['id'], message2.pk)
-        self.assertEqual(results[1]['last_message']['id'], message1.pk)
+            # page 2
+            response = await self.get_rooms(communicator, 2)
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
-        # page 2
-        response = await self.get_rooms(communicator, 2)
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            results = response['data']['results']
+            next_ = response['data']['next']
 
-        results = response['data']['results']
-        next_ = response['data']['next']
-
-        self.assertEqual(len(results), 20)
-        self.assertIsNone(next_)
-
-        await communicator.disconnect()
+            self.assertEqual(len(results), 20)
+            self.assertIsNone(next_)
 
     async def test_get_rooms_last_message_includes_attachments(self):
         room = await RoomAsyncFactory(participants=[self.user1, self.user2])
@@ -183,10 +169,9 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         communicator = get_user_communicator(self.user1)
 
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
+        async with websocket_connect(communicator):
+            response = await self.get_rooms(communicator, 1)
 
-        response = await self.get_rooms(communicator, 1)
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
         results = response['data']['results']
@@ -197,5 +182,3 @@ class RoomConsumerGetRoomsTestCase(TransactionTestCase, RoomConsumerActionsMixin
 
         response_attachments_ids = [a['id'] for a in last_message['attachments']]
         self.assertEqual(response_attachments_ids, attachments_ids)
-
-        await communicator.disconnect()
