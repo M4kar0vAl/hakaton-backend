@@ -6,6 +6,10 @@ from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
 from django.urls import re_path
+from rest_framework.generics import GenericAPIView
+from rest_framework.settings import api_settings
+from rest_framework.test import APIRequestFactory
+from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import Token, AccessToken
 
 from core.apps.chat.consumers import RoomConsumer, AdminRoomConsumer
@@ -266,3 +270,23 @@ async def join_room_communal(communicators: list[WebsocketCommunicator], room_id
                 })
 
                 await communicator.receive_json_from()
+
+
+def refresh_api_settings():
+    """
+    Update cached values on some base classes. Use when overriding REST_FRAMEWORK setting in tests.
+    """
+    GenericAPIView.filter_backends = api_settings.DEFAULT_FILTER_BACKENDS
+    GenericAPIView.pagination_class = api_settings.DEFAULT_PAGINATION_CLASS
+
+    APIView.renderer_classes = api_settings.DEFAULT_RENDERER_CLASSES
+    APIView.parser_classes = api_settings.DEFAULT_PARSER_CLASSES
+    APIView.authentication_classes = api_settings.DEFAULT_AUTHENTICATION_CLASSES
+    APIView.throttle_classes = api_settings.DEFAULT_THROTTLE_CLASSES
+    APIView.permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES
+    APIView.content_negotiation_class = api_settings.DEFAULT_CONTENT_NEGOTIATION_CLASS
+    APIView.metadata_class = api_settings.DEFAULT_METADATA_CLASS
+    APIView.versioning_class = api_settings.DEFAULT_VERSIONING_CLASS
+
+    APIRequestFactory.renderer_classes_list = api_settings.TEST_REQUEST_RENDERER_CLASSES
+    APIRequestFactory.default_format = api_settings.TEST_REQUEST_DEFAULT_FORMAT

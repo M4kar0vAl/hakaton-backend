@@ -20,6 +20,7 @@ from core.apps.brand.factories import (
 )
 from core.apps.brand.models import ProductPhoto, Brand, Tag, Blog, Category
 from core.apps.cities.factories import CityFactory
+from tests.utils import refresh_api_settings
 
 
 @override_settings(
@@ -30,11 +31,17 @@ from core.apps.cities.factories import CityFactory
         "staticfiles": {
             "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
         },
+    },
+    REST_FRAMEWORK={
+        **settings.REST_FRAMEWORK,
+        'TEST_REQUEST_DEFAULT_FORMAT': 'multipart',
     }
 )
 class BrandCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
+        refresh_api_settings()
+
         cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
@@ -85,11 +92,11 @@ class BrandCreateTestCase(APITestCase):
         default_storage.delete(os.path.join(settings.MEDIA_ROOT, f'user_{self.user.id}'))
 
     def test_create_brand_as_unauthenticated(self):
-        response = self.client.post(self.url, {}, format='multipart')
+        response = self.client.post(self.url, {})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_create_brand_with_valid_data(self):
-        response = self.auth_client.post(self.url, self.data, format='multipart')
+        response = self.auth_client.post(self.url, self.data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -119,22 +126,20 @@ class BrandCreateTestCase(APITestCase):
 
     def test_create_brand_with_invalid_data(self):
         invalid_data = {}
-        response = self.auth_client.post(self.url, invalid_data, format='multipart')
+        response = self.auth_client.post(self.url, invalid_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_brand_if_already_exists(self):
         BrandShortFactory(user=self.user)
-        response = self.auth_client.post(self.url, self.data, format='multipart')
+        response = self.auth_client.post(self.url, self.data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_brand_with_other_category(self):
         other_category = factory.build(dict, FACTORY_CLASS=CategoryFactory, is_other=True)
 
-        response = self.auth_client.post(
-            self.url, {**self.data, 'category': json.dumps(other_category)}, format='multipart'
-        )
+        response = self.auth_client.post(self.url, {**self.data, 'category': json.dumps(other_category)})
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 

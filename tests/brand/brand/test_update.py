@@ -29,6 +29,7 @@ from core.apps.brand.factories import (
 )
 from core.apps.brand.models import Brand, Tag, ProductPhoto, Age, Gender, Category, Format, Goal
 from core.apps.cities.factories import CityFactory
+from tests.utils import refresh_api_settings
 
 
 @override_settings(
@@ -39,10 +40,19 @@ from core.apps.cities.factories import CityFactory
         "staticfiles": {
             "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
         },
-    }
+    },
+    REST_FRAMEWORK={
+        **settings.REST_FRAMEWORK,
+        'TEST_REQUEST_DEFAULT_FORMAT': 'multipart',
+    },
 )
 @tag('slow')
 class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires TransactionTestCase to be used
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        refresh_api_settings()
+
     def setUp(self):
         self.user = UserFactory()
         self.auth_client = APIClient()
@@ -168,12 +178,12 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
         self.url = reverse('brand-me')
 
     def test_brand_put_not_allowed(self):
-        response = self.auth_client.put(self.url, {}, format='multipart')
+        response = self.auth_client.put(self.url, {})
 
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_brand_update_unauthenticated_not_allowed(self):
-        response = self.client.patch(self.url, {}, format='multipart')
+        response = self.client.patch(self.url, {})
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -181,12 +191,12 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
         user_wo_brand = UserFactory()
         auth_client_wo_brand = APIClient()
         auth_client_wo_brand.force_authenticate(user_wo_brand)
-        response = auth_client_wo_brand.patch(self.url, {}, format='multipart')
+        response = auth_client_wo_brand.patch(self.url, {})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_brand_partial_update_whole_data(self):
-        response = self.auth_client.patch(self.url, self.update_data, format='multipart')
+        response = self.auth_client.patch(self.url, self.update_data)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         updated_brand = Brand.objects.select_related(
@@ -353,7 +363,7 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
     def test_brand_update_gallery_photos_can_remove_all(self):
         response = self.auth_client.patch(self.url, {
             'gallery_remove': json.dumps(self.gallery_remove)
-        }, format='multipart')
+        })
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(self.brand.gallery_photos.exists())

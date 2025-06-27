@@ -13,6 +13,7 @@ from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.factories import MessageAttachmentFactory
 from core.apps.chat.models import MessageAttachment
 from core.apps.payments.factories import SubscriptionFactory
+from tests.utils import refresh_api_settings
 
 
 @override_settings(
@@ -24,10 +25,16 @@ from core.apps.payments.factories import SubscriptionFactory
             "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
         },
     },
+    REST_FRAMEWORK={
+        **settings.REST_FRAMEWORK,
+        'TEST_REQUEST_DEFAULT_FORMAT': 'multipart',
+    }
 )
 class MessageAttachmentTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
+        refresh_api_settings()
+
         cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
@@ -46,7 +53,7 @@ class MessageAttachmentTestCase(APITestCase):
         cls.url = reverse('message_attachments')
 
     def test_message_attachment_create_unauthenticated_not_allowed(self):
-        response = self.client.post(self.url, {'file': self.test_file}, format='multipart')
+        response = self.client.post(self.url, {'file': self.test_file})
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
@@ -55,7 +62,7 @@ class MessageAttachmentTestCase(APITestCase):
         client_wo_brand = APIClient()
         client_wo_brand.force_authenticate(user_wo_brand)
 
-        response = client_wo_brand.post(self.url, {'file': self.test_file}, format='multipart')
+        response = client_wo_brand.post(self.url, {'file': self.test_file})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -66,7 +73,7 @@ class MessageAttachmentTestCase(APITestCase):
 
         BrandShortFactory(user=user_wo_active_sub)
 
-        response = client_wo_active_sub.post(self.url, {'file': self.test_file}, format='multipart')
+        response = client_wo_active_sub.post(self.url, {'file': self.test_file})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -79,13 +86,13 @@ class MessageAttachmentTestCase(APITestCase):
         superuser_client = APIClient()
         superuser_client.force_authenticate(superuser)
 
-        staff_response = staff_client.post(self.url, {'file': self.test_file}, format='multipart')
+        staff_response = staff_client.post(self.url, {'file': self.test_file})
 
         # If the same file is used multiple times in the same test,
         # it is needed to move file position to the beginning of the file after it was read
         self.test_file.seek(0)
 
-        superuser_response = superuser_client.post(self.url, {'file': self.test_file}, format='multipart')
+        superuser_response = superuser_client.post(self.url, {'file': self.test_file})
 
         self.assertEqual(staff_response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(superuser_response.status_code, status.HTTP_201_CREATED)
@@ -95,7 +102,7 @@ class MessageAttachmentTestCase(APITestCase):
         self.assertTrue(MessageAttachment.objects.filter(id=superuser_response.data['id']).exists())
 
     def test_message_attachment_create(self):
-        response = self.auth_client.post(self.url, {'file': self.test_file}, format='multipart')
+        response = self.auth_client.post(self.url, {'file': self.test_file})
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(MessageAttachment.objects.filter(id=response.data['id']).exists())
@@ -121,7 +128,7 @@ class MessageAttachmentTestCase(APITestCase):
             content_type=file_content_type,
         )
 
-        response = self.auth_client.post(self.url, {'file': file}, format='multipart')
+        response = self.auth_client.post(self.url, {'file': file})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         mock_file_complete.assert_called_once()
@@ -129,6 +136,6 @@ class MessageAttachmentTestCase(APITestCase):
     def test_message_attachment_create_unsupported_file_type(self):
         unsupported_file = factory.build(dict, FACTORY_CLASS=MessageAttachmentFactory)['file']
 
-        response = self.auth_client.post(self.url, {'file': unsupported_file}, format='multipart')
+        response = self.auth_client.post(self.url, {'file': unsupported_file})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
