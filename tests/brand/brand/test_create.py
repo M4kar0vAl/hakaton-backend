@@ -18,7 +18,7 @@ from core.apps.brand.factories import (
     TagFactory,
     BrandShortFactory
 )
-from core.apps.brand.models import ProductPhoto, Brand, Tag, Blog
+from core.apps.brand.models import ProductPhoto, Brand, Tag, Blog, Category
 from core.apps.cities.factories import CityFactory
 
 
@@ -128,3 +128,16 @@ class BrandCreateTestCase(APITestCase):
         response = self.auth_client.post(self.url, self.data, format='multipart')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_brand_with_other_category(self):
+        other_category = factory.build(dict, FACTORY_CLASS=CategoryFactory, is_other=True)
+
+        response = self.auth_client.post(
+            self.url, {**self.data, 'category': json.dumps(other_category)}, format='multipart'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        other_category_query = Category.objects.filter(name=other_category['name'], is_other=True)
+        self.assertTrue(other_category_query.exists())
+        self.assertEqual(response.data['category']['id'], other_category_query.get().pk)
