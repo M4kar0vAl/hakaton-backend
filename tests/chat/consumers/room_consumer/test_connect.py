@@ -1,8 +1,9 @@
 from django.test import TransactionTestCase, override_settings, tag
 
 from core.apps.accounts.factories import UserFactory, UserAsyncFactory
-from core.apps.brand.factories import BrandShortFactory, BrandShortAsyncFactory
+from core.apps.brand.factories import BrandShortAsyncFactory
 from core.apps.chat.consumers import RoomConsumer
+from core.apps.chat.utils import channels_reverse
 from core.apps.payments.factories import SubscriptionFactory
 from tests.utils import get_websocket_communicator, get_user_communicator, websocket_connect
 
@@ -22,20 +23,21 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
     # won't work if inherit from TestCase
     # having troubles with db connection maintenance (closed before middleware can authenticate user)
 
+    accepted_protocol = 'chat'
+
     # TransactionTestCase does not support setUpTestData method
     def setUp(self):
         self.user = UserFactory()
-        self.brand = BrandShortFactory(user=self.user)
 
-        SubscriptionFactory(brand=self.brand)
-
-        self.path = 'ws/chat/'
-        self.accepted_protocol = 'chat'
+        SubscriptionFactory(brand__user=self.user)
 
     async def test_unauthenticated_connect_not_allowed(self):
+        path = channels_reverse('chat')
+        url_pattern = path.removeprefix('/')
+
         communicator = get_websocket_communicator(
-            url_pattern=self.path,
-            path=self.path,
+            url_pattern=url_pattern,
+            path=path,
             consumer_class=RoomConsumer,
             protocols=[self.accepted_protocol],
         )
