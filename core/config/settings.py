@@ -129,7 +129,7 @@ STORAGES = {
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760 # 10Mb
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10Mb
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5Mb
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -291,13 +291,13 @@ TINYMCE_DEFAULT_CONFIG = {
             "items": 'help'
         }
     },
-    "plugins":  "advlist,autolink,lists,link,image,charmap,preview,anchor,"
-                "searchreplace,visualblocks,code,fullscreen,insertdatetime,media,table,"
-                "code,help,wordcount,emoticons,pagebreak,nonbreaking,accordion,autosave",
+    "plugins": "advlist,autolink,lists,link,image,charmap,preview,anchor,"
+               "searchreplace,visualblocks,code,fullscreen,insertdatetime,media,table,"
+               "code,help,wordcount,emoticons,pagebreak,nonbreaking,accordion,autosave",
     "toolbar_mode": "sliding",
-    "toolbar":  "undo redo | fontfamily fontsize lineheight | bold italic underline backcolor forecolor | "
-                "styles | bullist numlist outdent indent | removeformat | preview fullscreen",
-    "insertdatetime_formats": [ '%H:%M:%S', "%d.%m.%Y" ],
+    "toolbar": "undo redo | fontfamily fontsize lineheight | bold italic underline backcolor forecolor | "
+               "styles | bullist numlist outdent indent | removeformat | preview fullscreen",
+    "insertdatetime_formats": ['%H:%M:%S', "%d.%m.%Y"],
     "skin": "oxide-dark",
     "file_picker_callback": 'filePicker',  # see core/static/tinymce/js/filePicker.js for code
     "images_upload_url": "/api/v1/tinymce/upload",
