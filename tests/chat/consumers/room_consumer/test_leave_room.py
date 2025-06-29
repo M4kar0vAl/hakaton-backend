@@ -1,11 +1,9 @@
-import factory
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
 
 from core.apps.accounts.factories import UserFactory, UserAsyncFactory
-from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.factories import RoomAsyncFactory
-from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
+from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
 from tests.utils import join_room_communal, join_room, get_user_communicator, websocket_connect
 
@@ -21,10 +19,7 @@ from tests.utils import join_room_communal, join_room, get_user_communicator, we
 class RoomConsumerLeaveRoomTestCase(TransactionTestCase, RoomConsumerActionsMixin):
 
     def setUp(self):
-        self.user1, self.user2 = UserFactory.create_batch(2)
-        self.brand1, self.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([self.user1, self.user2]))
-
-        SubscriptionFactory.create_batch(2, brand=factory.Iterator([self.brand1, self.brand2]))
+        self.user1, self.user2 = UserFactory.create_batch(2, has_sub=True)
 
     async def test_leave_room_wo_active_sub_is_allowed(self):
         user_wo_active_sub = await UserAsyncFactory()

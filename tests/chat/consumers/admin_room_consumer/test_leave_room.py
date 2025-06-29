@@ -4,7 +4,6 @@ from rest_framework import status
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.factories import RoomAsyncFactory
 from core.apps.chat.models import Room
-from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import get_admin_communicator, get_user_communicator, websocket_connect, join_room_communal
 
@@ -33,9 +32,8 @@ class AdminRoomConsumerLeaveRoomTestCase(TransactionTestCase, AdminRoomConsumerA
         self.assertTrue(response['errors'])
 
     async def test_leave_room(self):
-        user = await UserAsyncFactory()
+        user = await UserAsyncFactory(has_sub=True)
         room = await RoomAsyncFactory(type=Room.SUPPORT, participants=[user])
-        await SubscriptionAsyncFactory(brand__user=user)
 
         admin_communicator = get_admin_communicator(self.admin_user)
         user_communicator = get_user_communicator(user)

@@ -5,7 +5,6 @@ from rest_framework import status
 from core.apps.accounts.factories import UserAsyncFactory, UserFactory
 from core.apps.chat.factories import RoomAsyncFactory, MessageAttachmentAsyncFactory
 from core.apps.chat.models import Room, Message, MessageAttachment
-from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import AdminRoomConsumerActionsMixin
 from tests.utils import (
     join_room,
@@ -69,8 +68,7 @@ class AdminRoomConsumerCreateMessageTestCase(TransactionTestCase, AdminRoomConsu
                 self.assertTrue(response['errors'])
 
     async def test_create_message(self):
-        user = await UserAsyncFactory()
-        await SubscriptionAsyncFactory(brand__user=user)
+        user = await UserAsyncFactory(has_sub=True)
 
         support_room, own_support_room = await RoomAsyncFactory(
             2, type=Room.SUPPORT, participants=factory.Iterator([[user], [self.admin_user]])

@@ -6,17 +6,14 @@ from rest_framework.test import APITestCase, APIClient
 from core.apps.accounts.factories import UserFactory
 from core.apps.articles.factories import CommunityArticleFactory
 from core.apps.brand.factories import BrandShortFactory
-from core.apps.payments.factories import SubscriptionFactory
 
 
 class CommunityArticleListTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = UserFactory()
+        cls.user = UserFactory(has_sub=True)
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
-
-        SubscriptionFactory(brand__user=cls.user)
 
         cls.published_community_article, cls.unpublished_community_article = CommunityArticleFactory.create_batch(
             2, is_published=factory.Iterator([True, False])

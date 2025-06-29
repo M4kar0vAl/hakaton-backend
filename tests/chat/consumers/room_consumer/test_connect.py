@@ -4,7 +4,6 @@ from core.apps.accounts.factories import UserFactory, UserAsyncFactory
 from core.apps.brand.factories import BrandShortAsyncFactory
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.utils import channels_reverse
-from core.apps.payments.factories import SubscriptionFactory
 from tests.utils import get_websocket_communicator, get_user_communicator, websocket_connect
 
 
@@ -27,9 +26,7 @@ class RoomConsumerConnectTestCase(TransactionTestCase):
 
     # TransactionTestCase does not support setUpTestData method
     def setUp(self):
-        self.user = UserFactory()
-
-        SubscriptionFactory(brand__user=self.user)
+        self.user = UserFactory(has_sub=True)
 
     async def test_unauthenticated_connect_not_allowed(self):
         path = channels_reverse('chat')

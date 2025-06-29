@@ -6,7 +6,6 @@ from rest_framework.test import APITestCase, APIClient
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
 from core.apps.brand.factories import BrandShortFactory, MatchFactory
-from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 
@@ -23,10 +22,8 @@ class LikedByTestCase(
         cls.auth_client3.force_authenticate(cls.user3)
 
         cls.brand1, cls.brand2, cls.brand3 = BrandShortFactory.create_batch(
-            3, user=factory.Iterator([cls.user1, cls.user2, cls.user3])
+            3, user=factory.Iterator([cls.user1, cls.user2, cls.user3]), has_sub=True
         )
-
-        SubscriptionFactory.create_batch(3, brand=factory.Iterator([cls.brand1, cls.brand2, cls.brand3]))
 
         cls.url = reverse('brand-liked_by')
 

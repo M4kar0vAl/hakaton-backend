@@ -6,7 +6,6 @@ from rest_framework.test import APITestCase, APIClient
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
 from core.apps.brand.factories import BrandShortFactory
-from core.apps.payments.factories import SubscriptionFactory
 
 
 class BrandRetrieveTestCase(APITestCase):
@@ -16,9 +15,9 @@ class BrandRetrieveTestCase(APITestCase):
         cls.auth_client1, cls.auth_client2 = APIClient(), APIClient()
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
-        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([cls.user1, cls.user2]))
-
-        SubscriptionFactory(brand=cls.brand1)
+        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(
+            2, user=factory.Iterator([cls.user1, cls.user2]), has_sub=factory.Iterator([True, False])
+        )
 
         cls.brand1_url = reverse('brand-detail', kwargs={'pk': cls.brand1.pk})
         cls.brand2_url = reverse('brand-detail', kwargs={'pk': cls.brand2.pk})

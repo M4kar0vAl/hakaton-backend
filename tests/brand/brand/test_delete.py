@@ -15,7 +15,6 @@ from core.apps.brand.factories import BrandFactory, BrandShortFactory
 from core.apps.brand.models import Brand
 from core.apps.chat.factories import RoomFavoritesFactory
 from core.apps.chat.models import RoomFavorites
-from core.apps.payments.factories import SubscriptionFactory
 
 
 @override_settings(MEDIA_ROOT=os.path.join(settings.BASE_DIR, 'media', 'TEST'))
@@ -27,9 +26,7 @@ class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires Tr
         self.user_id = self.user.pk
         self.auth_client = APIClient()
         self.auth_client.force_authenticate(self.user)
-        self.brand = BrandFactory(user=self.user)
-
-        SubscriptionFactory(brand=self.brand)
+        self.brand = BrandFactory(user=self.user, has_sub=True)
 
         self.url = reverse('brand-me')
 

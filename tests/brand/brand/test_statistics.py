@@ -8,7 +8,6 @@ from rest_framework.test import APITestCase, APIClient
 from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import BrandShortFactory, MatchFactory, CollaborationFactory
 from core.apps.brand.utils import get_periods
-from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 
@@ -21,9 +20,7 @@ class StatisticsTestCase(
         cls.user = UserFactory()
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
-        cls.brand = BrandShortFactory(user=cls.user)
-
-        SubscriptionFactory(brand=cls.brand)
+        cls.brand = BrandShortFactory(user=cls.user, has_sub=True)
 
         cls.url = reverse('brand-statistics')
 

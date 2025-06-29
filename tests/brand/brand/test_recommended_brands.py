@@ -14,7 +14,6 @@ from core.apps.brand.factories import (
     MatchFactory
 )
 from core.apps.cities.factories import CityFactory
-from core.apps.payments.factories import SubscriptionFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 
@@ -49,6 +48,7 @@ class BrandRecommendedBrandsTestCase(
             formats=cls.initial_formats,
             goals=cls.initial_goals,
             categories_of_interest=cls.initial_categories_of_interest,
+            has_sub=True
         )
 
         cls.initial_subs_count = cls.initial_brand.subs_count
@@ -138,8 +138,6 @@ class BrandRecommendedBrandsTestCase(
         cls.brands_that_interest_initial_one_num = len(list(filter(
             lambda brand: brand.category in cls.initial_categories_of_interest, cls.recommended_brands
         )))
-
-        SubscriptionFactory(brand=cls.initial_brand)
 
         cls.url = reverse('brand-recommended_brands')
 

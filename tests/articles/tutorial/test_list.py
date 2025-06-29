@@ -6,17 +6,14 @@ from rest_framework.test import APITestCase, APIClient
 from core.apps.accounts.factories import UserFactory
 from core.apps.articles.factories import TutorialFactory
 from core.apps.brand.factories import BrandShortFactory
-from core.apps.payments.factories import SubscriptionFactory
 
 
 class TutorialListTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = UserFactory()
+        cls.user = UserFactory(has_sub=True)
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
-
-        SubscriptionFactory(brand__user=cls.user)
 
         cls.published_tutorial, cls.unpublished_tutorial = TutorialFactory.create_batch(
             2, is_published=factory.Iterator([True, False])

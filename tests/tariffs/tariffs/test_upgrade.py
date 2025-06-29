@@ -17,10 +17,6 @@ class TariffUpgradeTestCase(APITestCase):
         cls.auth_client2.force_authenticate(cls.user2)
         cls.auth_client3.force_authenticate(cls.user3)
 
-        cls.trial_brand = BrandShortFactory(user=cls.user1)
-        cls.lite_brand = BrandShortFactory(user=cls.user2)
-        cls.business_brand = BrandShortFactory(user=cls.user3)
-
         cls.trial_brand, cls.lite_brand, cls.business_brand = BrandShortFactory.create_batch(
             3, user=factory.Iterator([cls.user1, cls.user2, cls.user3])
         )

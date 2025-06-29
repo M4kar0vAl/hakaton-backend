@@ -8,7 +8,6 @@ from core.apps.blacklist.factories import BlackListFactory
 from core.apps.brand.factories import BrandShortFactory, MatchFactory
 from core.apps.brand.models import Match
 from core.apps.chat.models import Room
-from core.apps.payments.factories import SubscriptionFactory
 
 
 class BrandLikeTestCase(APITestCase):
@@ -18,9 +17,9 @@ class BrandLikeTestCase(APITestCase):
         cls.auth_client1, cls.auth_client2 = APIClient(), APIClient()
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
-        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([cls.user1, cls.user2]))
-
-        SubscriptionFactory.create_batch(2, brand=factory.Iterator([cls.brand1, cls.brand2]))
+        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(
+            2, user=factory.Iterator([cls.user1, cls.user2]), has_sub=True
+        )
 
         cls.url = reverse('brand-like')
 

@@ -12,7 +12,6 @@ from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.factories import MessageAttachmentFactory
 from core.apps.chat.models import MessageAttachment
-from core.apps.payments.factories import SubscriptionFactory
 from tests.utils import refresh_api_settings
 
 
@@ -35,12 +34,9 @@ class MessageAttachmentTestCase(APITestCase):
     def setUpTestData(cls):
         refresh_api_settings()
 
-        cls.user = UserFactory()
+        cls.user = UserFactory(has_sub=True)
         cls.auth_client = APIClient()
         cls.auth_client.force_authenticate(cls.user)
-        cls.brand = BrandShortFactory(user=cls.user)
-
-        SubscriptionFactory(brand=cls.brand)
 
         small_gif = (
             b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x05\x04\x04\x00\x00\x00\x2c\x00\x00\x00\x00\x01'

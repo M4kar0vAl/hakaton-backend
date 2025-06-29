@@ -7,7 +7,6 @@ from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.factories import BrandShortFactory
-from core.apps.payments.factories import SubscriptionFactory
 
 
 class BlacklistCreateTestCase(APITestCase):
@@ -18,9 +17,9 @@ class BlacklistCreateTestCase(APITestCase):
         cls.auth_client1.force_authenticate(cls.user1)
         cls.auth_client2.force_authenticate(cls.user2)
 
-        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([cls.user1, cls.user2]))
-
-        SubscriptionFactory.create_batch(2, brand=factory.Iterator([cls.brand1, cls.brand2]))
+        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(
+            2, user=factory.Iterator([cls.user1, cls.user2]), has_sub=True
+        )
 
         cls.url = reverse('blacklist-list')
 

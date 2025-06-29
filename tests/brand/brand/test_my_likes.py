@@ -25,10 +25,10 @@ class BrandMyLikesTestCase(
         cls.auth_client3.force_authenticate(cls.user3)
 
         cls.brand1, cls.brand2, cls.brand3 = BrandShortFactory.create_batch(
-            3, user=factory.Iterator([cls.user1, cls.user2, cls.user3])
+            3,
+            user=factory.Iterator([cls.user1, cls.user2, cls.user3]),
+            has_sub=factory.Iterator([True, True, False])
         )
-
-        SubscriptionFactory.create_batch(2, brand=factory.Iterator([cls.brand1, cls.brand2]))
 
         cls.url = reverse('brand-my_likes')
 

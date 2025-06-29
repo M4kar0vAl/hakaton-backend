@@ -8,7 +8,6 @@ from rest_framework_simplejwt.tokens import AccessToken
 from core.apps.accounts.factories import UserFactory
 from core.apps.chat.consumers import RoomConsumer
 from core.apps.chat.utils import channels_reverse
-from core.apps.payments.factories import SubscriptionFactory
 from tests.utils import get_websocket_communicator, get_websocket_application, get_user_communicator, websocket_connect
 
 
@@ -29,8 +28,7 @@ class AuthMiddlewareTestCase(TransactionTestCase):
 
     # TransactionTestCase does not support setUpTestData method
     def setUp(self):
-        self.user = UserFactory()
-        SubscriptionFactory(brand__user=self.user)  # need this to connect to RoomConsumer
+        self.user = UserFactory(has_sub=True)
 
         self.path = channels_reverse('chat')
         self.url_pattern = self.path.removeprefix('/')

@@ -10,7 +10,7 @@ from core.apps.brand.factories import (
 )
 from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
 from core.apps.chat.models import Room, Message
-from core.apps.payments.factories import SubscriptionFactory, SubscriptionAsyncFactory
+from core.apps.payments.factories import SubscriptionAsyncFactory
 from tests.mixins import RoomConsumerActionsMixin
 from tests.utils import (
     join_room_communal,
@@ -34,9 +34,9 @@ class RoomConsumerEditMessageTestCase(TransactionTestCase, RoomConsumerActionsMi
 
     def setUp(self):
         self.user1, self.user2 = UserFactory.create_batch(2)
-        self.brand1, self.brand2 = BrandShortFactory.create_batch(2, user=factory.Iterator([self.user1, self.user2]))
-
-        SubscriptionFactory.create_batch(2, brand=factory.Iterator([self.brand1, self.brand2]))
+        self.brand1, self.brand2 = BrandShortFactory.create_batch(
+            2, user=factory.Iterator([self.user1, self.user2]), has_sub=True
+        )
 
     async def test_edit_message_wo_active_sub_not_allowed(self):
         user_wo_active_sub = await UserAsyncFactory()
