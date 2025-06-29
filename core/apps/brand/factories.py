@@ -178,6 +178,21 @@ class BrandShortBaseFactory(DjangoModelFactory):
     class Meta:
         abstract = True
 
+    class Params:
+        # IMPORTANT
+        # Traits cannot be used when calling them in the following way:
+        #   BrandShortFactory(has_sub=True, subscription__tariff__trial=True)  # 'trial' is a trait
+        # ATTR__TRAIT syntax doesn't work, so if you need to activate trait, change the fields directly:
+        #   BrandShortFactory(has_sub=True, subscription__tariff__name='Trial')
+        # OR use the subfactory with traits separately:
+        #   t = TariffFactory(trial=True)
+        #   BrandShortFactory(has_sub=True, subscription__tariff=t)
+        has_sub = factory.Trait(
+            subscription=factory.RelatedFactory(
+                'core.apps.payments.factories.SubscriptionFactory', factory_related_name='brand'
+            )
+        )
+
     user = factory.SubFactory(UserFactory)
     city = factory.SubFactory(CityFactory)
     tg_nickname = '@example'

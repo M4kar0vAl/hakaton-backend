@@ -28,6 +28,11 @@ class UserFactory(DjangoModelFactory):
             email=factory.Sequence(lambda n: f'admin{n}@example.com'),
             is_superuser=True,
         )
+        has_sub = factory.Trait(
+            brand=factory.RelatedFactory(
+                'core.apps.brand.factories.BrandShortFactory', factory_related_name='user', has_sub=True
+            )
+        )
 
     email = factory.Sequence(lambda n: f'user{n}@example.com')
     phone = '+79993332211'
