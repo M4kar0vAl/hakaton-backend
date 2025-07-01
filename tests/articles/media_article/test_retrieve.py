@@ -1,19 +1,19 @@
 import factory
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.articles.factories import MediaArticleFactory
 from core.apps.brand.factories import BrandShortFactory
+from tests.factories import APIClientFactory
 
 
 class MediaArticleRetrieveTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = UserFactory(has_sub=True)
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.auth_client = APIClientFactory(user=cls.user)
 
         cls.published_media_article, cls.unpublished_media_article = MediaArticleFactory.create_batch(
             2, is_published=factory.Iterator([True, False])
@@ -33,8 +33,7 @@ class MediaArticleRetrieveTestCase(APITestCase):
 
     def test_media_article_retrieve_user_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        client_wo_brand = APIClient()
-        client_wo_brand.force_authenticate(user_wo_brand)
+        client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = client_wo_brand.get(self.published_media_article_url)
 
@@ -42,8 +41,7 @@ class MediaArticleRetrieveTestCase(APITestCase):
 
     def test_media_article_retrieve_user_wo_active_sub_not_allowed(self):
         user_wo_active_sub = UserFactory()
-        client_wo_active_sub = APIClient()
-        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+        client_wo_active_sub = APIClientFactory(user=user_wo_active_sub)
 
         BrandShortFactory(user=user_wo_active_sub)
 

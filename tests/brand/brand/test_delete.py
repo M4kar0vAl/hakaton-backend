@@ -6,7 +6,7 @@ from django.core.files.storage import default_storage
 from django.test import override_settings, tag
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient, APITransactionTestCase
+from rest_framework.test import APITransactionTestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
@@ -15,6 +15,7 @@ from core.apps.brand.factories import BrandFactory, BrandShortFactory
 from core.apps.brand.models import Brand
 from core.apps.chat.factories import RoomFavoritesFactory
 from core.apps.chat.models import RoomFavorites
+from tests.factories import APIClientFactory
 
 
 @override_settings(MEDIA_ROOT=os.path.join(settings.BASE_DIR, 'media', 'TEST'))
@@ -24,8 +25,7 @@ class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires Tr
     def setUp(self):
         self.user = UserFactory()
         self.user_id = self.user.pk
-        self.auth_client = APIClient()
-        self.auth_client.force_authenticate(self.user)
+        self.auth_client = APIClientFactory(user=self.user)
         self.brand = BrandFactory(user=self.user, has_sub=True)
 
         self.url = reverse('brand-me')
@@ -40,8 +40,7 @@ class BrandDeleteTestCase(APITransactionTestCase):  # django-cleanup requires Tr
 
     def test_brand_delete_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.delete(self.url)
 

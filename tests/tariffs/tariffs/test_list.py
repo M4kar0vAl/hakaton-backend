@@ -1,17 +1,17 @@
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.payments.models import Tariff
+from tests.factories import APIClientFactory
 
 
 class TariffListTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = UserFactory()
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.auth_client = APIClientFactory(user=cls.user)
 
         cls.url = reverse('tariffs-list')
 

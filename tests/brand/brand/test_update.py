@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.test import override_settings, tag
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient, APITransactionTestCase
+from rest_framework.test import APITransactionTestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import (
@@ -29,6 +29,7 @@ from core.apps.brand.factories import (
 )
 from core.apps.brand.models import Brand, Tag, ProductPhoto, Age, Gender, Category, Format, Goal
 from core.apps.cities.factories import CityFactory
+from tests.factories import APIClientFactory
 from tests.utils import refresh_api_settings
 
 
@@ -55,8 +56,7 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
 
     def setUp(self):
         self.user = UserFactory()
-        self.auth_client = APIClient()
-        self.auth_client.force_authenticate(self.user)
+        self.auth_client = APIClientFactory(user=self.user)
 
         self.brand = BrandFactory(
             user=self.user,
@@ -189,8 +189,7 @@ class BrandUpdateTestCase(APITransactionTestCase):  # django-cleanup requires Tr
 
     def test_brand_update_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
         response = auth_client_wo_brand.patch(self.url, {})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -1,20 +1,21 @@
 import factory
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
 from core.apps.brand.factories import BrandShortFactory
+from tests.factories import APIClientFactory
 
 
 class BrandRetrieveTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user1, cls.user2 = UserFactory.create_batch(2)
-        cls.auth_client1, cls.auth_client2 = APIClient(), APIClient()
-        cls.auth_client1.force_authenticate(cls.user1)
-        cls.auth_client2.force_authenticate(cls.user2)
+        cls.auth_client1, cls.auth_client2 = APIClientFactory.create_batch(
+            2, user=factory.Iterator([cls.user1, cls.user2])
+        )
         cls.brand1, cls.brand2 = BrandShortFactory.create_batch(
             2, user=factory.Iterator([cls.user1, cls.user2]), has_sub=factory.Iterator([True, False])
         )
@@ -29,8 +30,7 @@ class BrandRetrieveTestCase(APITestCase):
 
     def test_brand_retrieve_wo_brand(self):
         user_wo_brand = UserFactory()
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.get(self.brand1_url)
 

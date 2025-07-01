@@ -1,18 +1,18 @@
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.chat.factories import RoomFactory, RoomFavoritesFactory
 from core.apps.chat.models import RoomFavorites
+from tests.factories import APIClientFactory
 
 
 class RoomFavoritesDeleteTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = UserFactory()
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.auth_client = APIClientFactory(user=cls.user)
 
         cls.room = RoomFactory()
         cls.room_fav = RoomFavoritesFactory(user=cls.user, room=cls.room)

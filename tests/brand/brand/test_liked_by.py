@@ -1,11 +1,12 @@
 import factory
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
 from core.apps.brand.factories import BrandShortFactory, MatchFactory
+from tests.factories import APIClientFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 
@@ -16,10 +17,9 @@ class LikedByTestCase(
     @classmethod
     def setUpTestData(cls):
         cls.user1, cls.user2, cls.user3 = UserFactory.create_batch(3)
-        cls.auth_client1, cls.auth_client2, cls.auth_client3 = APIClient(), APIClient(), APIClient()
-        cls.auth_client1.force_authenticate(cls.user1)
-        cls.auth_client2.force_authenticate(cls.user2)
-        cls.auth_client3.force_authenticate(cls.user3)
+        cls.auth_client1, cls.auth_client2, cls.auth_client3 = APIClientFactory.create_batch(
+            3, user=factory.Iterator([cls.user1, cls.user2, cls.user3])
+        )
 
         cls.brand1, cls.brand2, cls.brand3 = BrandShortFactory.create_batch(
             3, user=factory.Iterator([cls.user1, cls.user2, cls.user3]), has_sub=True
@@ -34,8 +34,7 @@ class LikedByTestCase(
 
     def test_without_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        auth_client = APIClient()
-        auth_client.force_authenticate(user_wo_brand)
+        auth_client = APIClientFactory(user=user_wo_brand)
 
         response = auth_client.get(self.url)
 
@@ -43,8 +42,7 @@ class LikedByTestCase(
 
     def test_liked_by_wo_active_sub_not_allowed(self):
         user_wo_active_sub = UserFactory()
-        client_wo_active_sub = APIClient()
-        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+        client_wo_active_sub = APIClientFactory(user=user_wo_active_sub)
 
         BrandShortFactory(user=user_wo_active_sub)
 

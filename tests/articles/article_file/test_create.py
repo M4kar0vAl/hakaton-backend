@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase, APIClient
 from core.apps.accounts.factories import UserFactory
 from core.apps.articles.factories import ArticleFileFactory
 from core.apps.articles.models import ArticleFile
+from tests.factories import APIClientFactory
 from tests.utils import refresh_api_settings
 
 User = get_user_model()
@@ -40,8 +41,7 @@ class ArticleFileCreateTestCase(APITestCase):
         refresh_api_settings()
 
         cls.admin_user = UserFactory(admin=True)
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.admin_user)
+        cls.auth_client = APIClientFactory(user=cls.admin_user)
         cls._set_user_for_client_session(cls.auth_client, cls.admin_user)
 
         cls.test_file = factory.build(dict, FACTORY_CLASS=ArticleFileFactory)['file']
@@ -51,8 +51,7 @@ class ArticleFileCreateTestCase(APITestCase):
 
     def test_article_file_create_non_staff_not_allowed(self):
         non_staff_user = UserFactory()
-        non_staff_client = APIClient()
-        non_staff_client.force_authenticate(non_staff_user)
+        non_staff_client = APIClientFactory(user=non_staff_user)
         self._set_user_for_client_session(non_staff_client, non_staff_user)
 
         response = non_staff_client.post(self.url, {'file': self.test_file})

@@ -7,7 +7,7 @@ from django.core.files.storage import default_storage
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import (
@@ -20,6 +20,7 @@ from core.apps.brand.factories import (
 )
 from core.apps.brand.models import ProductPhoto, Brand, Tag, Blog, Category
 from core.apps.cities.factories import CityFactory
+from tests.factories import APIClientFactory
 from tests.utils import refresh_api_settings
 
 
@@ -43,8 +44,7 @@ class BrandCreateTestCase(APITestCase):
         refresh_api_settings()
 
         cls.user = UserFactory()
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.auth_client = APIClientFactory(user=cls.user)
 
         cls.data = factory.build(
             dict,

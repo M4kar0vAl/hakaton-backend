@@ -1,11 +1,12 @@
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.chat.factories import RoomFactory, MessageFactory
 from core.apps.chat.models import RoomFavorites
+from tests.factories import APIClientFactory
 
 
 @override_settings(
@@ -22,8 +23,7 @@ class RoomFavoritesCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = UserFactory()
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.auth_client = APIClientFactory(user=cls.user)
         cls.room = RoomFactory()
 
         cls.url = reverse('chat_favorites-list')

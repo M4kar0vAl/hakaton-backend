@@ -1,7 +1,7 @@
 import factory
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
@@ -14,6 +14,7 @@ from core.apps.brand.factories import (
     MatchFactory
 )
 from core.apps.cities.factories import CityFactory
+from tests.factories import APIClientFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 
@@ -30,10 +31,7 @@ class BrandRecommendedBrandsTestCase(
             setattr(cls, f'user{i}', user)
 
             # create APIClient instance for each user
-            setattr(cls, f'auth_client{i}', APIClient())
-
-            # force authenticate clients
-            getattr(cls, f'auth_client{i}').force_authenticate(user)
+            setattr(cls, f'auth_client{i}', APIClientFactory(user=user))
 
         cls.city1, cls.city2, cls.city3 = CityFactory.create_batch(3)
 
@@ -148,8 +146,7 @@ class BrandRecommendedBrandsTestCase(
 
     def test_recommended_brands_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.get(self.url)
 
@@ -157,8 +154,7 @@ class BrandRecommendedBrandsTestCase(
 
     def test_recommended_brands_wo_active_sub_not_allowed(self):
         user_wo_active_sub = UserFactory()
-        client_wo_active_sub = APIClient()
-        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+        client_wo_active_sub = APIClientFactory(user=user_wo_active_sub)
 
         BrandShortFactory(user=user_wo_active_sub)
 

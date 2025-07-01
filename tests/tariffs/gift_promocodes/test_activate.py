@@ -1,20 +1,22 @@
+import factory
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import BrandShortFactory
 from core.apps.payments.factories import GiftPromoCodeFactory, TariffFactory, SubscriptionFactory
 from core.apps.payments.models import GiftPromoCode
+from tests.factories import APIClientFactory
 
 
 class GiftPromoCodeActivateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user1, cls.user2 = UserFactory.create_batch(2)
-        cls.giver_auth_client, cls.receiver_auth_client = APIClient(), APIClient()
-        cls.giver_auth_client.force_authenticate(cls.user1)
-        cls.receiver_auth_client.force_authenticate(cls.user2)
+        cls.giver_auth_client, cls.receiver_auth_client = APIClientFactory.create_batch(
+            2, user=factory.Iterator([cls.user1, cls.user2])
+        )
 
         cls.giver_brand = BrandShortFactory(user=cls.user1)
         cls.receiver_brand = BrandShortFactory(user=cls.user2)
@@ -33,8 +35,7 @@ class GiftPromoCodeActivateTestCase(APITestCase):
 
     def test_activate_gift_promocode_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.post(self.url, {'gift_promocode': self.valid_lite_gift.id})
 

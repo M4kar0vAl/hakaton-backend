@@ -1,17 +1,17 @@
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import BrandShortFactory
+from tests.factories import APIClientFactory
 
 
 class BrandMeGetTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = UserFactory()
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.auth_client = APIClientFactory(user=cls.user)
         cls.brand = BrandShortFactory(user=cls.user)
 
         cls.url = reverse('brand-me')
@@ -23,8 +23,7 @@ class BrandMeGetTestCase(APITestCase):
 
     def test_brand_me_get_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.get(self.url)
 

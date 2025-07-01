@@ -2,12 +2,13 @@ import factory
 from django.test import tag
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import BrandShortFactory, MatchFactory
 from core.apps.brand.models import Brand
 from core.apps.payments.factories import SubscriptionFactory
+from tests.factories import APIClientFactory
 from tests.mixins import AssertNumQueriesLessThanMixin
 
 
@@ -18,10 +19,9 @@ class BrandMyMatchesTestCase(
     @classmethod
     def setUpTestData(cls):
         cls.user1, cls.user2, cls.user3 = UserFactory.create_batch(3)
-        cls.auth_client1, cls.auth_client2, cls.auth_client3 = APIClient(), APIClient(), APIClient()
-        cls.auth_client1.force_authenticate(cls.user1)
-        cls.auth_client2.force_authenticate(cls.user2)
-        cls.auth_client3.force_authenticate(cls.user3)
+        cls.auth_client1, cls.auth_client2, cls.auth_client3 = APIClientFactory.create_batch(
+            3, user=factory.Iterator([cls.user1, cls.user2, cls.user3])
+        )
 
         cls.brand1, cls.brand2, cls.brand3 = BrandShortFactory.create_batch(
             3, user=factory.Iterator([cls.user1, cls.user2, cls.user3]),
@@ -56,8 +56,7 @@ class BrandMyMatchesTestCase(
 
     def test_my_matches_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.get(self.url)
 
@@ -65,8 +64,7 @@ class BrandMyMatchesTestCase(
 
     def test_my_matches_wo_active_sub_not_allowed(self):
         user_wo_active_sub = UserFactory()
-        client_wo_active_sub = APIClient()
-        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+        client_wo_active_sub = APIClientFactory(user=user_wo_active_sub)
 
         BrandShortFactory(user=user_wo_active_sub)
 
@@ -132,8 +130,7 @@ class BrandMyMatchesTestCase(
     @tag('slow')
     def test_my_matches_number_of_queries(self):
         brand = self.create_n_matches(50)
-        client = APIClient()
-        client.force_authenticate(brand.user)
+        client = APIClientFactory(user=brand.user)
 
         SubscriptionFactory(brand=brand)
 

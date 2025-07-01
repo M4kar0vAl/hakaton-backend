@@ -1,18 +1,18 @@
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import BrandShortFactory
 from core.apps.payments.factories import PromoCodeFactory, SubscriptionFactory, TariffFactory
+from tests.factories import APIClientFactory
 
 
 class TariffSubscribeTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = UserFactory()
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.auth_client = APIClientFactory(user=cls.user)
         cls.brand = BrandShortFactory(user=cls.user)
 
         cls.trial_tariff_id = TariffFactory(trial=True).pk
@@ -30,8 +30,7 @@ class TariffSubscribeTestCase(APITestCase):
 
     def test_tariff_subscribe_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.post(self.url, {'tariff': self.lite_tariff_id})
 

@@ -6,12 +6,13 @@ from django.core.files.uploadedfile import SimpleUploadedFile, InMemoryUploadedF
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.brand.factories import BrandShortFactory
 from core.apps.chat.factories import MessageAttachmentFactory
 from core.apps.chat.models import MessageAttachment
+from tests.factories import APIClientFactory
 from tests.utils import refresh_api_settings
 
 
@@ -35,8 +36,7 @@ class MessageAttachmentTestCase(APITestCase):
         refresh_api_settings()
 
         cls.user = UserFactory(has_sub=True)
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.auth_client = APIClientFactory(user=cls.user)
 
         small_gif = (
             b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x05\x04\x04\x00\x00\x00\x2c\x00\x00\x00\x00\x01'
@@ -55,8 +55,7 @@ class MessageAttachmentTestCase(APITestCase):
 
     def test_message_attachment_create_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        client_wo_brand = APIClient()
-        client_wo_brand.force_authenticate(user_wo_brand)
+        client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = client_wo_brand.post(self.url, {'file': self.test_file})
 
@@ -64,8 +63,7 @@ class MessageAttachmentTestCase(APITestCase):
 
     def test_message_attachment_create_wo_active_sub_not_allowed(self):
         user_wo_active_sub = UserFactory()
-        client_wo_active_sub = APIClient()
-        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+        client_wo_active_sub = APIClientFactory(user=user_wo_active_sub)
 
         BrandShortFactory(user=user_wo_active_sub)
 
@@ -75,12 +73,10 @@ class MessageAttachmentTestCase(APITestCase):
 
     def test_message_attachment_create_staff_and_admins_allowed_wo_brand_and_active_sub(self):
         staff_user = UserFactory(staff=True)
-        staff_client = APIClient()
-        staff_client.force_authenticate(staff_user)
+        staff_client = APIClientFactory(user=staff_user)
 
         superuser = UserFactory(admin=True)
-        superuser_client = APIClient()
-        superuser_client.force_authenticate(superuser)
+        superuser_client = APIClientFactory(user=superuser)
 
         staff_response = staff_client.post(self.url, {'file': self.test_file})
 

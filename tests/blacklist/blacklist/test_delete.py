@@ -1,21 +1,22 @@
 import factory
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
 from core.apps.accounts.factories import UserFactory
 from core.apps.blacklist.factories import BlackListFactory
 from core.apps.blacklist.models import BlackList
 from core.apps.brand.factories import BrandShortFactory
+from tests.factories import APIClientFactory
 
 
 class BlacklistCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user1, cls.user2 = UserFactory.create_batch(2)
-        cls.auth_client1, cls.auth_client2 = APIClient(), APIClient()
-        cls.auth_client1.force_authenticate(cls.user1)
-        cls.auth_client2.force_authenticate(cls.user2)
+        cls.auth_client1, cls.auth_client2 = APIClientFactory.create_batch(
+            2, user=factory.Iterator([cls.user1, cls.user2])
+        )
 
         cls.brand1, cls.brand2 = BrandShortFactory.create_batch(
             2, user=factory.Iterator([cls.user1, cls.user2]), has_sub=True
@@ -32,8 +33,7 @@ class BlacklistCreateTestCase(APITestCase):
 
     def test_blacklist_create_wo_brand_not_allowed(self):
         user_wo_brand = UserFactory()
-        client_wo_brand = APIClient()
-        client_wo_brand.force_authenticate(user_wo_brand)
+        client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = client_wo_brand.delete(self.url)
 
@@ -41,8 +41,7 @@ class BlacklistCreateTestCase(APITestCase):
 
     def test_blacklist_create_wo_active_sub_not_allowed(self):
         user_wo_active_sub = UserFactory()
-        client_wo_active_sub = APIClient()
-        client_wo_active_sub.force_authenticate(user_wo_active_sub)
+        client_wo_active_sub = APIClientFactory(user=user_wo_active_sub)
 
         BrandShortFactory(user=user_wo_active_sub)
 
