@@ -4,7 +4,6 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from core.apps.brand.serializers import (
     MatchSerializer,
-    InstantCoopRequestSerializer,
     InstantCoopSerializer,
     LikedBySerializer,
     BrandCreateResponseSerializer,
@@ -72,15 +71,13 @@ class Fix1(OpenApiViewExtension):
             @extend_schema(
                 tags=['Brand'],
                 description="Instant cooperation.\n\n"
-                            "Returns room instance.\n\n"
-                            "If room already exists, will raise BadRequest exception (400) "
-                            "and return error text with existing room id.\n\n"
+                            "Returns match instance.\n\n"
+                            "If instant room already exists, will raise BadRequest exception (400)\n\n"
                             "After calling this method you should use room id "
                             "to connect to the room and send a message.\n\n"
                             "Only 1 message can be created by the user.\n\n"
                             "Requires target to be liked by the user. Otherwise, permission will be denied (403).\n\n"
                             "Business subscription only.",
-                request=InstantCoopRequestSerializer,
                 responses={201: InstantCoopSerializer}
             )
             def instant_coop(self, request, *args, **kwargs):

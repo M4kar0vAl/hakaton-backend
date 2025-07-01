@@ -246,10 +246,7 @@ class BrandViewSet(
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        if self.action == 'instant_coop':
-            context['target_id'] = context['request'].data.get('target')
-
-        elif self.action == 'my_likes':
+        if self.action == 'my_likes':
             # pass ids of current user's rooms
             # evaluate queryset here to avoid reevaluating it each time
             # self.context['current_user_instant_room_ids'] is called
@@ -436,7 +433,7 @@ class BrandViewSet(
 
     @action(detail=False, methods=['post'])
     def instant_coop(self, request):
-        serializer = self.get_serializer(data={})
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(data=serializer.data, status=status.HTTP_201_CREATED)
