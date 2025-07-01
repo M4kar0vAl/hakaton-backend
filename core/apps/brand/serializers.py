@@ -799,7 +799,7 @@ class MatchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Match
         exclude = ['initiator']
-        read_only_fields = ['id', 'is_match', 'room']
+        read_only_fields = ['id', 'is_match', 'room', 'match_at']
 
     def validate(self, attrs):
         initiator = self.context['request'].user.brand
