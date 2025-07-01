@@ -115,3 +115,10 @@ class BrandInstantCooperationTestCase(APITestCase):
         response = self.auth_client1.post(self.url, {'target': self.brand3.id})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_instant_coop_cannot_cooperate_with_himself(self):
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand1)
+
+        response = self.auth_client1.post(self.url, {'target': self.brand1.pk})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
