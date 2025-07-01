@@ -4,7 +4,7 @@ import shutil
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
-from django.db.models import Q, Subquery, Prefetch, Value, Count, OuterRef
+from django.db.models import Q, Subquery, Prefetch, OuterRef
 from django.http import QueryDict
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
@@ -27,8 +27,13 @@ from core.apps.brand.models import (
     Match
 )
 from core.apps.brand.pagination import StandardResultsSetPagination
-from core.apps.brand.permissions import IsBrand, CanInstantCoop, IsNotCurrentBrand, NotInBlacklistOfTarget, \
+from core.apps.brand.permissions import (
+    IsBrand,
+    CanInstantCoop,
+    IsNotCurrentBrand,
+    NotInBlacklistOfTarget,
     DidNotBlockTarget
+)
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
     BrandCreateSerializer,
