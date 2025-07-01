@@ -794,7 +794,7 @@ class GetShortBrandSerializer(serializers.ModelSerializer):
 
 
 class MatchSerializer(serializers.ModelSerializer):
-    target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.all(), write_only=True)
+    target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.filter(user__isnull=False), write_only=True)
 
     class Meta:
         model = Match
