@@ -202,7 +202,7 @@ class RoomConsumerCreateMessageTestCase(TransactionTestCase, RoomConsumerActions
         self.assertTrue(response['errors'])
 
     async def test_create_message_with_attachments(self):
-        room = await RoomAsyncFactory(participants=[self.user1, self.user2])
+        room = await RoomAsyncFactory(type=Room.MATCH, participants=[self.user1, self.user2])
         attachments = await MessageAttachmentAsyncFactory(2)
         attachments_ids = [a.pk for a in attachments]
 
