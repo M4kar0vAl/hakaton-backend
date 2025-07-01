@@ -85,14 +85,15 @@ class BrandInstantCooperationTestCase(APITestCase):
         # check that room was created
         self.assertEqual(Room.objects.count(), 1)
 
-        room = Room.objects.prefetch_related('participants').get(pk=response.data['id'])
+        room = Room.objects.prefetch_related('participants').get(pk=response.data['room']['id'])
 
         # check that room type is INSTANT
         self.assertEqual(room.type, Room.INSTANT)
 
         # check that users were added to room participants
-        self.assertTrue(self.brand1.user in room.participants.all())
-        self.assertTrue(self.brand2.user in room.participants.all())
+        participants = list(room.participants.all())
+        self.assertTrue(self.brand1.user in participants)
+        self.assertTrue(self.brand2.user in participants)
 
         # check that instant room was assigned to like
         self.assertIsNotNone(room.match)
