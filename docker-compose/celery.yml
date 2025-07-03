@@ -35,6 +35,22 @@ services:
       - -l
       - INFO
 
+  flower:
+    container_name: flower
+    image: w2w_django
+    ports:
+      - "5555:5555"
+    pull_policy: never
+    env_file:
+      - ../example.env
+    networks:
+      - dev-net
+    entrypoint:
+      - celery
+      - -A
+      - core.config
+      - flower
+
 
 networks:
   dev-net:
