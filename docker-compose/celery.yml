@@ -8,6 +8,8 @@ services:
     restart: on-failure
     networks:
       - dev-net
+    volumes:
+      - ../core:/app/core  # it doesn't see DATABASES setting without it
     entrypoint:
       - celery
       - -A
