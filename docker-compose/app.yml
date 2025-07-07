@@ -5,16 +5,43 @@ services:
     build: ../
     pull_policy: build
     env_file:
-      - ../example.env
+      - ../.env
+    environment:
+      DB_NAME: /run/secrets/db_name
+      DB_USER: /run/secrets/db_user
+      DB_PASS: /run/secrets/db_password
+      SECRET_KEY: /run/secrets/secret_key
+      EMAIL_HOST_USER: /run/secrets/email_host_user
+      EMAIL_HOST_PASSWORD: /run/secrets/email_host_password
     tty: true
     ports:
       - "80:8000"
     networks:
       - dev-net
-    volumes:
-      - ../core:/app/core
+    secrets:
+      - db_name
+      - db_user
+      - db_password
+      - secret_key
+      - email_host_user
+      - email_host_password
 
 networks:
   dev-net:
     name: dev-net
     driver: bridge
+
+
+secrets:
+  db_name:
+    file: ../secrets/db/db_name.txt
+  db_user:
+    file: ../secrets/db/db_user.txt
+  db_password:
+    file: ../secrets/db/db_password.txt
+  secret_key:
+    file: ../secrets/app/secret_key.txt
+  email_host_user:
+    file: ../secrets/app/email_host_user.txt
+  email_host_password:
+    file: ../secrets/app/email_host_password.txt

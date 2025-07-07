@@ -16,3 +16,4 @@ core/config/local_settings.py
 core/media
 core/staticfiles
 celerybeat-schedule*
+secrets
