@@ -6,3 +6,10 @@ __pycache__
 /core/config/local_settings.py
 media
 celerybeat-schedule.*
+core/staticfiles
+# ignore everything in secrets
+secrets/**
+# don't ignore directories inside secrets
+!secrets/*/
+# don't ignore example files in secrets
+!secrets/**/*example*

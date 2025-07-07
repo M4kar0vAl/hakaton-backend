@@ -1,28 +1,30 @@
-from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
-from core.apps.chat.models import Room, RoomFavorites, MessageAttachment, Message
+from core.apps.accounts.factories import UserFactory
+from core.apps.chat.factories import RoomFactory, MessageFactory
+from core.apps.chat.models import RoomFavorites
+from tests.factories import APIClientFactory
 
-User = get_user_model()
 
-
+@override_settings(
+    STORAGES={
+        "default": {
+            "BACKEND": "django.core.files.storage.InMemoryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    },
+)
 class RoomFavoritesCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
-
-        cls.room = Room.objects.create(type=Room.MATCH)
+        cls.user = UserFactory()
+        cls.auth_client = APIClientFactory(user=cls.user)
+        cls.room = RoomFactory()
 
         cls.url = reverse('chat_favorites-list')
 
@@ -61,17 +63,8 @@ class RoomFavoritesCreateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_room_favorites_create_includes_last_message_attachments(self):
-        message = Message.objects.create(
-            text='asdaw',
-            user=self.user,
-            room=self.room
-        )
-
-        attachments = MessageAttachment.objects.bulk_create([
-            MessageAttachment(file='file1', message=message),
-            MessageAttachment(file='file2', message=message),
-        ])
-        attachments_ids = [a.id for a in attachments]
+        message = MessageFactory(user=self.user, room=self.room, has_attachments=True)
+        attachments_ids = [a.pk for a in message.attachments.all()]
 
         response = self.auth_client.post(self.url, {'room': self.room.id})
 

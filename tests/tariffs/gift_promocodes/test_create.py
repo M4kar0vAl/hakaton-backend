@@ -1,65 +1,26 @@
-from datetime import timedelta
-
-from cities_light.models import Country, City
-from django.contrib.auth import get_user_model
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
-from core.apps.brand.models import Brand, Category
-from core.apps.payments.models import Tariff, PromoCode, Subscription
-
-User = get_user_model()
+from core.apps.accounts.factories import UserFactory
+from core.apps.brand.factories import BrandShortFactory
+from core.apps.payments.factories import TariffFactory, PromoCodeFactory, SubscriptionFactory, GiftPromoCodeFactory
+from tests.factories import APIClientFactory
 
 
 class GiftPromoCodeCreateTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user = User.objects.create_user(
-            email=f'user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
+        cls.user = UserFactory()
+        cls.auth_client = APIClientFactory(user=cls.user)
+        cls.brand = BrandShortFactory(user=cls.user)
 
-        cls.auth_client = APIClient()
-        cls.auth_client.force_authenticate(cls.user)
+        cls.trial_tariff = TariffFactory(trial=True)
+        cls.lite_tariff = TariffFactory(lite=True)
+        cls.business_tariff = TariffFactory(business=True)
 
-        country = Country.objects.create(name='Country', continent='EU')
-        city = City.objects.create(name='City', country=country)
-
-        brand_data = cls.brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        cls.brand = Brand.objects.create(user=cls.user, **brand_data)
-
-        cls.trial_tariff = Tariff.objects.get(name='Trial')
-        cls.lite_tariff = Tariff.objects.get(name='Lite Match')
-        cls.business_tariff = Tariff.objects.get(name='Business Match')
-        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
-
-        now = timezone.now()
-        cls.promocode = PromoCode.objects.create(code='test', discount=5, expires_at=now + timedelta(days=30))
-
-        Subscription.objects.create(
-            brand=cls.brand,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
-        )
+        cls.active_sub = SubscriptionFactory(brand=cls.brand, tariff=cls.business_tariff)
+        cls.promocode = PromoCodeFactory()
 
         cls.url = reverse('gift_promocodes-list')
 
@@ -69,34 +30,18 @@ class GiftPromoCodeCreateTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_create_gift_promocode_wo_brand_not_allowed(self):
-        user_wo_brand = User.objects.create_user(
-            email=f'user2@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        user_wo_brand = UserFactory()
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.post(self.url, {'tariff': self.lite_tariff.id})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_create_gift_promocode_wo_active_sub_not_allowed(self):
-        user_wo_active_sub = User.objects.create_user(
-            email='user_wo_active_sub@example.com',
-            phone='+79993332213',
-            fullname='Юзеров Юзер2 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
+        user_wo_active_sub = UserFactory()
+        client_wo_active_sub = APIClientFactory(user=user_wo_active_sub)
 
-        client_wo_active_sub = APIClient()
-        client_wo_active_sub.force_authenticate(user_wo_active_sub)
-
-        Brand.objects.create(user=user_wo_active_sub, **self.brand_data)
+        BrandShortFactory(user=user_wo_active_sub)
 
         response = client_wo_active_sub.post(self.url, {'tariff': self.lite_tariff.id})
 
@@ -126,18 +71,14 @@ class GiftPromoCodeCreateTestCase(APITestCase):
         self.assertEqual(response.data['promocode'], self.promocode.id)
 
     def test_create_gift_promocode_if_promocode_already_used_in_gift(self):
-        self.auth_client.post(self.url, {'tariff': self.business_tariff.id, 'promocode': self.promocode.id})
+        GiftPromoCodeFactory(giver=self.brand, promocode=self.promocode)
         response = self.auth_client.post(self.url, {'tariff': self.lite_tariff.id, 'promocode': self.promocode.id})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_gift_promocode_if_promocode_already_used_in_subscription(self):
-        Subscription.objects.create(
-            brand=self.brand,
-            tariff=self.lite_tariff,
-            end_date=timezone.now() + timedelta(days=1),
-            promocode=self.promocode  # use promo code
-        )
+        self.active_sub.promocode = self.promocode
+        self.active_sub.save()
 
         response = self.auth_client.post(self.url, {
             'tariff': self.lite_tariff.id,

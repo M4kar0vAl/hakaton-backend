@@ -4,12 +4,17 @@ services:
     image: w2w_django
     pull_policy: never
     env_file:
-      - ../example.env
+      - ../.env
+    environment:
+      DB_NAME: /run/secrets/db_name
+      DB_USER: /run/secrets/db_user
+      DB_PASS: /run/secrets/db_password
+      SECRET_KEY: /run/secrets/secret_key
+      EMAIL_HOST_USER: /run/secrets/email_host_user
+      EMAIL_HOST_PASSWORD: /run/secrets/email_host_password
     restart: on-failure
     networks:
       - dev-net
-    volumes:
-      - ../core:/app/core
     entrypoint:
       - celery
       - -A
@@ -17,20 +22,30 @@ services:
       - worker
       - -l
       - INFO
+    secrets:
+      - db_name
+      - db_user
+      - db_password
+      - secret_key
+      - email_host_user
+      - email_host_password
 
   celery_beat:
     container_name: celery_beat
     image: w2w_django
     pull_policy: never
     env_file:
-      - ../example.env
+      - ../.env
+    environment:
+      DB_NAME: /run/secrets/db_name
+      DB_USER: /run/secrets/db_user
+      DB_PASS: /run/secrets/db_password
+      SECRET_KEY: /run/secrets/secret_key
     depends_on:
       - celery_worker
     restart: on-failure
     networks:
       - dev-net
-    volumes:
-      - ../core:/app/core
     entrypoint:
       - celery
       - -A
@@ -38,9 +53,55 @@ services:
       - beat
       - -l
       - INFO
+    secrets:
+      - db_name
+      - db_user
+      - db_password
+      - secret_key
+
+  flower:
+    container_name: flower
+    image: w2w_django
+    ports:
+      - "5555:5555"
+    pull_policy: never
+    env_file:
+      - ../.env
+    environment:
+      DB_NAME: /run/secrets/db_name
+      DB_USER: /run/secrets/db_user
+      DB_PASS: /run/secrets/db_password
+      SECRET_KEY: /run/secrets/secret_key
+    networks:
+      - dev-net
+    entrypoint:
+      - celery
+      - -A
+      - core.config
+      - flower
+    secrets:
+      - db_name
+      - db_user
+      - db_password
+      - secret_key
 
 
 networks:
   dev-net:
     name: dev-net
     driver: bridge
+
+
+secrets:
+  db_name:
+    file: ../secrets/db/db_name.txt
+  db_user:
+    file: ../secrets/db/db_user.txt
+  db_password:
+    file: ../secrets/db/db_password.txt
+  secret_key:
+    file: ../secrets/app/secret_key.txt
+  email_host_user:
+    file: ../secrets/app/email_host_user.txt
+  email_host_password:
+    file: ../secrets/app/email_host_password.txt

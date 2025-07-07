@@ -1,6 +1,9 @@
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
+
+from core.common.utils import get_secret
 
 try:
     from .local_settings import *
@@ -9,7 +12,7 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY')
+SECRET_KEY = get_secret('SECRET_KEY')
 
 DEBUG = os.getenv('DEBUG') == 'True'
 
@@ -56,6 +59,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'core.config.urls'
+CHANNELS_URLCONF = 'core.apps.chat.routing'
 
 TEMPLATES = [
     {
@@ -128,7 +132,7 @@ STORAGES = {
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760 # 10Mb
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10Mb
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5Mb
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -220,12 +224,16 @@ else:
         },
     }
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_USE_SSL = False
-EMAIL_USE_TLS = True
+# Use console backend in development,
+# otherwise use SMTP backend (default)
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL') == 'True'
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS') == 'True'
 EMAIL_HOST = os.getenv('EMAIL_HOST')
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+EMAIL_HOST_USER = get_secret('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = get_secret('EMAIL_HOST_PASSWORD')
 EMAIL_PORT = os.getenv('EMAIL_PORT')
 
 # cities_light
@@ -237,9 +245,10 @@ CITIES_LIGHT_INCLUDE_CITY_TYPES = ['PPL', 'PPLA', 'PPLA2', 'PPLA3', 'PPLA4', 'PP
 RABBITMQ_USER = os.getenv('RABBITMQ_DEFAULT_USER')
 RABBITMQ_PASS = os.getenv('RABBITMQ_DEFAULT_PASS')
 RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
+RABBITMQ_PORT = os.getenv('RABBITMQ_PORT')
 
 # celery
-CELERY_BROKER_URL = f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}:5672'
+CELERY_BROKER_URL = f'amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}:{RABBITMQ_PORT}'
 
 # TinyMCE
 TINYMCE_EXTRA_MEDIA = {
@@ -290,13 +299,13 @@ TINYMCE_DEFAULT_CONFIG = {
             "items": 'help'
         }
     },
-    "plugins":  "advlist,autolink,lists,link,image,charmap,preview,anchor,"
-                "searchreplace,visualblocks,code,fullscreen,insertdatetime,media,table,"
-                "code,help,wordcount,emoticons,pagebreak,nonbreaking,accordion,autosave",
+    "plugins": "advlist,autolink,lists,link,image,charmap,preview,anchor,"
+               "searchreplace,visualblocks,code,fullscreen,insertdatetime,media,table,"
+               "code,help,wordcount,emoticons,pagebreak,nonbreaking,accordion,autosave",
     "toolbar_mode": "sliding",
-    "toolbar":  "undo redo | fontfamily fontsize lineheight | bold italic underline backcolor forecolor | "
-                "styles | bullist numlist outdent indent | removeformat | preview fullscreen",
-    "insertdatetime_formats": [ '%H:%M:%S', "%d.%m.%Y" ],
+    "toolbar": "undo redo | fontfamily fontsize lineheight | bold italic underline backcolor forecolor | "
+               "styles | bullist numlist outdent indent | removeformat | preview fullscreen",
+    "insertdatetime_formats": ['%H:%M:%S', "%d.%m.%Y"],
     "skin": "oxide-dark",
     "file_picker_callback": 'filePicker',  # see core/static/tinymce/js/filePicker.js for code
     "images_upload_url": "/api/v1/tinymce/upload",
@@ -322,3 +331,5 @@ ALLOWED_AUDIO_MIME_TYPES = [
 # chat app
 # how much time an unlinked (message=None) attachment should stay on the server
 MESSAGE_ATTACHMENT_DANGLING_LIFE_TIME = timedelta(minutes=10)
+MESSAGE_ATTACHMENT_MAX_SIZE = 5242880  # 5Mb
+MESSAGE_ATTACHMENT_ALLOWED_MIME_TYPES = ALLOWED_IMAGE_MIME_TYPES + ALLOWED_VIDEO_MIME_TYPES + ALLOWED_AUDIO_MIME_TYPES

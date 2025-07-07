@@ -1,16 +1,12 @@
-from channels.db import database_sync_to_async
-from cities_light.models import Country, City
-from django.contrib.auth import get_user_model
+import factory
 from django.test import override_settings, TransactionTestCase, tag
 from rest_framework import status
 
-from core.apps.brand.models import Brand, Category
-from core.apps.chat.consumers import AdminRoomConsumer
-from core.apps.chat.models import Room, Message, MessageAttachment
+from core.apps.accounts.factories import UserAsyncFactory, UserFactory
+from core.apps.chat.factories import RoomAsyncFactory, MessageAsyncFactory
+from core.apps.chat.models import Room
 from tests.mixins import AdminRoomConsumerActionsMixin
-from tests.utils import get_websocket_communicator_for_user
-
-User = get_user_model()
+from tests.utils import get_admin_communicator, websocket_connect
 
 
 @override_settings(
@@ -18,126 +14,68 @@ User = get_user_model()
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer"
         }
-    }
+    },
+    STORAGES={
+        "default": {
+            "BACKEND": "django.core.files.storage.InMemoryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    },
 )
 @tag('slow', 'chats')
 class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerActionsMixin):
-    serialized_rollback = True
 
     def setUp(self):
-        self.admin_user = User.objects.create_superuser(
-            email=f'admin_user@example.com',
-            phone='+79993332211',
-            fullname='Админов Админ Админович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        self.path = 'ws/admin-chat/'
-        self.accepted_protocol = 'admin-chat'
+        self.admin_user = UserFactory(admin=True)
 
     async def test_get_rooms(self):
-        users = await User.objects.abulk_create([
-            User(
-                email=f'user{i}@example.com',
-                phone='+79993332211',
-                fullname='Юзеров Юзер Юзерович',
-                password='Pass!234',
-                is_active=True
-            )
-            for i in range(1, 3)
-        ])
+        user1, user2 = await UserAsyncFactory(2)
+        another_admin = await UserAsyncFactory(admin=True)
 
-        user1, user2 = users
-
-        country = await Country.objects.acreate(name='Country', continent='EU')
-        city = await City.objects.acreate(name='City', country=country)
-
-        brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'city': city,
-            'name': 'brand1',
-            'position': 'position',
-            'category': await Category.objects.aget(id=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        await Brand.objects.abulk_create([Brand(user=user, **brand_data) for user in users])
-
-        rooms = await Room.objects.abulk_create([
-            Room(type=Room.SUPPORT),
-            Room(type=Room.SUPPORT),
-            Room(type=Room.SUPPORT),
-            Room(type=Room.SUPPORT),
-            Room(type=Room.MATCH),
-            Room(type=Room.MATCH),
-            Room(type=Room.INSTANT),
-            Room(type=Room.INSTANT)
-        ])
-
-        (support_room1,
-         support_room2,
-         own_support_room,
-         support_another_admin,
-         match_room,
-         match_room_1_deleted,
-         instant_room,
-         instant_room_1_deleted) = rooms
-
-        another_admin = await database_sync_to_async(User.objects.create_superuser)(
-            email=f'admin_user1@example.com',
-            phone='+79993332211',
-            fullname='Админов Админ Админович',
-            password='Pass!234',
-            is_active=True
+        (
+            support_room1,
+            support_room2,
+            own_support_room,
+            support_another_admin
+        ) = support_rooms = await RoomAsyncFactory(
+            4, type=Room.SUPPORT, participants=factory.Iterator([[user1], [user2], [self.admin_user], [another_admin]])
         )
 
-        await support_room1.participants.aset([user1])
-        await support_room2.participants.aset([user2])
-        await own_support_room.participants.aset([self.admin_user])
-        await support_another_admin.participants.aset([another_admin])
-        await match_room.participants.aset([user1, user2])
-        await match_room_1_deleted.participants.aset([user1])
-        await instant_room.participants.aset([user1, user2])
-        await instant_room_1_deleted.participants.aset([user1])
-
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
+        (
+            match_room,
+            instant_room,
+            match_room_1_deleted,
+            instant_room_1_deleted
+        ) = other_rooms = await RoomAsyncFactory(
+            4,
+            type=factory.Iterator([Room.MATCH, Room.INSTANT]),
+            participants=factory.Iterator([[user1, user2], [user1, user2], [user1], [user1]])
         )
+        rooms = support_rooms + other_rooms
 
-        connected, _ = await communicator.connect()
+        communicator = get_admin_communicator(self.admin_user)
 
-        self.assertTrue(connected)
-
-        response = await self.get_rooms(communicator, 1)
-
-        await communicator.disconnect()
+        async with websocket_connect(communicator):
+            response = await self.get_rooms(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
         results = response['data']['results']
 
         self.assertEqual(len(results), len(rooms))  # admins get all rooms
 
-        support_room1_response = list(filter(lambda obj: obj['id'] == support_room1.id, results))
-        support_room2_response = list(filter(lambda obj: obj['id'] == support_room2.id, results))
-        own_support_room_response = list(filter(lambda obj: obj['id'] == own_support_room.id, results))
+        support_room1_response = list(filter(lambda obj: obj['id'] == support_room1.pk, results))
+        support_room2_response = list(filter(lambda obj: obj['id'] == support_room2.pk, results))
+        own_support_room_response = list(filter(lambda obj: obj['id'] == own_support_room.pk, results))
         support_another_admin_response = list(
-            filter(lambda obj: obj['id'] == support_another_admin.id, results)
+            filter(lambda obj: obj['id'] == support_another_admin.pk, results)
         )
-        match_room_response = list(filter(lambda obj: obj['id'] == match_room.id, results))
-        match_room_1_deleted_response = list(filter(lambda obj: obj['id'] == match_room_1_deleted.id, results))
-        instant_room_response = list(filter(lambda obj: obj['id'] == instant_room.id, results))
+        match_room_response = list(filter(lambda obj: obj['id'] == match_room.pk, results))
+        match_room_1_deleted_response = list(filter(lambda obj: obj['id'] == match_room_1_deleted.pk, results))
+        instant_room_response = list(filter(lambda obj: obj['id'] == instant_room.pk, results))
         instant_room_1_deleted_response = list(
-            filter(lambda obj: obj['id'] == instant_room_1_deleted.id, results)
+            filter(lambda obj: obj['id'] == instant_room_1_deleted.pk, results)
         )
 
         # check number of interlocutors in rooms
@@ -150,7 +88,7 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
 
         # check support room of another admin
         self.assertEqual(len(support_another_admin_response[0]['interlocutors']), 1)
-        self.assertEqual(support_another_admin_response[0]['interlocutors'][0]['id'], another_admin.id)
+        self.assertEqual(support_another_admin_response[0]['interlocutors'][0]['id'], another_admin.pk)
 
         # check match room
         self.assertEqual(len(match_room_response[0]['interlocutors']), 2)
@@ -165,93 +103,47 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
         self.assertEqual(len(instant_room_1_deleted_response[0]['interlocutors']), 1)
 
     async def test_get_rooms_pagination(self):
-        rooms = await Room.objects.abulk_create([
-            Room(type=Room.SUPPORT)
-            for _ in range(120)
-        ])
+        rooms = await RoomAsyncFactory(120, type=Room.SUPPORT)
+        message1 = await MessageAsyncFactory(user=self.admin_user, room=rooms[10])
+        message2 = await MessageAsyncFactory(user=self.admin_user, room=rooms[11])
 
-        message1 = await Message.objects.acreate(
-            text='afasf',
-            user=self.admin_user,
-            room=rooms[10]
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
-        message2 = await Message.objects.acreate(
-            text='afasf',
-            user=self.admin_user,
-            room=rooms[11]
-        )
+        async with websocket_connect(communicator):
+            # page 1
+            response = await self.get_rooms(communicator, 1)
 
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            data = response['data']
+            results = data['results']
 
-        connected, _ = await communicator.connect()
+            self.assertEqual(data['count'], len(rooms))
+            self.assertEqual(len(results), 100)
+            self.assertEqual(data['next'], 2)
 
-        self.assertTrue(connected)
+            # check ordering
+            # rooms are ordered by the room last message's 'created_at' field descending
+            self.assertEqual(results[0]['last_message']['id'], message2.pk)
+            self.assertEqual(results[1]['last_message']['id'], message1.pk)
 
-        # page 1
-        response = await self.get_rooms(communicator, 1)
+            # page 2
+            response = await self.get_rooms(communicator, 2)
 
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            self.assertEqual(response['response_status'], status.HTTP_200_OK)
+            data = response['data']
 
-        count = response['data']['count']
-        results = response['data']['results']
-        next_ = response['data']['next']
-
-        self.assertEqual(count, len(rooms))
-        self.assertEqual(len(results), 100)
-        self.assertEqual(next_, 2)
-
-        # check ordering
-        # rooms are ordered by the room last message's 'created_at' field descending
-        self.assertEqual(results[0]['last_message']['id'], message2.id)
-        self.assertEqual(results[1]['last_message']['id'], message1.id)
-
-        # page 2
-        response = await self.get_rooms(communicator, 2)
-
-        self.assertEqual(response['response_status'], status.HTTP_200_OK)
-
-        results = response['data']['results']
-        next_ = response['data']['next']
-
-        self.assertEqual(len(results), 20)
-        self.assertIsNone(next_)
-
-        await communicator.disconnect()
+            self.assertEqual(len(data['results']), 20)
+            self.assertIsNone(data['next'])
 
     async def test_get_rooms_last_message_includes_attachments(self):
-        room = await Room.objects.acreate(type=Room.SUPPORT)
+        room = await RoomAsyncFactory(type=Room.SUPPORT)
+        message = await MessageAsyncFactory(user=self.admin_user, room=room, has_attachments=True)
+        attachments_ids = [pk async for pk in message.attachments.values_list('pk', flat=True).aiterator()]
 
-        message = await Message.objects.acreate(
-            text='afasf',
-            user=self.admin_user,
-            room=room
-        )
+        communicator = get_admin_communicator(self.admin_user)
 
-        attachments = await MessageAttachment.objects.abulk_create([
-            MessageAttachment(file='file1', message=message),
-            MessageAttachment(file='file2', message=message),
-        ])
-        attachments_ids = [a.id for a in attachments]
-
-        communicator = get_websocket_communicator_for_user(
-            url_pattern=self.path,
-            path=self.path,
-            consumer_class=AdminRoomConsumer,
-            protocols=[self.accepted_protocol],
-            user=self.admin_user
-        )
-
-        connected, _ = await communicator.connect()
-        self.assertTrue(connected)
-
-        response = await self.get_rooms(communicator, 1)
+        async with websocket_connect(communicator):
+            response = await self.get_rooms(communicator, 1)
 
         self.assertEqual(response['response_status'], status.HTTP_200_OK)
 
@@ -263,5 +155,3 @@ class AdminRoomConsumerGetRoomsTestCase(TransactionTestCase, AdminRoomConsumerAc
 
         response_attachments_ids = [a['id'] for a in last_message['attachments']]
         self.assertEqual(response_attachments_ids, attachments_ids)
-
-        await communicator.disconnect()

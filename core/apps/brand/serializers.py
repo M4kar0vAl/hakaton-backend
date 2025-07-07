@@ -10,7 +10,7 @@ from django.db import transaction, DatabaseError
 from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
-from rest_framework import serializers, exceptions
+from rest_framework import serializers
 
 from core.apps.accounts.serializers import UserSerializer
 from core.apps.analytics.models import BrandActivity
@@ -794,12 +794,12 @@ class GetShortBrandSerializer(serializers.ModelSerializer):
 
 
 class MatchSerializer(serializers.ModelSerializer):
-    target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.all(), write_only=True)
+    target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.filter(user__isnull=False), write_only=True)
 
     class Meta:
         model = Match
         exclude = ['initiator']
-        read_only_fields = ['id', 'is_match', 'room']
+        read_only_fields = ['id', 'is_match', 'room', 'match_at']
 
     def validate(self, attrs):
         initiator = self.context['request'].user.brand
@@ -866,65 +866,62 @@ class MatchSerializer(serializers.ModelSerializer):
 
 
 class InstantCoopSerializer(serializers.ModelSerializer):
+    from core.apps.chat.serializers import RoomSerializer
+
+    target = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.filter(user__isnull=False), write_only=True)
+    room = RoomSerializer(read_only=True)
+
     class Meta:
-        model = Room
-        exclude = []
-        read_only_fields = ['id', 'participants', 'type']
+        model = Match
+        exclude = ['initiator']
+        read_only_fields = ['id', 'is_match', 'match_at']
 
     def validate(self, attrs):
         initiator = self.context['request'].user.brand
-        target_id = self.context['target_id']
+        target = attrs.get('target')
 
-        if initiator.pk == target_id:
+        if initiator.pk == target.pk:
             raise serializers.ValidationError("You cannot cooperate with yourself!")
 
         try:
-            target = Brand.objects.get(pk=target_id)
-        except Brand.DoesNotExist:
-            raise exceptions.NotFound(f"Brand with id: {target_id} not found!")
+            match = Match.objects.get(initiator=initiator, target=target)
+        except Match.DoesNotExist:
+            match = None
 
-        try:
-            # intersection of querysets
-            # if initiator's instant rooms queryset and target's instant rooms queryset has common room,
-            # then it means that they already have instant cooperation. No need to make another room
-            common_room = (
-                initiator.user.rooms.filter(type=Room.INSTANT).intersection(target.user.rooms.filter(type=Room.INSTANT))
-            ).get()
-            # if common room exist, then raise an exception.
-            raise serializers.ValidationError(f"You already have a chat with this brand! Room id: {common_room.pk}.")
-        except Room.DoesNotExist:
-            # if common room does not exist, then everything is fine. Continue and create one.
-            pass
+        if match is None:
+            raise serializers.ValidationError("You haven't liked this brand yet!")
+
+        if match.is_match:
+            raise serializers.ValidationError("You already have match with this brand!")
+
+        initiator_instant_rooms = initiator.user.rooms.filter(type=Room.INSTANT)
+        target_instant_room = target.user.rooms.filter(type=Room.INSTANT)
+        is_common_room_exists = initiator_instant_rooms.intersection(target_instant_room).exists()
+
+        if is_common_room_exists:
+            raise serializers.ValidationError("You already have a chat with this brand!")
 
         attrs['initiator'] = initiator
-        attrs['target'] = target
+        attrs['match'] = match
 
         return attrs
 
     def create(self, validated_data):
         initiator = validated_data.get('initiator')
         target = validated_data.get('target')
+        match = validated_data.get('match')
 
         try:
             with transaction.atomic():
                 room = Room.objects.create(type=Room.INSTANT)
                 room.participants.add(initiator.user, target.user)
 
-                # assign instant room to this like.
-                # Like MUST exist because otherwise permission will be denied (see brand.permissions.CanInstantCoop)
-                Match.objects.filter(
-                    initiator=initiator,
-                    target=target,
-                    is_match=False
-                ).update(room=room)
+                match.room = room
+                match.save()
         except DatabaseError:
             raise ServerError('Failed to perform action. Please, try again!')
 
-        return room
-
-
-class InstantCoopRequestSerializer(serializers.Serializer):
-    target = serializers.IntegerField(write_only=True)
+        return match
 
 
 class CollaborationSerializer(serializers.ModelSerializer):

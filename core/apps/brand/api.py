@@ -4,7 +4,7 @@ import shutil
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
-from django.db.models import Q, Subquery, Prefetch, Value, Count, OuterRef
+from django.db.models import Q, Subquery, Prefetch, OuterRef
 from django.http import QueryDict
 from rest_framework import viewsets, status, generics, serializers, mixins
 from rest_framework.decorators import action
@@ -27,8 +27,13 @@ from core.apps.brand.models import (
     Match
 )
 from core.apps.brand.pagination import StandardResultsSetPagination
-from core.apps.brand.permissions import IsBrand, CanInstantCoop, IsNotCurrentBrand, NotInBlacklistOfTarget, \
+from core.apps.brand.permissions import (
+    IsBrand,
+    CanInstantCoop,
+    IsNotCurrentBrand,
+    NotInBlacklistOfTarget,
     DidNotBlockTarget
+)
 from core.apps.brand.serializers import (
     QuestionnaireChoicesSerializer,
     BrandCreateSerializer,
@@ -127,7 +132,7 @@ class BrandViewSet(
             # Prefetch product_photos of the CARD format to improve performance
             # and set them to a 'card_photos' attribute
             # prefetch instant rooms for the brand user
-            return Brand.objects.filter(pk__in=Subquery(my_likes_ids)).select_related('user').prefetch_related(
+            return Brand.objects.filter(pk__in=Subquery(my_likes_ids)).select_related('user', 'city').prefetch_related(
                 Prefetch(
                     'product_photos',
                     queryset=ProductPhoto.objects.filter(format=ProductPhoto.CARD),
@@ -162,7 +167,7 @@ class BrandViewSet(
             # prefetch card photos and match rooms to improve performance
             return Brand.objects.filter(
                 Q(pk__in=Subquery(my_matches_ids_as_initiator)) | Q(pk__in=Subquery(my_matches_ids_as_target))
-            ).select_related('user').prefetch_related(
+            ).select_related('user', 'city').prefetch_related(
                 Prefetch(
                     'product_photos',
                     queryset=ProductPhoto.objects.filter(format=ProductPhoto.CARD),
@@ -241,10 +246,7 @@ class BrandViewSet(
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        if self.action == 'instant_coop':
-            context['target_id'] = context['request'].data.get('target')
-
-        elif self.action == 'my_likes':
+        if self.action == 'my_likes':
             # pass ids of current user's rooms
             # evaluate queryset here to avoid reevaluating it each time
             # self.context['current_user_instant_room_ids'] is called
@@ -431,7 +433,7 @@ class BrandViewSet(
 
     @action(detail=False, methods=['post'])
     def instant_coop(self, request):
-        serializer = self.get_serializer(data={})
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(data=serializer.data, status=status.HTTP_201_CREATED)

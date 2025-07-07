@@ -29,6 +29,8 @@ celery = "^5.5.1"
 django-tinymce = "^4.1.0"
 beautifulsoup4 = "^4.13.4"
 lxml = "^5.4.0"
+factory-boy = "^3.3.3"
+flower = "^2.0.1"
 
 
 [tool.poetry.group.prod.dependencies]

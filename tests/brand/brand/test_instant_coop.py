@@ -1,107 +1,42 @@
-from django.contrib.auth import get_user_model
+import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
-from core.apps.blacklist.models import BlackList
-from core.apps.brand.models import Brand, Category
+from core.apps.accounts.factories import UserFactory
+from core.apps.blacklist.factories import BlackListFactory
+from core.apps.brand.factories import BrandShortFactory, MatchFactory
 from core.apps.chat.models import Room
-from core.apps.payments.models import Subscription, Tariff
-
-User = get_user_model()
+from core.apps.payments.factories import SubscriptionFactory, TariffFactory
+from tests.factories import APIClientFactory
 
 
 class BrandInstantCooperationTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user1 = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
+        cls.user1, cls.user2, cls.user3 = UserFactory.create_batch(3)
+        cls.auth_client1, cls.auth_client2, cls.auth_client3 = APIClientFactory.create_batch(
+            3, user=factory.Iterator([cls.user1, cls.user2, cls.user3])
         )
 
-        cls.user2 = User.objects.create_user(
-            email='user2@example.com',
-            phone='+79993332212',
-            fullname='Юзеров Юзер1 Юзерович',
-            password='Pass!234',
-            is_active=True
+        brands = BrandShortFactory.create_batch(3, user=factory.Iterator([cls.user1, cls.user2, cls.user3]))
+        (
+            cls.brand1,  # business sub and liked brand2
+            cls.brand2,  # without business sub, liked brand3
+            cls.brand3  # business sub, without like
+        ) = brands
+
+        business_tariff = TariffFactory(business=True)
+        SubscriptionFactory.create_batch(
+            3,
+            brand=factory.Iterator(brands),
+            tariff=factory.Iterator([business_tariff, TariffFactory(lite=True), business_tariff])
         )
 
-        cls.user3 = User.objects.create_user(
-            email='user3@example.com',
-            phone='+79993332213',
-            fullname='Юзеров Юзер2 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.auth_client1 = APIClient()
-        cls.auth_client2 = APIClient()
-        cls.auth_client3 = APIClient()
-
-        cls.auth_client1.force_authenticate(cls.user1)
-        cls.auth_client2.force_authenticate(cls.user2)
-        cls.auth_client3.force_authenticate(cls.user3)
-
-        brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(pk=1),
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        cls.business_tariff = Tariff.objects.get(name='Business Match')
-        cls.lite_tariff = Tariff.objects.get(name='Lite Match')
-
-        cls.business_tariff_relativedelta = cls.business_tariff.get_duration_as_relativedelta()
-        cls.lite_tariff_relativedelta = cls.lite_tariff.get_duration_as_relativedelta()
-
-        now = timezone.now()
-
-        # business sub and liked brand2
-        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
-        Subscription.objects.create(
-            brand=cls.brand1,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
-        )
-
-        # without business sub, liked brand3
-        cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
-        Subscription.objects.create(
-            brand=cls.brand2,
-            tariff=cls.lite_tariff,
-            start_date=now,
-            end_date=now + cls.lite_tariff_relativedelta,
-            is_active=True
-        )
-
-        # business sub, without like
-        cls.brand3 = Brand.objects.create(user=cls.user3, **brand_data)
-        Subscription.objects.create(
-            brand=cls.brand3,
-            tariff=cls.business_tariff,
-            start_date=now,
-            end_date=now + cls.business_tariff_relativedelta,
-            is_active=True
-        )
+        cls.like1_2 = MatchFactory(like=True, initiator=cls.brand1, target=cls.brand2)
+        cls.like2_3 = MatchFactory(like=True, initiator=cls.brand2, target=cls.brand3)
 
         cls.url = reverse('brand-instant-coop')
-        cls.like_url = reverse('brand-like')
-
-        cls.like1_2_response = cls.auth_client1.post(cls.like_url, {'target': cls.brand2.id})  # brand1 like brand2
-        cls.like2_3_response = cls.auth_client2.post(cls.like_url, {'target': cls.brand3.id})  # brand2 like brand3
 
     def test_instant_coop_unauthenticated_not_allowed(self):
         response = self.client.post(self.url, {'target': self.brand2.id})
@@ -109,16 +44,8 @@ class BrandInstantCooperationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_instant_coop_wo_brand_not_allowed(self):
-        user_wo_brand = User.objects.create_user(
-            email='user4@example.com',
-            phone='+79993332214',
-            fullname='Юзеров Юзер3 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+        user_wo_brand = UserFactory()
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.post(self.url, {'target': self.brand2.id})
 
@@ -135,7 +62,7 @@ class BrandInstantCooperationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_instant_coop_if_in_blacklist_of_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
+        BlackListFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
 
         # brand1 tries to instant coop brand2
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})
@@ -143,7 +70,7 @@ class BrandInstantCooperationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_instant_coop_if_blocked_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
+        BlackListFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
 
         # brand1 tries to instant coop brand2
         response = self.auth_client1.post(self.url, {'target': self.brand2.id})
@@ -158,22 +85,24 @@ class BrandInstantCooperationTestCase(APITestCase):
         # check that room was created
         self.assertEqual(Room.objects.count(), 1)
 
-        room = Room.objects.prefetch_related('participants').get(pk=response.data['id'])
+        room = Room.objects.prefetch_related('participants').get(pk=response.data['room']['id'])
 
         # check that room type is INSTANT
         self.assertEqual(room.type, Room.INSTANT)
 
         # check that users were added to room participants
-        self.assertTrue(self.brand1.user in room.participants.all())
-        self.assertTrue(self.brand2.user in room.participants.all())
+        participants = list(room.participants.all())
+        self.assertTrue(self.brand1.user in participants)
+        self.assertTrue(self.brand2.user in participants)
 
         # check that instant room was assigned to like
         self.assertIsNotNone(room.match)
-        self.assertEqual(room.match.id, self.like1_2_response.data['id'])
+        self.assertEqual(room.match.id, self.like1_2.pk)
 
     def test_cannot_coop_with_the_same_brand(self):
-        self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 instant coop brand2
-        response = self.auth_client1.post(self.url, {'target': self.brand2.id})  # brand1 instant coop brand2 AGAIN
+        MatchFactory(instant_coop=True, initiator=self.brand1, target=self.brand3)  # brand1 instant coop brand3
+
+        response = self.auth_client1.post(self.url, {'target': self.brand3.id})  # brand1 instant coop brand3 AGAIN
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -181,9 +110,15 @@ class BrandInstantCooperationTestCase(APITestCase):
         self.assertEqual(Room.objects.count(), 1)
 
     def test_instant_coop_with_match_not_allowed(self):
-        self.auth_client1.post(self.like_url, {'target': self.brand3.id})
-        self.auth_client3.post(self.like_url, {'target': self.brand1.id})
+        MatchFactory(initiator=self.brand1, target=self.brand3)
 
         response = self.auth_client1.post(self.url, {'target': self.brand3.id})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_instant_coop_cannot_cooperate_with_himself(self):
+        MatchFactory(like=True, initiator=self.brand1, target=self.brand1)
+
+        response = self.auth_client1.post(self.url, {'target': self.brand1.pk})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

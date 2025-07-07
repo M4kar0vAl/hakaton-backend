@@ -1,4 +1,15 @@
+import os
 import uuid
+
+
+def get_secret(key):
+    value = os.getenv(key)
+
+    if os.path.isfile(value):
+        with open(value) as f:
+            return f.read()
+
+    return value
 
 
 def get_file_extension(filename):

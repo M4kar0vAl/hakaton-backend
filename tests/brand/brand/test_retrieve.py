@@ -1,70 +1,23 @@
-from django.contrib.auth import get_user_model
+import factory
 from django.urls import reverse
-from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITestCase, APIClient
+from rest_framework.test import APITestCase
 
-from core.apps.blacklist.models import BlackList
-from core.apps.brand.models import Brand, Category
-from core.apps.payments.models import Tariff, Subscription
-
-User = get_user_model()
+from core.apps.accounts.factories import UserFactory
+from core.apps.blacklist.factories import BlackListFactory
+from core.apps.brand.factories import BrandShortFactory
+from tests.factories import APIClientFactory
 
 
 class BrandRetrieveTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.user1 = User.objects.create_user(
-            email='user1@example.com',
-            phone='+79993332211',
-            fullname='Юзеров Юзер Юзерович',
-            password='Pass!234',
-            is_active=True
+        cls.user1, cls.user2 = UserFactory.create_batch(2)
+        cls.auth_client1, cls.auth_client2 = APIClientFactory.create_batch(
+            2, user=factory.Iterator([cls.user1, cls.user2])
         )
-        cls.user2 = User.objects.create_user(
-            email='user2@example.com',
-            phone='+79993332212',
-            fullname='Юзеров Юзер1 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        cls.auth_client1 = APIClient()
-        cls.auth_client2 = APIClient()
-        cls.auth_client1.force_authenticate(cls.user1)
-        cls.auth_client2.force_authenticate(cls.user2)
-
-        brand_data = {
-            'tg_nickname': '@asfhbnaf',
-            'name': 'brand1',
-            'position': 'position',
-            'category': Category.objects.get(pk=1),
-            'inst_url': 'https://example.com',
-            'vk_url': 'https://example.com',
-            'tg_url': 'https://example.com',
-            'wb_url': 'https://example.com',
-            'lamoda_url': 'https://example.com',
-            'site_url': 'https://example.com',
-            'subs_count': 10000,
-            'avg_bill': 10000,
-            'uniqueness': 'uniqueness',
-            'logo': 'string',
-            'photo': 'string'
-        }
-
-        cls.brand1 = Brand.objects.create(user=cls.user1, **brand_data)
-        cls.brand2 = Brand.objects.create(user=cls.user2, **brand_data)
-
-        cls.tariff = Tariff.objects.get(name='Lite Match')
-        cls.tariff_relativedelta = cls.tariff.get_duration_as_relativedelta()
-        now = timezone.now()
-
-        Subscription.objects.create(
-            brand=cls.brand1,
-            tariff=cls.tariff,
-            start_date=now,
-            end_date=now + cls.tariff_relativedelta,
-            is_active=True
+        cls.brand1, cls.brand2 = BrandShortFactory.create_batch(
+            2, user=factory.Iterator([cls.user1, cls.user2]), has_sub=factory.Iterator([True, False])
         )
 
         cls.brand1_url = reverse('brand-detail', kwargs={'pk': cls.brand1.pk})
@@ -75,17 +28,9 @@ class BrandRetrieveTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_brand_retieve_wo_brand(self):
-        user_wo_brand = User.objects.create_user(
-            email='user3@example.com',
-            phone='+79993332213',
-            fullname='Юзеров Юзер2 Юзерович',
-            password='Pass!234',
-            is_active=True
-        )
-
-        auth_client_wo_brand = APIClient()
-        auth_client_wo_brand.force_authenticate(user_wo_brand)
+    def test_brand_retrieve_wo_brand(self):
+        user_wo_brand = UserFactory()
+        auth_client_wo_brand = APIClientFactory(user=user_wo_brand)
 
         response = auth_client_wo_brand.get(self.brand1_url)
 
@@ -97,14 +42,14 @@ class BrandRetrieveTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_brand_retrieve_if_in_blacklist_of_target_not_allowed(self):
-        BlackList.objects.create(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
+        BlackListFactory(initiator=self.brand2, blocked=self.brand1)  # brand2 blocked brand1
 
-        response = self.auth_client1.get(self.brand2_url)  # brand1 tries to get nfo about brand2
+        response = self.auth_client1.get(self.brand2_url)  # brand1 tries to get info about brand2
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_brand_retrieve_if_blocked_target(self):
-        BlackList.objects.create(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
+        BlackListFactory(initiator=self.brand1, blocked=self.brand2)  # brand1 blocked brand2
 
         response = self.auth_client1.get(self.brand2_url)  # brand1 tries to get nfo about brand2
 
@@ -115,7 +60,6 @@ class BrandRetrieveTestCase(APITestCase):
         response = self.auth_client1.get(self.brand2_url)  # brand1 gets info about brand2
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
         self.assertEqual(response.data['id'], self.brand2.id)
 
     def test_brand_retrieve_self(self):

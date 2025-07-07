@@ -30,5 +30,9 @@ app.conf.beat_schedule = {
     'password_recovery_tokens_cleanup': {
         'task': 'core.apps.accounts.tasks.password_recovery_tokens_cleanup',
         'schedule': timedelta(seconds=settings.PASSWORD_RESET_TIMEOUT)
+    },
+    'empty_rooms_cleanup': {
+        'task': 'core.apps.chat.tasks.empty_rooms_cleanup',
+        'schedule': timedelta(days=1)
     }
 }

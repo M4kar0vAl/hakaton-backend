@@ -2,6 +2,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from core.apps.brand.factories import CategoryFactory, TagFactory, FormatFactory, GoalFactory
 from core.apps.brand.models import Category, Tag, Format, Goal
 from tests.mixins import AssertNumQueriesLessThanMixin
 
@@ -35,10 +36,10 @@ class QuestionnaireChoicesListTestCase(APITestCase, AssertNumQueriesLessThanMixi
             self.assertEqual(len(response.data[key]), count)
 
     def test_questionnaire_choices_list_exclude_other(self):
-        Category.objects.create(name='test', is_other=True)
-        Tag.objects.create(name='test', is_other=True)
-        Format.objects.create(name='test', is_other=True)
-        Goal.objects.create(name='test', is_other=True)
+        CategoryFactory(is_other=True)
+        TagFactory(is_other=True)
+        FormatFactory(is_other=True)
+        GoalFactory(is_other=True)
 
         response = self.client.get(self.url)
 
